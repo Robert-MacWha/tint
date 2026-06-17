@@ -1,0 +1,4 @@
+[package]
+name = "tint_ecdsa_spendability"
+type = "bin"
+authors = [""]

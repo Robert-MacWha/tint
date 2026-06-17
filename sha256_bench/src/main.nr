@@ -1,7 +1,7 @@
-use ::sha256::digest;
+use std::hash::sha256;
 
 // Adjust DEPTH here to benchmark different sizes
-global DEPTH: u32 = 8;
+global DEPTH: u32 = 4;
 
 // A 4-ary node needs 3 siblings (3 * 32 = 96 bytes) + the current hash (32 bytes)
 fn main(
@@ -36,7 +36,7 @@ fn main(
             preimage[96 + j] = if index == 3 { current[j] } else { sibs[64 + j] };
         }
 
-        current = digest(preimage);
+        current = sha256(preimage);
     }
 
     current

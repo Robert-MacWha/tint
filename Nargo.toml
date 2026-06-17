@@ -1,2 +1,10 @@
 [workspace]
-members = ["members/ecdsa_spendability"]
+members = [
+    "members/aggregator",
+    "members/ecdsa_spendability",
+    "members/dummy/spendability",
+    "members/dummy/inclusion",
+    "members/poseidon2_inclusion",
+    "members/sha256_inclusion",
+    "members/shared",
+]

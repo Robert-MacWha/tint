@@ -1,0 +1,4 @@
+[package]
+name = "tint_dummy_inclusion"
+type = "bin"
+authors = [""]

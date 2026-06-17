@@ -1,0 +1,4 @@
+[package]
+name = "tint_dummy_spendability"
+type = "bin"
+authors = [""]

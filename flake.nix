@@ -1,59 +1,65 @@
 {
-  description = "Dev shell";
+  description = "Noir + Barretenberg Environment";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
-    unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    flake-utils.url = "github:numtide/flake-utils";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
   outputs =
+    { self, nixpkgs }:
+    let
+      system = "x86_64-linux";
+      pkgs = nixpkgs.legacyPackages.${system};
+
+      barretenberg = pkgs.stdenv.mkDerivation {
+        pname = "barretenberg";
+        version = "0.63.0";
+
+        src = pkgs.fetchurl {
+          url = "https://github.com/AztecProtocol/aztec-packages/releases/download/aztec-packages-v0.63.0/barretenberg-x86_64-linux-gnu.tar.gz";
+          hash = "sha256-Y9QUF5cRAZBcwhoHevA1hBJGmoGVQRDlalpraS92znE=";
+        };
+
+        nativeBuildInputs = [ pkgs.autoPatchelfHook ];
+
+        buildInputs = [
+          pkgs.stdenv.cc.cc.lib # libstdc++
+          pkgs.libcxx # libc++
+          pkgs.glibc # libc / libm
+        ];
+
+        sourceRoot = ".";
+
+        installPhase = ''
+          mkdir -p $out/bin
+          cp bb $out/bin/
+        '';
+      };
+
+      nargo = pkgs.stdenv.mkDerivation {
+        pname = "nargo";
+        version = "0.39.0";
+
+        src = pkgs.fetchurl {
+          url = "https://github.com/noir-lang/noir/releases/download/v0.39.0/nargo-x86_64-unknown-linux-gnu.tar.gz";
+          hash = "sha256-E1OpSvYNouAtHuPSg74Q4DdBIfER0oLCR16cuXGyiBk=";
+        };
+
+        sourceRoot = ".";
+
+        installPhase = ''
+          mkdir -p $out/bin
+          cp nargo $out/bin/
+        '';
+      };
+
+    in
     {
-      self,
-      nixpkgs,
-      unstable,
-      rust-overlay,
-      flake-utils,
-    }:
-    flake-utils.lib.eachDefaultSystem (
-      system:
-      let
-        pkgs = import nixpkgs {
-          inherit system;
-          overlays = [ rust-overlay.overlays.default ];
-        };
-
-        unstablePkgs = import unstable {
-          inherit system;
-        };
-
-        rustToolchain = pkgs.rust-bin.stable."1.94.0".default.override {
-          extensions = [
-            "rust-src"
-            "llvm-tools"
-          ];
-          targets = [ "wasm32-unknown-unknown" ];
-        };
-
-        rustfmtNightly = pkgs.rust-bin.nightly.latest.rustfmt;
-
-        noir = pkgs.callPackage ./pkgs/noir/package.nix { };
-        barretenberg = pkgs.callPackage ./pkgs/barretenberg/package.nix { };
-      in
-      {
-        devShells = {
-          default = pkgs.mkShell {
-            packages = [
-              noir
-              barretenberg
-              pkgs.yarn-berry
-            ];
-          };
-        };
-      }
-    );
+      devShells.${system}.default = pkgs.mkShell {
+        buildInputs = [
+          nargo
+          barretenberg
+        ];
+      };
+    };
 }

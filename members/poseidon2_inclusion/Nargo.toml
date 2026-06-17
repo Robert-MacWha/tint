@@ -1,0 +1,4 @@
+[package]
+name = "tint_poseidon2_inclusion"
+type = "bin"
+authors = [""]

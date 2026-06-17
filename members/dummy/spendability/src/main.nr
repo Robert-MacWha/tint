@@ -1,3 +1,4 @@
-fn main(_nullifier: pub Field, dummy_private: Field) {
-    assert(dummy_private == 0, "Dummy private input must be zero");
+fn main(nullifier: pub Field) {
+    let hash = std::hash::poseidon::bn254::hash_1([nullifier]);
+    assert(hash != 0);
 }

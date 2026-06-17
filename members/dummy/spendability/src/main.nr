@@ -1,4 +1,4 @@
 fn main(nullifier: pub Field) {
-    let hash = std::hash::poseidon::bn254::hash_1([nullifier]);
+    let hash = std::hash::pedersen_hash([nullifier]);
     assert(hash != 0);
 }

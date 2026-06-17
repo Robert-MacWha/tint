@@ -1,14 +1,17 @@
+use bb_proof_verification::{UltraHonkVerificationKey, UltraHonkZKProof};
+use poseidon::poseidon2::Poseidon2;
+
 use super::note::Note;
 
 pub struct Input {
     pub note: Note,
     pub nullifier_privkey: Field,
 
-    pub spend_vk: [Field; 114],
-    pub spend_proof: [Field; 93],
+    pub spend_vk: UltraHonkVerificationKey,
+    pub spend_proof: UltraHonkZKProof,
 
-    pub inclusion_vk: [Field; 114],
-    pub inclusion_proof: [Field; 93],
+    pub inclusion_vk: UltraHonkVerificationKey,
+    pub inclusion_proof: UltraHonkZKProof,
     pub is_archive: bool,
 }
 
@@ -17,10 +20,10 @@ impl Input {
         Self {
             note: Note::default(),
             nullifier_privkey: 0,
-            spend_vk: [0; 114],
-            spend_proof: [0; 93],
-            inclusion_vk: [0; 114],
-            inclusion_proof: [0; 93],
+            spend_vk: UltraHonkVerificationKey::default(),
+            spend_proof: UltraHonkZKProof::default(),
+            inclusion_vk: UltraHonkVerificationKey::default(),
+            inclusion_proof: UltraHonkZKProof::default(),
             is_archive: false,
         }
     }
@@ -31,21 +34,20 @@ impl Input {
 
     pub fn nullifier(self) -> Field {
         self.verify_nullifier_key();
-        std::hash::poseidon::bn254::hash_2([self.nullifier_privkey, self.commitment()])
+        Poseidon2::hash([self.nullifier_privkey, self.commitment()], 2)
     }
 
     fn verify_nullifier_key(self) {
-        let computed_nullifier_pubkey =
-            std::hash::poseidon::bn254::hash_1([self.nullifier_privkey]);
+        let computed_nullifier_pubkey = Poseidon2::hash([self.nullifier_privkey], 1);
         assert(computed_nullifier_pubkey == self.note.nullifier_pubkey, "Nullifier key mismatch");
     }
 }
 
-#[test(should_fail)]
+#[test(should_fail_with = "Nullifier key mismatch")]
 fn test_nullifier_key_mismatch() {
     let mut input = Input::default();
     input.nullifier_privkey = 12345;
     input.note.nullifier_pubkey = 54321;
 
-    let _ = input.nullifier(); // This should panic due to nullifier key mismatch
+    let _ = input.nullifier();
 }

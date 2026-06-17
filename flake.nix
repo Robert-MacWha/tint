@@ -1,5 +1,5 @@
 {
-  description = "Noir + Barretenberg Environment";
+  description = "Noir + Barretenberg Environment (1.0.0 Beta)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -9,15 +9,21 @@
     { self, nixpkgs }:
     let
       system = "x86_64-linux";
+      # The exact matched compiler/prover pairs used in Aztec's Mainnet RC
+      bbVersion = "5.0.0-nightly.20260522";
+      noirVersion = "1.0.0-beta.22";
+
       pkgs = nixpkgs.legacyPackages.${system};
 
       barretenberg = pkgs.stdenv.mkDerivation {
         pname = "barretenberg";
-        version = "0.63.0";
+        version = bbVersion;
 
         src = pkgs.fetchurl {
-          url = "https://github.com/AztecProtocol/aztec-packages/releases/download/aztec-packages-v0.63.0/barretenberg-x86_64-linux-gnu.tar.gz";
-          hash = "sha256-Y9QUF5cRAZBcwhoHevA1hBJGmoGVQRDlalpraS92znE=";
+          # Aztec moved standalone binaries to this dedicated mirror repo
+          # and renamed the artifact to amd64-linux
+          url = "https://github.com/AztecProtocol/barretenberg/releases/download/v${bbVersion}/barretenberg-amd64-linux.tar.gz";
+          hash = "sha256-0gfskPv6L7ok16R7enWJLuBSt5hCUrhmpKDBtSluFXE=";
         };
 
         nativeBuildInputs = [ pkgs.autoPatchelfHook ];
@@ -38,11 +44,11 @@
 
       nargo = pkgs.stdenv.mkDerivation {
         pname = "nargo";
-        version = "0.39.0";
+        version = noirVersion;
 
         src = pkgs.fetchurl {
-          url = "https://github.com/noir-lang/noir/releases/download/v0.39.0/nargo-x86_64-unknown-linux-gnu.tar.gz";
-          hash = "sha256-E1OpSvYNouAtHuPSg74Q4DdBIfER0oLCR16cuXGyiBk=";
+          url = "https://github.com/noir-lang/noir/releases/download/v${noirVersion}/nargo-x86_64-unknown-linux-gnu.tar.gz";
+          hash = "sha256-OExPyACQWyE+Jqq9c4qWpKhbGnb/wn+xmuttM0lKeHs=";
         };
 
         sourceRoot = ".";
@@ -59,6 +65,7 @@
         buildInputs = [
           nargo
           barretenberg
+          pkgs.just
         ];
       };
     };

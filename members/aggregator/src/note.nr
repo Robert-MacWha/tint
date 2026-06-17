@@ -1,3 +1,5 @@
+use poseidon::poseidon2::Poseidon2;
+
 pub struct Note {
     pub asset_id: Field,
     pub amount: Field,
@@ -16,12 +18,9 @@ impl Note {
     }
 
     pub fn commitment(self) -> Field {
-        std::hash::poseidon::bn254::hash_5([
-            self.asset_id,
-            self.amount,
-            self.spend_vk_hash,
-            self.salt,
-            self.nullifier_pubkey,
-        ])
+        Poseidon2::hash(
+            [self.asset_id, self.amount, self.spend_vk_hash, self.salt, self.nullifier_pubkey],
+            5,
+        )
     }
 }

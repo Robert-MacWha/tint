@@ -1,5 +1,8 @@
+use bb_proof_verification::verify_honk_proof;
+
 use input::Input;
 use note::Note;
+use poseidon::poseidon2::Poseidon2;
 
 pub mod input;
 pub mod note;
@@ -20,8 +23,8 @@ fn main(
     inputs: [Input; MAX_INPUTS],
     outputs: [Note; MAX_OUTPUTS],
 ) {
-    verify_commitments(commitments, outputs);
     verify_nullifiers(nullifiers, inputs);
+    verify_commitments(commitments, outputs);
     verify_balance(inputs, outputs);
     verify_proofs(staging_root, archive_root, nullifiers, inputs);
 }
@@ -103,7 +106,7 @@ fn verify_proofs(
         let note = inputs[i];
 
         let spendability_public_inputs: [Field; 1] = [nullifier];
-        std::verify_proof(
+        verify_honk_proof(
             note.spend_vk,
             note.spend_proof,
             spendability_public_inputs,
@@ -116,7 +119,7 @@ fn verify_proofs(
         if note.is_archive {
             // Archive Inclusion expects: [root, leaf_commitment]
             let archive_public_inputs: [Field; 2] = [archive_root, commitment];
-            std::verify_proof(
+            verify_honk_proof(
                 note.inclusion_vk,
                 note.inclusion_proof,
                 archive_public_inputs,
@@ -129,7 +132,7 @@ fn verify_proofs(
                 staging_public_inputs[32 + j] = staging_root[j] as Field;
                 staging_public_inputs[j] = commitment_bytes[j] as Field;
             }
-            std::verify_proof(
+            verify_honk_proof(
                 note.inclusion_vk,
                 note.inclusion_proof,
                 staging_public_inputs,
@@ -137,6 +140,77 @@ fn verify_proofs(
             );
         }
     }
+}
+
+#[test]
+fn test_verify_nullifiers() {
+    let nullifier_privkey: Field = 12345;
+    let nullifier_pubkey = Poseidon2::hash([nullifier_privkey], 1);
+
+    let mut inputs = [Input::default(); MAX_INPUTS];
+    for i in 0..MAX_INPUTS {
+        inputs[i].nullifier_privkey = nullifier_privkey;
+        inputs[i].note.nullifier_pubkey = nullifier_pubkey;
+        inputs[i].note.salt = i as Field; // distinct notes => distinct nullifiers
+    }
+
+    let mut nullifiers = [0; MAX_INPUTS];
+    for i in 0..MAX_INPUTS {
+        nullifiers[i] = inputs[i].nullifier();
+    }
+
+    verify_nullifiers(nullifiers, inputs);
+}
+
+#[test(should_fail_with = "Nullifier mismatch")]
+fn test_verify_nullifiers_mismatch() {
+    let nullifier_privkey: Field = 12345;
+    let nullifier_pubkey = Poseidon2::hash([nullifier_privkey], 1);
+
+    let mut inputs = [Input::default(); MAX_INPUTS];
+    for i in 0..MAX_INPUTS {
+        inputs[i].nullifier_privkey = nullifier_privkey;
+        inputs[i].note.nullifier_pubkey = nullifier_pubkey;
+    }
+
+    let mut nullifiers = [0; MAX_INPUTS];
+    for i in 0..MAX_INPUTS {
+        nullifiers[i] = inputs[i].nullifier();
+    }
+    nullifiers[0] += 1; // corrupt one nullifier
+
+    verify_nullifiers(nullifiers, inputs);
+}
+
+#[test]
+fn test_verify_commitments() {
+    let mut outputs = [Note::default(); MAX_OUTPUTS];
+    outputs[0].asset_id = 1;
+    outputs[0].amount = 100;
+    outputs[1].asset_id = 2;
+    outputs[1].amount = 200;
+
+    let mut commitments = [0; MAX_OUTPUTS];
+    for i in 0..MAX_OUTPUTS {
+        commitments[i] = outputs[i].commitment();
+    }
+
+    verify_commitments(commitments, outputs);
+}
+
+#[test(should_fail_with = "Commitment mismatch")]
+fn test_verify_commitments_mismatch() {
+    let mut outputs = [Note::default(); MAX_OUTPUTS];
+    outputs[0].asset_id = 1;
+    outputs[0].amount = 100;
+
+    let mut commitments = [0; MAX_OUTPUTS];
+    for i in 0..MAX_OUTPUTS {
+        commitments[i] = outputs[i].commitment();
+    }
+    commitments[0] += 1; // corrupt one commitment
+
+    verify_commitments(commitments, outputs);
 }
 
 #[test]
@@ -184,7 +258,7 @@ fn test_verify_balance_multiple_notes_same_asset() {
     verify_balance(inputs, outputs)
 }
 
-#[test(should_fail)]
+#[test(should_fail_with = "Asset balance mismatch")]
 fn test_verify_balance_mismatch() {
     let mut inputs = [Input::default(); MAX_INPUTS];
     inputs[0].note.asset_id = 1;
@@ -197,7 +271,7 @@ fn test_verify_balance_mismatch() {
     verify_balance(inputs, outputs)
 }
 
-#[test(should_fail)]
+#[test(should_fail_with = "Asset balance mismatch")]
 fn test_verify_balance_output_asset_not_in_input() {
     let mut inputs = [Input::default(); MAX_INPUTS];
     inputs[0].note.asset_id = 1;

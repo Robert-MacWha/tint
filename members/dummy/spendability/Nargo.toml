@@ -1,7 +1,0 @@
-[package]
-name = "tint_dummy_spendability"
-type = "bin"
-authors = [""]
-
-[dependencies]
-poseidon = { tag = "v0.3.0", git = "https://github.com/noir-lang/poseidon" }

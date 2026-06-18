@@ -65,7 +65,10 @@
         buildInputs = [
           nargo
           barretenberg
+          pkgs.circom
           pkgs.just
+          pkgs.nodejs_22
+          pkgs.pnpm
         ];
       };
     };

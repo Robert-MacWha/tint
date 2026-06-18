@@ -1,0 +1,4 @@
+[package]
+name = "fold_test"
+type = "bin"
+authors = [""]

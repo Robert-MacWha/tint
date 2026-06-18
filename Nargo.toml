@@ -5,5 +5,6 @@ members = [
     "members/dummy/spendability",
     "members/dummy/inclusion",
     "members/poseidon2_inclusion",
-    "members/sha256_inclusion",
+    "members/test",
+    "members/chonk_kernel",
 ]

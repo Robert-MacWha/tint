@@ -1,0 +1,4 @@
+[package]
+name = "tint_chonk_kernel"
+type = "bin"
+authors = [""]

@@ -3,13 +3,13 @@
 default:
     @just --list
 
-# Run circuit unit tests. Pass args through, e.g. `just test --package tint_aggregator`.
-test *ARGS:
-    nargo test --workspace {{ ARGS }}
+# Run circuit unit tests.
+test:
+    nargo test --workspace
 
 # Compile every circuit in the workspace.
 compile:
-    nargo compile --workspace --silence-warnings
+    nargo compile --workspace
 
 # Format Noir sources.
 fmt:
@@ -18,3 +18,7 @@ fmt:
 # Benchmark every circuit (ACIR/gate counts, proving time, proof/VK sizes).
 bench:
     ./scripts/bench.sh
+
+# Prove a minimal 4-circuit Chonk folding stack (PoC).
+chonk-poc:
+    cd scripts/chonk_poc && pnpm install && pnpm start

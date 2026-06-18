@@ -1,4 +1,4 @@
-use bb_proof_verification::{UltraHonkVerificationKey, UltraHonkZKProof};
+use bb_proof_verification::{UltraHonkProof, UltraHonkVerificationKey, UltraHonkZKProof};
 use poseidon::poseidon2::Poseidon2;
 
 use super::note::Note;
@@ -11,7 +11,7 @@ pub struct Input {
     pub spend_proof: UltraHonkZKProof,
 
     pub inclusion_vk: UltraHonkVerificationKey,
-    pub inclusion_proof: UltraHonkZKProof,
+    pub inclusion_proof: UltraHonkProof,
     pub is_archive: bool,
 }
 
@@ -23,7 +23,7 @@ impl Input {
             spend_vk: UltraHonkVerificationKey::default(),
             spend_proof: UltraHonkZKProof::default(),
             inclusion_vk: UltraHonkVerificationKey::default(),
-            inclusion_proof: UltraHonkZKProof::default(),
+            inclusion_proof: UltraHonkProof::default(),
             is_archive: false,
         }
     }

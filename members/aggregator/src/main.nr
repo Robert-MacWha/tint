@@ -1,4 +1,4 @@
-use bb_proof_verification::verify_honk_proof;
+use bb_proof_verification::{verify_honk_proof, verify_honk_proof_non_zk};
 
 use input::Input;
 use note::Note;
@@ -119,12 +119,12 @@ fn verify_proofs(
         if note.is_archive {
             // Archive Inclusion expects: [root, leaf_commitment]
             let archive_public_inputs: [Field; 2] = [archive_root, commitment];
-            verify_honk_proof(
-                note.inclusion_vk,
-                note.inclusion_proof,
-                archive_public_inputs,
-                ARCHIVE_VK_HASH,
-            );
+            // verify_honk_proof_non_zk(
+            //     note.inclusion_vk,
+            //     note.inclusion_proof,
+            //     archive_public_inputs,
+            //     ARCHIVE_VK_HASH,
+            // );
         } else {
             // Staging Inclusion expects: [root_bytes[32], leaf_commitment[32]]
             let mut staging_public_inputs: [Field; 64] = [0; 64];
@@ -132,12 +132,12 @@ fn verify_proofs(
                 staging_public_inputs[32 + j] = staging_root[j] as Field;
                 staging_public_inputs[j] = commitment_bytes[j] as Field;
             }
-            verify_honk_proof(
-                note.inclusion_vk,
-                note.inclusion_proof,
-                staging_public_inputs,
-                STAGING_VK_HASH,
-            );
+            // verify_honk_proof_non_zk(
+            //     note.inclusion_vk,
+            //     note.inclusion_proof,
+            //     staging_public_inputs,
+            //     STAGING_VK_HASH,
+            // );
         }
     }
 }

@@ -2,3 +2,8 @@
 proof/
 target/
 vk/
+
+# Added by cargo
+
+/target
+node_modules/

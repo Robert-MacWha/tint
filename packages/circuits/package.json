@@ -1,0 +1,28 @@
+{
+  "description": "Circomkit examples",
+  "type": "module",
+  "scripts": {
+    "start": "pnpm ./src/index.ts",
+    "test": "mocha --node-option=import=tsx --timeout 300000 'tests/**/*.test.ts'",
+    "compile": "run-s compile:*",
+    "info": "run-s info:*",
+    "circomspect": "run-s circomspect:*",
+    "compile:aggregator": "pnpm circomkit compile aggregator",
+    "info:aggregator": "pnpm circomkit info aggregator",
+    "circomspect:aggregator": "circomspect aggregator",
+    "prove:aggregator": "pnpm circomkit prove aggregator",
+    "verify:aggregator": "pnpm circomkit verify aggregator"
+  },
+  "dependencies": {
+    "circomkit": "^0.0.22",
+    "circomlib": "^2.0.5"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.1",
+    "@types/node": "^20.3.0",
+    "mocha": "^10.2.0",
+    "poseidon-lite": "^0.3.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.1.3"
+  }
+}

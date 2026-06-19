@@ -1,0 +1,4 @@
+[profile.default]
+src = "packages/contracts/src"
+out = "packages/contracts/out"
+libs = ["lib"]

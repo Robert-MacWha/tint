@@ -1,0 +1,23 @@
+{
+    "aggregator": {
+        "file": "aggregator",
+        "template": "Aggregator",
+        "params": [
+            4,
+            4,
+            8,
+            40
+        ],
+        "pubs": [
+            "stagingRoot",
+            "archiveRoot",
+            "nullifiers",
+            "commitmentsOut",
+            "unshieldRecipients",
+            "unshieldAmounts",
+            "unshieldAssets",
+            "spendabilityAddressesIn",
+            "spendabilityDataIn"
+        ]
+    }
+}

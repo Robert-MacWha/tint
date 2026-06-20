@@ -27,8 +27,8 @@ contract Tint is IPrivacyPool {
     uint128 public totalConsumed; // total commitments consumed by batches (packed with totalStaged)
     bytes32[AGGREGATION_RING_SIZE] public aggregationHashRing; // ring of recent aggregation hashes
     mapping(bytes32 nullifierHash => bool spent) public nullifierHashes;
-    mapping(bytes32 root => uint256 index) public roots; // root -> one-based index (0 = invalid)
-    uint256 public currentRootIndex; // one-based index of the latest root
+    mapping(bytes32 root => uint128 index) public roots; // root -> one-based index (0 = invalid)
+    uint128 public currentRootIndex; // one-based index of the latest root
 
     event Deposited(address indexed asset, uint128 amount, bytes32 commitment);
     event Nullified(bytes32 indexed nullifier);
@@ -69,16 +69,16 @@ contract Tint is IPrivacyPool {
         emit Deposited(asset, amount, commitment);
     }
 
-    function operate(IPrivacyPool.Operation[] calldata operations) external {
+    function operate(IPrivacyPool.Operation[] memory operations) public {
         for (uint256 i; i < operations.length; ++i) {
-            IPrivacyPool.Operation calldata op = operations[i];
+            IPrivacyPool.Operation memory op = operations[i];
             _verifyOperation(op);
             _executeOperation(op);
         }
     }
 
     /// @notice Verifies that the provided operation is valid or reverts if not.
-    function _verifyOperation(IPrivacyPool.Operation calldata op) private view {
+    function _verifyOperation(IPrivacyPool.Operation memory op) private view {
         /// Check public inputs against current state
         if (roots[op.oldRoot] == 0) revert InvalidOldRoot();
 
@@ -129,7 +129,7 @@ contract Tint is IPrivacyPool {
 
     /// @notice Executes the state changes specified by the operation.
     /// @dev Assumes the operation has already been verified.
-    function _executeOperation(IPrivacyPool.Operation calldata op) private {
+    function _executeOperation(IPrivacyPool.Operation memory op) private {
         // Nullify the input notes
         for (uint256 i; i < N_INPUTS; ++i) {
             bytes32 hash = op.nullifiers[i];
@@ -149,13 +149,13 @@ contract Tint is IPrivacyPool {
         }
 
         // Advance consumed pointer; ring slots recycle naturally via totalStaged % N
-        uint256 idx = op.leavesAggregationIndex;
+        uint128 idx = op.leavesAggregationIndex;
         if (idx >= totalConsumed) {
-            totalConsumed = uint128(idx + 1);
+            totalConsumed = idx + 1;
         }
 
         // Update the merkle tree accumulator with the new root
-        uint256 newIdx = roots[op.oldRoot] + 1;
+        uint128 newIdx = roots[op.oldRoot] + 1;
         if (newIdx > currentRootIndex) {
             currentRootIndex = newIdx;
             roots[op.newRoot] = newIdx;

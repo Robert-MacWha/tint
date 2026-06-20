@@ -8,7 +8,7 @@ interface IPrivacyPool {
     struct Operation {
         bytes32 oldRoot;
         bytes32 newRoot;
-        uint256 leavesAggregationIndex;
+        uint128 leavesAggregationIndex;
         bytes32[N_INPUTS] nullifiers;
         bytes32[N_OUTPUTS] commitmentsOut;
         uint128[N_OUTPUTS] unshieldAmounts;

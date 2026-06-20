@@ -32,8 +32,8 @@ contract TestTint is Tint {
         for (uint256 i = 0; i < AGGREGATION_RING_SIZE; i++) {
             aggregationHashRing[i] = bytes32(uint256(i + 1));
         }
-        totalStaged = uint128(AGGREGATION_RING_SIZE);
-        totalConsumed = uint128(AGGREGATION_RING_SIZE);
+        totalStaged = AGGREGATION_RING_SIZE;
+        totalConsumed = AGGREGATION_RING_SIZE;
     }
 }
 

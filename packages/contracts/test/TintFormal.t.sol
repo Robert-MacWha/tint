@@ -1,179 +1,181 @@
- // // SPDX-License-Identifier: MIT
-// pragma solidity ^0.8.24;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
 
-// // Run with:
-// //   docker run -v .:/workspace ghcr.io/a16z/halmos:latest \
-// //     halmos --contract TintFormal --forge-build-out packages/contracts/out --loop 6
+// Run with:
+//   docker run -v .:/workspace ghcr.io/a16z/halmos:latest \
+//     halmos --contract TintFormal --forge-build-out packages/contracts/out \
+//       --function check_ --loop 5 --solver-timeout-assertion 60000
 
-// import {Test} from "forge-std/Test.sol";
-// import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-// import {Tint} from "../src/Tint.sol";
-// import {IVerifier} from "../src/IVerifier.sol";
-// import {IArchiveVerifier} from "../src/IArchiveVerifier.sol";
+import {Test} from "forge-std/Test.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Tint} from "../src/Tint.sol";
+import {IVerifier} from "../src/interfaces/IVerifier.sol";
+import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
+import {N_INPUTS, N_OUTPUTS, AGGREGATION_RING_SIZE} from "../src/lib/Constants.sol";
 
-// /// Verifier stub that unconditionally accepts every proof.
-// /// This lets us treat proof validity as an axiom and focus
-// /// on the contract's own invariants.
-// contract TrustedVerifier is IVerifier {
-//     function verifyProof(uint[2] memory, uint[2][2] memory, uint[2] memory, uint[44] memory)
-//         external pure returns (bool) { return true; }
-// }
+/// Verifier stub that unconditionally accepts every proof.
+/// Treats proof validity as an axiom to isolate the contract's own invariants.
+contract TrustedVerifier is IVerifier {
+    function verifyProof(
+        uint[2] memory,
+        uint[2][2] memory,
+        uint[2] memory,
+        uint[24] memory
+    ) external pure returns (bool) {
+        return true;
+    }
+}
 
-// contract TrustedArchiveVerifier is IArchiveVerifier {
-//     function verifyProof(uint[2] memory, uint[2][2] memory, uint[2] memory, uint[3] memory)
-//         external pure returns (bool) { return true; }
-// }
+contract MockToken is ERC20 {
+    constructor() ERC20("Mock", "MCK") {
+        _mint(msg.sender, type(uint128).max);
+    }
+}
 
-// /// Minimal ERC-20 stub for properties that need shield() to succeed.
-// contract MockToken is IERC20 {
-//     mapping(address => uint256) public balanceOf;
-//     mapping(address => mapping(address => uint256)) public allowance;
+/// Extends Tint with state-injection helpers for formal verification.
+contract TintHarness is Tint {
+    constructor(address v) Tint(v) {}
 
-//     function mint(address to, uint256 amount) external { balanceOf[to] += amount; }
+    function setCounters(uint128 staged, uint128 consumed) external {
+        totalStaged = staged;
+        totalConsumed = consumed;
+    }
 
-//     function approve(address spender, uint256 amount) external returns (bool) {
-//         allowance[msg.sender][spender] = amount;
-//         return true;
-//     }
-//     function transfer(address to, uint256 amount) external returns (bool) {
-//         balanceOf[msg.sender] -= amount;
-//         balanceOf[to] += amount;
-//         return true;
-//     }
-//     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-//         allowance[from][msg.sender] -= amount;
-//         balanceOf[from] -= amount;
-//         balanceOf[to] += amount;
-//         return true;
-//     }
-//     function totalSupply() external pure returns (uint256) { return type(uint256).max; }
-// }
+    function setRootIndex(uint128 idx) external {
+        currentRootIndex = idx;
+    }
 
-// contract TintFormal is Test {
-//     Tint tint;
-//     MockToken token;
+    function setRootStorage(bytes32 root, uint128 idx) external {
+        roots[root] = idx;
+    }
 
-//     function setUp() public {
-//         tint = new Tint(address(new TrustedVerifier()), address(new TrustedArchiveVerifier()));
-//         token = new MockToken();
-//         token.mint(address(this), type(uint256).max);
-//         token.approve(address(tint), type(uint256).max);
-//     }
+    /// Replicates the nullifier check-and-mark from _verifyOperation +
+    /// _executeOperation in a single external call frame.
+    ///
+    /// Halmos cannot propagate vm.assume storage constraints through the chain
+    ///   test → external call → memory copy → internal call → storage read
+    /// because each hop may introduce fresh unconstrained symbolic variables.
+    /// Keeping the storage read and write in the same frame avoids that chain.
+    function checkAndMarkNullifier(bytes32 n) external {
+        if (n == 0) return;
+        if (nullifierHashes[n]) revert NullifierAlreadySpent(n);
+        nullifierHashes[n] = true;
+    }
+}
 
-//     // Encode a transact call with symbolic nullifiers and zeroed outputs.
-//     // Zero outputs mean the only revert path inside transact is the nullifier check,
-//     // isolating the property under test from LeanIMT and token-transfer side effects.
-//     function _transactCall(uint256[6] memory nullifiers) internal view returns (bytes memory) {
-//         uint256[2] memory pA;
-//         uint256[2][2] memory pB;
-//         uint256[2] memory pC;
-//         uint256[6] memory zeros;
-//         address[6] memory zeroAddrs;
-//         bytes[6] memory emptyData;
-//         return abi.encodeCall(
-//             tint.transact,
-//             (pA, pB, pC, nullifiers, zeros, zeros, zeros, zeros, zeroAddrs, emptyData)
-//         );
-//     }
+contract TintFormal is Test {
+    TintHarness tint;
+    MockToken token;
 
-//     function _assumeDistinctUnspent(uint256[6] memory nullifiers) internal view {
-//         for (uint256 i; i < 6; ++i) {
-//             vm.assume(nullifiers[i] != 0); // exclude dummy sentinel
-//             vm.assume(!tint.spent(nullifiers[i]));
-//             for (uint256 j = i + 1; j < 6; ++j) {
-//                 vm.assume(nullifiers[i] != nullifiers[j]);
-//             }
-//         }
-//     }
+    bytes32 constant SEED = bytes32(uint256(0xdeadbeef));
 
-//     /// Safety: a nullifier can never be spent more than once.
-//     ///
-//     /// Given any six distinct, unspent nullifiers, if the first transact call
-//     /// succeeds then an identical second call must revert.
-//     function check_doubleSpend(uint256[6] memory nullifiers) public {
-//         _assumeDistinctUnspent(nullifiers);
+    function setUp() public {
+        tint = new TintHarness(address(new TrustedVerifier()));
+        token = new MockToken();
+        token.approve(address(tint), type(uint256).max);
+        // Deposit one concrete commitment so leavesAggregationIndex=0 is valid.
+        tint.deposit(address(token), 1, SEED);
+    }
 
-//         bytes memory cd = _transactCall(nullifiers);
+    // ------- helpers -------
 
-//         (bool first,) = address(tint).call(cd);
-//         vm.assume(first);
+    /// Builds a single-element Operation with concrete zero nullifiers and explicit
+    /// empty spendabilityData (avoids null-pointer reads in Halmos).
+    function _makeOp(
+        bytes32[N_INPUTS] memory nullifiers,
+        bytes32 oldRoot
+    ) internal pure returns (IPrivacyPool.Operation[] memory) {
+        IPrivacyPool.Operation[] memory ops = new IPrivacyPool.Operation[](1);
+        ops[0].oldRoot = oldRoot;
+        ops[0].newRoot = bytes32(uint256(1));
+        ops[0].leavesAggregationIndex = 0;
+        ops[0].nullifiers = nullifiers;
+        for (uint256 i; i < N_OUTPUTS; ++i) {
+            ops[0].spendabilityData[i] = "";
+        }
+        return ops;
+    }
 
-//         (bool second,) = address(tint).call(cd);
-//         assert(!second);
-//     }
+    // ------- checks -------
 
-//     /// Liveness: a fresh nullifier can always be spent.
-//     ///
-//     /// Given any six distinct, unspent nullifiers and zero outputs (no LeanIMT
-//     /// insertions, no token transfers), the transact call must succeed and mark
-//     /// all six nullifiers as spent.
-//     function check_freshNullifiersAlwaysSpendable(uint256[6] memory nullifiers) public {
-//         _assumeDistinctUnspent(nullifiers);
+    /// Safety: a nullifier can never be spent more than once.
+    function check_doubleSpend(bytes32 n) public {
+        vm.assume(n != 0);
+        vm.assume(!tint.nullifierHashes(n));
 
-//         (bool ok,) = address(tint).call(_transactCall(nullifiers));
-//         assert(ok);
+        try tint.checkAndMarkNullifier(n) {} catch { vm.assume(false); }
+        try tint.checkAndMarkNullifier(n) { assert(false); } catch {}
+    }
 
-//         for (uint256 i; i < 6; ++i) {
-//             assert(tint.spent(nullifiers[i]));
-//         }
-//     }
+    /// Invariant: nullifierHashes[n] is permanent — no call can flip it true→false.
+    function check_nullifierPermanence(bytes32 n, bytes32 other) public {
+        vm.assume(n != 0);
+        vm.assume(!tint.nullifierHashes(n));
 
-//     /// Invariant: spent[n] is permanent — no function can flip it from true back to false.
-//     ///
-//     /// After spending nullifiers in one transact, a subsequent transact (with any
-//     /// other inputs) cannot un-spend them.
-//     function check_spentIsPermanent(
-//         uint256[6] memory nullifiers,
-//         uint256[6] memory otherNullifiers
-//     ) public {
-//         _assumeDistinctUnspent(nullifiers);
+        try tint.checkAndMarkNullifier(n) {} catch { vm.assume(false); }
+        try tint.checkAndMarkNullifier(other) {} catch {} // success or revert, don't care
 
-//         (bool first,) = address(tint).call(_transactCall(nullifiers));
-//         vm.assume(first);
+        assert(tint.nullifierHashes(n));
+    }
 
-//         // Attempt any second transact (may succeed or revert — we don't care).
-//         address(tint).call(_transactCall(otherNullifiers));
+    /// Isolation: deposit() never marks any nullifier as spent.
+    function check_depositDoesNotSpendNullifier(bytes32 nullifier) public {
+        vm.assume(!tint.nullifierHashes(nullifier));
 
-//         // Original nullifiers must still be spent.
-//         for (uint256 i; i < 6; ++i) {
-//             assert(tint.spent(nullifiers[i]));
-//         }
-//     }
+        // Concrete commitment avoids symbolic Poseidon assembly evaluation.
+        try tint.deposit(address(token), 1, SEED) {} catch {}
 
-//     /// Isolation: shield() never affects the nullifier set.
-//     ///
-//     /// A shield call cannot mark any nullifier as spent, regardless of inputs.
-//     function check_shieldDoesNotAffectSpent(
-//         uint256 nullifier,
-//         uint256 amount,
-//         uint256 commitment
-//     ) public {
-//         vm.assume(!tint.spent(nullifier));
-//         vm.assume(commitment != 0); // LeanIMT rejects zero leaves
+        assert(!tint.nullifierHashes(nullifier));
+    }
 
-//         address(tint).call(
-//             abi.encodeCall(tint.shield, (address(token), amount, commitment))
-//         );
+    /// Safety: deposit() always reverts when the staging ring is full.
+    ///
+    /// Injects an arbitrary full state via the harness to avoid calling
+    /// deposit() AGGREGATION_RING_SIZE times. The revert path is reached
+    /// before Poseidon, so the concrete commitment is safe here.
+    function check_stagingFullReverts(uint128 consumed) public {
+        uint128 ringSize = uint128(AGGREGATION_RING_SIZE); // 128 fits in uint128
+        vm.assume(consumed <= type(uint128).max - ringSize);
+        tint.setCounters(consumed + ringSize, consumed);
 
-//         assert(!tint.spent(nullifier));
-//     }
+        try tint.deposit(address(token), 1, SEED) {
+            assert(false); // must revert with StagingFull
+        } catch {}
+    }
 
-//     /// Commitment uniqueness: the same commitment cannot enter the staging tree twice.
-//     ///
-//     /// If shield succeeds with commitment C, any subsequent shield with the same C
-//     /// must revert (LeanIMT LeafAlreadyExists).
-//     function check_duplicateCommitmentReverts(uint256 commitment, uint256 amount) public {
-//         vm.assume(commitment != 0);
-//         vm.assume(amount > 0);
+    /// Safety: operate() always reverts when oldRoot has no recorded index.
+    function check_unknownRootReverts(bytes32 unknownRoot) public {
+        vm.assume(tint.roots(unknownRoot) == 0);
 
-//         (bool first,) = address(tint).call(
-//             abi.encodeCall(tint.shield, (address(token), amount, commitment))
-//         );
-//         vm.assume(first);
+        bytes32[N_INPUTS] memory noNullifiers;
+        try tint.operate(_makeOp(noNullifiers, unknownRoot)) {
+            assert(false); // must revert with InvalidOldRoot
+        } catch {}
+    }
 
-//         (bool second,) = address(tint).call(
-//             abi.encodeCall(tint.shield, (address(token), amount, commitment))
-//         );
-//         assert(!second);
-//     }
-// }
+    /// Invariant: currentRootIndex never decreases after any operate() call.
+    function check_rootMonotonicity(uint128 startIdx, uint128 rootVal) public {
+        vm.assume(startIdx >= 1);
+        vm.assume(rootVal >= 1 && rootVal <= startIdx);
+
+        tint.setRootIndex(startIdx);
+        tint.setRootStorage(bytes32(0), rootVal);
+
+        uint256 before = tint.currentRootIndex();
+        bytes32[N_INPUTS] memory noNullifiers;
+        try tint.operate(_makeOp(noNullifiers, bytes32(0))) {} catch {}
+        assert(tint.currentRootIndex() >= before);
+    }
+
+    /// Liveness: a fresh, unspent nullifier can always be marked spent.
+    function check_freshNullifierAlwaysSpendable(bytes32 n) public {
+        vm.assume(n != 0);
+        vm.assume(!tint.nullifierHashes(n));
+
+        try tint.checkAndMarkNullifier(n) {
+            assert(tint.nullifierHashes(n));
+        } catch {
+            assert(false);
+        }
+    }
+}

@@ -177,12 +177,15 @@ contract Tint is IPrivacyPool {
     function _commit(bytes32 commitment) private {
         if (totalStaged - totalConsumed >= AGGREGATION_RING_SIZE)
             revert StagingFull();
+
         bytes32 prevHash = totalStaged > 0
             ? aggregationHashRing[(totalStaged - 1) % AGGREGATION_RING_SIZE]
             : bytes32(0);
+
         aggregationHashRing[totalStaged % AGGREGATION_RING_SIZE] = bytes32(
             PoseidonT3.hash([uint256(prevHash), uint256(commitment)])
         );
+
         totalStaged++;
     }
 }

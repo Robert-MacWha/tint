@@ -9,29 +9,29 @@ import {PoseidonT3} from "poseidon-solidity/PoseidonT3.sol";
 
 import {IVerifier} from "./interfaces/IVerifier.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
-import {N_INPUTS, N_OUTPUTS, N_PUB} from "./lib/Constants.sol";
-import {RingBufferLib} from "./lib/RingBufferLib.sol";
+import {
+    N_INPUTS,
+    N_OUTPUTS,
+    N_PUB,
+    AGGREGATION_RING_SIZE
+} from "./lib/Constants.sol";
 import {ProofLib} from "./lib/ProofLib.sol";
 
 /// @notice Privacy-preserving token pool using zk-snarks and a merkle tree accumulator.
 contract Tint is IPrivacyPool {
     using SafeERC20 for IERC20;
-    using RingBufferLib for RingBufferLib.RingBuffer;
 
     // Masks keccak256 output to 252 bits, always within the BN254 scalar field.
     uint256 private constant FIELD_MASK = (1 << 252) - 1;
 
     IVerifier public immutable VERIFIER;
 
-    bytes32 public currentAggregationHash; // Runing Poseidon hash of all commitments
-    uint256 public consumedCount; // Total number of commitments consumed by batches
+    uint256 public totalCommitted; // total commitments ever staged
+    uint256 public consumedCount; // total commitments consumed by batches
+    bytes32[AGGREGATION_RING_SIZE] internal _aggHashRing; // ring of recent aggregation hashes
     mapping(bytes32 nullifierHash => bool spent) public nullifierHashes;
-    mapping(bytes32 aggregationHash => uint256 index)
-        public aggregationHashIndex; // hash -> absolute commitment count
     mapping(bytes32 root => uint256 index) public roots; // root -> one-based index (0 = invalid)
     uint256 public currentRootIndex; // one-based index of the latest root
-
-    RingBufferLib.RingBuffer private _staging;
 
     event Deposited(address indexed asset, uint128 amount, bytes32 commitment);
     event Nullified(bytes32 indexed nullifier);
@@ -51,19 +51,17 @@ contract Tint is IPrivacyPool {
 
     constructor(address _verifier) {
         VERIFIER = IVerifier(_verifier);
-        _staging.init(64);
         roots[bytes32(0)] = 1; // Genesis root at index 0
         currentRootIndex = 1; // Genesis root index
     }
 
-    /// @notice Deposits an asset into the pool and inserts the corresponding commitment into the staging area.
+    /// @notice Deposits an asset into the pool and queues the commitment for aggregation.
     ///
     /// @param asset The ERC20 token contract address.
     /// @param amount The amount to deposit in.
     /// @param commitment The commitment representing the private output note.
     ///
     /// @dev The caller must have approved this contract to spend at least `amount` of `asset`.
-    /// @dev Reverts with `StagingFull` if the staging area is full.
     function deposit(
         address asset,
         uint128 amount,
@@ -86,8 +84,11 @@ contract Tint is IPrivacyPool {
     function _verifyOperation(IPrivacyPool.Operation calldata op) private view {
         /// Check public inputs against current state
         if (roots[op.oldRoot] == 0) revert InvalidOldRoot();
-        if (aggregationHashIndex[op.leavesAggregationHash] == 0)
+
+        uint256 idx = op.leavesAggregationIndex;
+        if (idx >= totalCommitted || idx < consumedCount)
             revert InvalidAggregationHash();
+        bytes32 leavesAggregationHash = _aggHashRing[idx % AGGREGATION_RING_SIZE];
 
         /// Compute the public input array for the zk proof.
         bytes32 boundParamsHash = ProofLib.toBoundParamsHash(
@@ -99,7 +100,7 @@ contract Tint is IPrivacyPool {
         uint256[N_PUB] memory pubSignals = ProofLib.toPublicSignals(
             op.oldRoot,
             op.newRoot,
-            op.leavesAggregationHash,
+            leavesAggregationHash,
             op.nullifiers,
             op.commitmentsOut,
             op.unshieldAmounts,
@@ -148,11 +149,10 @@ contract Tint is IPrivacyPool {
             emit Committed(commitment);
         }
 
-        // Pop consumed commitments from staging (guard against already-consumed hash)
-        uint256 aggCount = aggregationHashIndex[op.leavesAggregationHash];
-        if (aggCount > consumedCount) {
-            _staging.popFront(aggCount - consumedCount);
-            consumedCount = aggCount;
+        // Advance consumed pointer; ring slots recycle naturally via totalCommitted % N
+        uint256 idx = op.leavesAggregationIndex;
+        if (idx >= consumedCount) {
+            consumedCount = idx + 1;
         }
 
         // Update the merkle tree accumulator with the new root
@@ -175,17 +175,14 @@ contract Tint is IPrivacyPool {
         }
     }
 
-    /// @notice Inserts a commitment into the staging area, reverting if the staging area is full.
     function _commit(bytes32 commitment) private {
-        if (_staging.isFull()) revert StagingFull();
-        _staging.push(commitment);
-        currentAggregationHash = bytes32(
-            PoseidonT3.hash(
-                [uint256(currentAggregationHash), uint256(commitment)]
-            )
+        if (totalCommitted - consumedCount >= AGGREGATION_RING_SIZE) revert StagingFull();
+        bytes32 prevHash = totalCommitted > 0
+            ? _aggHashRing[(totalCommitted - 1) % AGGREGATION_RING_SIZE]
+            : bytes32(0);
+        _aggHashRing[totalCommitted % AGGREGATION_RING_SIZE] = bytes32(
+            PoseidonT3.hash([uint256(prevHash), uint256(commitment)])
         );
-        aggregationHashIndex[currentAggregationHash] =
-            consumedCount +
-            _staging.count;
+        totalCommitted++;
     }
 }

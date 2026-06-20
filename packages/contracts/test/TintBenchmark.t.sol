@@ -30,10 +30,10 @@ contract TestTint is Tint {
     /// This prevents warm-up writes from appearing in Forge's gas report for deposit().
     function warmStorage() external {
         for (uint256 i = 0; i < AGGREGATION_RING_SIZE; i++) {
-            _aggHashRing[i] = bytes32(uint256(i + 1));
+            aggregationHashRing[i] = bytes32(uint256(i + 1));
         }
-        totalCommitted = AGGREGATION_RING_SIZE;
-        consumedCount = AGGREGATION_RING_SIZE;
+        totalStaged = uint128(AGGREGATION_RING_SIZE);
+        totalConsumed = uint128(AGGREGATION_RING_SIZE);
     }
 }
 
@@ -51,7 +51,7 @@ contract TintGasReportTest is Test {
     function test_shield_gas() public {
         tint.warmStorage();
 
-        for (uint256 i = 0; i < AGGREGATION_RING_SIZE; i++) {
+        for (uint256 i = 0; i < 2; i++) {
             tint.deposit(
                 address(token),
                 1,

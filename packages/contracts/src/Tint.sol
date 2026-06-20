@@ -21,14 +21,11 @@ import {ProofLib} from "./lib/ProofLib.sol";
 contract Tint is IPrivacyPool {
     using SafeERC20 for IERC20;
 
-    // Masks keccak256 output to 252 bits, always within the BN254 scalar field.
-    uint256 private constant FIELD_MASK = (1 << 252) - 1;
-
     IVerifier public immutable VERIFIER;
 
-    uint256 public totalCommitted; // total commitments ever staged
-    uint256 public consumedCount; // total commitments consumed by batches
-    bytes32[AGGREGATION_RING_SIZE] internal _aggHashRing; // ring of recent aggregation hashes
+    uint128 public totalStaged; // total commitments ever staged
+    uint128 public totalConsumed; // total commitments consumed by batches (packed with totalStaged)
+    bytes32[AGGREGATION_RING_SIZE] public aggregationHashRing; // ring of recent aggregation hashes
     mapping(bytes32 nullifierHash => bool spent) public nullifierHashes;
     mapping(bytes32 root => uint256 index) public roots; // root -> one-based index (0 = invalid)
     uint256 public currentRootIndex; // one-based index of the latest root
@@ -86,9 +83,11 @@ contract Tint is IPrivacyPool {
         if (roots[op.oldRoot] == 0) revert InvalidOldRoot();
 
         uint256 idx = op.leavesAggregationIndex;
-        if (idx >= totalCommitted || idx < consumedCount)
+        if (idx >= totalStaged || idx < totalConsumed)
             revert InvalidAggregationHash();
-        bytes32 leavesAggregationHash = _aggHashRing[idx % AGGREGATION_RING_SIZE];
+        bytes32 leavesAggregationHash = aggregationHashRing[
+            idx % AGGREGATION_RING_SIZE
+        ];
 
         /// Compute the public input array for the zk proof.
         bytes32 boundParamsHash = ProofLib.toBoundParamsHash(
@@ -149,10 +148,10 @@ contract Tint is IPrivacyPool {
             emit Committed(commitment);
         }
 
-        // Advance consumed pointer; ring slots recycle naturally via totalCommitted % N
+        // Advance consumed pointer; ring slots recycle naturally via totalStaged % N
         uint256 idx = op.leavesAggregationIndex;
-        if (idx >= consumedCount) {
-            consumedCount = idx + 1;
+        if (idx >= totalConsumed) {
+            totalConsumed = uint128(idx + 1);
         }
 
         // Update the merkle tree accumulator with the new root
@@ -176,13 +175,14 @@ contract Tint is IPrivacyPool {
     }
 
     function _commit(bytes32 commitment) private {
-        if (totalCommitted - consumedCount >= AGGREGATION_RING_SIZE) revert StagingFull();
-        bytes32 prevHash = totalCommitted > 0
-            ? _aggHashRing[(totalCommitted - 1) % AGGREGATION_RING_SIZE]
+        if (totalStaged - totalConsumed >= AGGREGATION_RING_SIZE)
+            revert StagingFull();
+        bytes32 prevHash = totalStaged > 0
+            ? aggregationHashRing[(totalStaged - 1) % AGGREGATION_RING_SIZE]
             : bytes32(0);
-        _aggHashRing[totalCommitted % AGGREGATION_RING_SIZE] = bytes32(
+        aggregationHashRing[totalStaged % AGGREGATION_RING_SIZE] = bytes32(
             PoseidonT3.hash([uint256(prevHash), uint256(commitment)])
         );
-        totalCommitted++;
+        totalStaged++;
     }
 }

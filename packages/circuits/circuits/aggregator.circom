@@ -1,6 +1,6 @@
 pragma circom 2.2.3;
 
-// include "./commitment.circom";
+include "./commitment.circom";
 include "./merkleTree.circom";
 
 include "../node_modules/circomlib/circuits/poseidon.circom";
@@ -18,7 +18,11 @@ include "../node_modules/circomlib/circuits/comparators.circom";
 /// 3. Each output note's commitment is correctly computed from its asset, amount, and partial commitment.
 /// 4. The total amount of each asset in the input notes matches the total amount of that asset in the output notes.
 /// 5. Each output note's asset matches at least one input note's asset.
-/// 
+///
+/// Dummy inputs: a slot with nullifiers[i] == 0 is treated as unused. The circuit
+/// skips nullifier and merkle proof checks for that slot, and enforces assetsIn[i] == 0
+/// and amountsIn[i] == 0 so dummy slots cannot affect balance or orphan checks.
+///
 /// The circuit assumes that the following checks are performed on-chain:
 /// 1. That nullifiers have not already been used.
 /// 2. That the same nullifier is not used more than once in a single transaction.
@@ -32,13 +36,13 @@ template Aggregator(nInputs, nOutputs, stagingTreeDepth, archiveTreeDepth) {
     /// Public Signals
     signal input stagingRoot;                       // Staging merkle tree root
     signal input archiveRoot;                       // Archive merkle tree root
-    signal input nullifiers[nInputs];               // Nullifiers for input notes
+    signal input nullifiers[nInputs];               // Nullifiers for input notes (0 = dummy slot)
     signal input commitmentsOut[nOutputs];          // Commitments for output notes (0 for unshields)
     signal input unshieldRecipients[nOutputs];      // Recipients for unshield outputs (0 for internal transfers)
     signal input unshieldAmounts[nOutputs];         // Amounts for unshield outputs (0 for internal transfers)
     signal input unshieldAssets[nOutputs];          // Assets for unshield outputs (0 for internal transfers)
     signal input spendabilityAddressesIn[nInputs];  // Spendability addresses for input notes
-    signal input spendabilityDataIn[nInputs];       // Spendability data for input notes
+    signal input spendabilityDataIn[nInputs];       // Hash of spendability data for input notes
 
     /// Private Signals
     // Input Notes
@@ -66,25 +70,31 @@ template Aggregator(nInputs, nOutputs, stagingTreeDepth, archiveTreeDepth) {
     computeCommitments.spendabilityAddressesIn <== spendabilityAddressesIn;
     computeCommitments.spendabilityDataIn <== spendabilityDataIn;
 
+    component checkDummyInputs = CheckDummyInputs(nInputs);
+    checkDummyInputs.nullifiers <== nullifiers;
+    checkDummyInputs.assetsIn <== assetsIn;
+    checkDummyInputs.amountsIn <== amountsIn;
+
     component checkNullifiers = CheckNullifiers(nInputs);
     checkNullifiers.nullifiers <== nullifiers;
     checkNullifiers.nullifyingKeysIn <== nullifyingKeysIn;
     checkNullifiers.commitmentsIn <== computeCommitments.commitments;
-
-    component checkMerkleProofs = CheckMerkleProofs(nInputs, stagingTreeDepth, archiveTreeDepth);
-    checkMerkleProofs.stagingRoot <== stagingRoot;
-    checkMerkleProofs.archiveRoot <== archiveRoot;
-    checkMerkleProofs.stagingPathElementsIn <== stagingPathElementsIn;
-    checkMerkleProofs.archivePathElementsIn <== archivePathElementsIn;
-    checkMerkleProofs.stagingLeafIndicesIn <== stagingLeafIndicesIn;
-    checkMerkleProofs.archiveLeafIndicesIn <== archiveLeafIndicesIn;
-    checkMerkleProofs.commitmentsIn <== computeCommitments.commitments;
 
     component checkCommitments = CheckCommitments(nOutputs);
     checkCommitments.commitmentsOut <== commitmentsOut;
     checkCommitments.assetsOut <== assetsOut;
     checkCommitments.amountsOut <== amountsOut;
     checkCommitments.partialCommitmentsOut <== partialCommitmentsOut;
+
+    component checkMerkleProofs = CheckMerkleProofs(nInputs, stagingTreeDepth, archiveTreeDepth);
+    checkMerkleProofs.stagingRoot <== stagingRoot;
+    checkMerkleProofs.archiveRoot <== archiveRoot;
+    checkMerkleProofs.nullifiers <== nullifiers;
+    checkMerkleProofs.stagingPathElementsIn <== stagingPathElementsIn;
+    checkMerkleProofs.archivePathElementsIn <== archivePathElementsIn;
+    checkMerkleProofs.stagingLeafIndicesIn <== stagingLeafIndicesIn;
+    checkMerkleProofs.archiveLeafIndicesIn <== archiveLeafIndicesIn;
+    checkMerkleProofs.commitmentsIn <== computeCommitments.commitments;
 
     component checkUnshields = CheckUnshields(nOutputs);
     checkUnshields.commitmentsOut <== commitmentsOut;
@@ -107,6 +117,23 @@ template Aggregator(nInputs, nOutputs, stagingTreeDepth, archiveTreeDepth) {
     component checkAmountLimits = CheckAmountsWithinLimits(nInputs, nOutputs);
     checkAmountLimits.amountsIn <== amountsIn;
     checkAmountLimits.amountsOut <== amountsOut;
+}
+
+/// Enforce that dummy input slots (nullifiers[i] == 0) have zero asset and zero amount.
+/// This prevents dummy slots from affecting balance or orphan output checks.
+template CheckDummyInputs(nInputs) {
+    signal input nullifiers[nInputs];
+    signal input assetsIn[nInputs];
+    signal input amountsIn[nInputs];
+
+    component isDummy[nInputs];
+
+    for (var i = 0; i < nInputs; i++) {
+        isDummy[i] = IsZero();
+        isDummy[i].in <== nullifiers[i];
+        isDummy[i].out * assetsIn[i] === 0;
+        isDummy[i].out * amountsIn[i] === 0;
+    }
 }
 
 template ComputeInputCommitments(nInputs) {
@@ -142,50 +169,25 @@ template ComputeInputCommitments(nInputs) {
     }
 }
 
+
 template CheckNullifiers(nInputs) {
     signal input nullifiers[nInputs];
     signal input nullifyingKeysIn[nInputs];
     signal input commitmentsIn[nInputs];
 
     component hasher[nInputs];
+    component isDummy[nInputs];
+
     for (var i = 0; i < nInputs; i++) {
+        isDummy[i] = IsZero();
+        isDummy[i].in <== nullifiers[i];
+
         hasher[i] = Poseidon(2);
         hasher[i].inputs[0] <== nullifyingKeysIn[i];
         hasher[i].inputs[1] <== commitmentsIn[i];
-        hasher[i].out === nullifiers[i];
-    }
-}
 
-template CheckMerkleProofs(nInputs, stagingTreeDepth, archiveTreeDepth) {
-    signal input stagingRoot;
-    signal input archiveRoot;
-
-    signal input stagingPathElementsIn[nInputs][stagingTreeDepth];
-    signal input archivePathElementsIn[nInputs][archiveTreeDepth];
-    signal input stagingLeafIndicesIn[nInputs];
-    signal input archiveLeafIndicesIn[nInputs];
-    signal input commitmentsIn[nInputs];
-
-    component stagingMerkleVerifier[nInputs];
-    component archiveMerkleVerifier[nInputs];
-    signal stagingRootComputed[nInputs];
-    signal archiveRootComputed[nInputs];
-
-    for (var i = 0; i < nInputs; i++) {
-        stagingMerkleVerifier[i] = LeanIMTProofVerifier(stagingTreeDepth);
-        stagingMerkleVerifier[i].leaf <== commitmentsIn[i];
-        stagingMerkleVerifier[i].leafIndex <== stagingLeafIndicesIn[i];
-        stagingMerkleVerifier[i].siblings <== stagingPathElementsIn[i];
-
-        archiveMerkleVerifier[i] = LeanIMTProofVerifier(archiveTreeDepth);
-        archiveMerkleVerifier[i].leaf <== commitmentsIn[i];
-        archiveMerkleVerifier[i].leafIndex <== archiveLeafIndicesIn[i];
-        archiveMerkleVerifier[i].siblings <== archivePathElementsIn[i];
-
-        stagingRootComputed[i] <== stagingMerkleVerifier[i].root;
-        archiveRootComputed[i] <== archiveMerkleVerifier[i].root;
-
-        (stagingRootComputed[i] - stagingRoot) * (archiveRootComputed[i] - archiveRoot) === 0;
+        // Skip nullifier check for dummy slots.
+        (1 - isDummy[i].out) * (hasher[i].out - nullifiers[i]) === 0;
     }
 }
 
@@ -209,6 +211,47 @@ template CheckCommitments(nOutputs) {
 
         // Internal transfer: commitment must equal the computed hash
         (1 - isUnshield[i].out) * (commitmentHasher[i].commitment - commitmentsOut[i]) === 0;
+    }
+}
+
+template CheckMerkleProofs(nInputs, stagingTreeDepth, archiveTreeDepth) {
+    signal input stagingRoot;
+    signal input archiveRoot;
+    signal input nullifiers[nInputs];
+
+    signal input stagingPathElementsIn[nInputs][stagingTreeDepth];
+    signal input archivePathElementsIn[nInputs][archiveTreeDepth];
+    signal input stagingLeafIndicesIn[nInputs];
+    signal input archiveLeafIndicesIn[nInputs];
+    signal input commitmentsIn[nInputs];
+
+    component stagingMerkleVerifier[nInputs];
+    component archiveMerkleVerifier[nInputs];
+    component isDummy[nInputs];
+    signal stagingRootComputed[nInputs];
+    signal archiveRootComputed[nInputs];
+    signal merkleProduct[nInputs];
+
+    for (var i = 0; i < nInputs; i++) {
+        isDummy[i] = IsZero();
+        isDummy[i].in <== nullifiers[i];
+
+        stagingMerkleVerifier[i] = LeanIMTProofVerifier(stagingTreeDepth);
+        stagingMerkleVerifier[i].leaf <== commitmentsIn[i];
+        stagingMerkleVerifier[i].leafIndex <== stagingLeafIndicesIn[i];
+        stagingMerkleVerifier[i].siblings <== stagingPathElementsIn[i];
+
+        archiveMerkleVerifier[i] = LeanIMTProofVerifier(archiveTreeDepth);
+        archiveMerkleVerifier[i].leaf <== commitmentsIn[i];
+        archiveMerkleVerifier[i].leafIndex <== archiveLeafIndicesIn[i];
+        archiveMerkleVerifier[i].siblings <== archivePathElementsIn[i];
+
+        stagingRootComputed[i] <== stagingMerkleVerifier[i].root;
+        archiveRootComputed[i] <== archiveMerkleVerifier[i].root;
+
+        // Commitment must be in staging OR archive — unless this is a dummy slot.
+        merkleProduct[i] <== (stagingRootComputed[i] - stagingRoot) * (archiveRootComputed[i] - archiveRoot);
+        (1 - isDummy[i].out) * merkleProduct[i] === 0;
     }
 }
 
@@ -315,42 +358,10 @@ template CheckAmountsWithinLimits(nInputs, nOutputs) {
     }
 }
 
-template CommitmentHasher() {
-    signal input asset;
-    signal input amount;
-    signal input partialCommitment;
-
-    signal output commitment;
-
-    component hasher = Poseidon(3);
-    hasher.inputs[0] <== asset;
-    hasher.inputs[1] <== amount;
-    hasher.inputs[2] <== partialCommitment;
-
-    commitment <== hasher.out;
-}
-
-template PartialCommitmentHasher() {
-    signal input random;
-    signal input nullifyingPubKey;
-    signal input spendabilityAddress;
-    signal input spendabilityData;
-
-    signal output partialCommitment;
-
-    component hasher = Poseidon(4);
-    hasher.inputs[0] <== random;
-    hasher.inputs[1] <== nullifyingPubKey;
-    hasher.inputs[2] <== spendabilityAddress;
-    hasher.inputs[3] <== spendabilityData;
-
-    partialCommitment <== hasher.out;
-}
-
 template Check128() {
     signal input x;
-    
-    // Instantiating Num2Bits with 128 enforces that the input can be 
+
+    // Instantiating Num2Bits with 128 enforces that the input can be
     // decomposed into exactly 128 binary bits.
     component n2b = Num2Bits(128);
     n2b.in <== x;

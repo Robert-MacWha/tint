@@ -3,22 +3,6 @@
 default:
     @just --list
 
-# Run circuit unit tests.
-test:
-    nargo test --workspace
-
-# Compile every circuit in the workspace.
-compile:
-    nargo compile --workspace
-
-# Format Noir sources.
-fmt:
-    nargo fmt
-
-# Benchmark every circuit (ACIR/gate counts, proving time, proof/VK sizes).
-bench:
-    ./scripts/bench.sh
-
-# Prove a minimal 4-circuit Chonk folding stack (PoC).
-chonk-poc:
-    cd scripts/chonk_poc && pnpm install && pnpm start
+# Run contract formal verification with Halmos.
+halmos:
+    docker run -v .:/workspace ghcr.io/a16z/halmos:latest halmos --contract TintFormal --forge-build-out packages/contracts/out --loop 4

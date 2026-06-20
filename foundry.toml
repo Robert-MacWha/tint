@@ -1,4 +1,10 @@
 [profile.default]
 src = "packages/contracts/src"
 out = "packages/contracts/out"
-libs = ["lib"]
+test = "packages/contracts/test"
+script = "packages/contracts/script"
+libs = ["lib", "node_modules"]
+remappings = [
+    "poseidon-solidity/=node_modules/poseidon-solidity/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+]

@@ -3,8 +3,8 @@
         "file": "aggregator",
         "template": "Aggregator",
         "params": [
-            4,
-            4,
+            6,
+            6,
             8,
             40
         ],
@@ -19,5 +19,21 @@
             "spendabilityAddressesIn",
             "spendabilityDataIn"
         ]
+    },
+    "dummy_spendability": {
+        "file": "dummy_spendability",
+        "template": "DummySpendability",
+        "params": [
+            6
+        ],
+        "pubs": [
+            "nullifier",
+            "commitmentsOut"
+        ]
+    },
+    "merkleTreeSha256_depth8": {
+        "file": "merkleTreeSha256",
+        "template": "SHA256MerkleProofVerifier",
+        "params": [8]
     }
 }

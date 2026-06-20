@@ -16,18 +16,7 @@ contract MockVerifier {
         uint256[2] calldata,
         uint256[2][2] calldata,
         uint256[2] calldata,
-        uint[44] memory
-    ) external pure returns (bool) {
-        return true;
-    }
-}
-
-contract MockArchiveVerifier {
-    function verifyProof(
-        uint256[2] calldata,
-        uint256[2][2] calldata,
-        uint256[2] calldata,
-        uint[3] memory
+        uint[24] memory
     ) external pure returns (bool) {
         return true;
     }
@@ -40,13 +29,13 @@ contract TintGasReportTest is Test {
     function setUp() public {
         token = new MockToken();
         MockVerifier verifier = new MockVerifier();
-        tint = new Tint(address(verifier), address(new MockArchiveVerifier()));
+        tint = new Tint(address(verifier));
         token.approve(address(tint), type(uint256).max);
     }
 
     function test_shield_gas() public {
-        for (uint256 i = 1; i <= 250; i++) {
-            tint.shield(address(token), 1, uint256(i));
+        for (uint256 i = 1; i <= 63; i++) {
+            tint.deposit(address(token), 1, bytes32(i));
         }
     }
 }

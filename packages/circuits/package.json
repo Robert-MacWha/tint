@@ -8,7 +8,6 @@
     "info": "run-s info:*",
     "circomspect": "run-s circomspect:*",
     "compile:aggregator": "pnpm circomkit compile aggregator",
-    "compile:dummy_spendability": "pnpm circomkit compile dummy_spendability",
     "info:aggregator": "pnpm circomkit info aggregator",
     "circomspect:aggregator": "circomspect aggregator",
     "prove:aggregator": "pnpm circomkit prove aggregator",

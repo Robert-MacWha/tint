@@ -2,235 +2,190 @@
 pragma solidity ^0.8.24;
 
 import {
-    InternalLeanIMT,
-    LeanIMTData
-} from "@zk-kit/imt.sol/internal/InternalLeanIMT.sol";
-import {
     SafeERC20,
     IERC20
 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IVerifier} from "./IVerifier.sol";
-import {IArchiveVerifier} from "./IArchiveVerifier.sol";
-import {ISpendabilityVerifier} from "./ISpendabilityVerifier.sol";
+import {PoseidonT3} from "poseidon-solidity/PoseidonT3.sol";
 
-/// @notice Privacy-preserving token pool. Users shield ERC-20 tokens into a note-based
-/// system, transact privately via ZK proofs, and unshield back to plain ERC-20.
-///
-/// Asset IDs in the circuit are token addresses cast to uint256 — no registry needed.
-///
-/// Dummy inputs: nullifiers_[i] == 0 marks a slot as unused; the circuit skips its
-/// merkle proof and the contract skips nullifier recording for that slot.
-///
-/// Self-spendability: when spendabilityAddresses[i] == address(this), the corresponding
-/// spendabilityData[i] is ABI-decoded as (bytes32 vkeyHash, pA, pB, pC) and the
-/// embedded sub-proof is verified against a registered spendability verifier.
-contract Tint {
+import {IVerifier} from "./interfaces/IVerifier.sol";
+import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
+import {N_INPUTS, N_OUTPUTS, N_PUB} from "./lib/Constants.sol";
+import {RingBufferLib} from "./lib/RingBufferLib.sol";
+import {ProofLib} from "./lib/ProofLib.sol";
+
+/// @notice Privacy-preserving token pool using zk-snarks and a merkle tree accumulator.
+contract Tint is IPrivacyPool {
     using SafeERC20 for IERC20;
-
-    // Circuit parameters — must match the deployed verifier.
-    uint256 private constant N_INPUTS = 6;
-    uint256 private constant N_OUTPUTS = 6;
-
-    // Total public signals: stagingRoot(1) + archiveRoot(1) + N_INPUTS*2 + N_OUTPUTS*5 = 44
-    uint256 private constant N_PUB = 44;
+    using RingBufferLib for RingBufferLib.RingBuffer;
 
     // Masks keccak256 output to 252 bits, always within the BN254 scalar field.
     uint256 private constant FIELD_MASK = (1 << 252) - 1;
 
-    IVerifier public immutable verifier;
-    IArchiveVerifier public immutable archiveVerifier;
-    address public immutable owner;
+    IVerifier public immutable VERIFIER;
 
-    uint256 public archiveRoot;
+    bytes32 public currentAggregationHash; // Runing Poseidon hash of all commitments
+    uint256 public consumedCount; // Total number of commitments consumed by batches
+    mapping(bytes32 nullifierHash => bool spent) public nullifierHashes;
+    mapping(bytes32 aggregationHash => uint256 index)
+        public aggregationHashIndex; // hash -> absolute commitment count
+    mapping(bytes32 root => uint256 index) public roots; // root -> one-based index (0 = invalid)
+    uint256 public currentRootIndex; // one-based index of the latest root
 
-    mapping(uint256 => bool) public spent;
-    mapping(bytes32 => ISpendabilityVerifier) public vkeys;
+    RingBufferLib.RingBuffer private _staging;
 
-    LeanIMTData private _staging;
-
-    event Shielded(address indexed token, uint256 amount, uint256 commitment);
-    event Nullified(uint256 indexed nullifier);
-    event Committed(uint256 indexed commitment);
-    event Unshielded(
-        address indexed token,
-        address indexed recipient,
-        uint256 amount
+    event Deposited(address indexed asset, uint128 amount, bytes32 commitment);
+    event Nullified(bytes32 indexed nullifier);
+    event Committed(bytes32 indexed commitment);
+    event Withdrawn(
+        address indexed asset,
+        uint128 amount,
+        address indexed recipient
     );
-    event Archived(uint256 indexed newArchiveRoot, uint256 indexed stagingRoot);
 
-    constructor(address _verifier, address _archiveVerifier) {
-        verifier = IVerifier(_verifier);
-        archiveVerifier = IArchiveVerifier(_archiveVerifier);
-        owner = msg.sender;
+    error StagingFull();
+    error InvalidProof();
+    error NullifierAlreadySpent(bytes32 nullifier);
+    error UnshieldRecipientZero(uint256 index);
+    error InvalidOldRoot();
+    error InvalidAggregationHash();
+
+    constructor(address _verifier) {
+        VERIFIER = IVerifier(_verifier);
+        _staging.init(64);
+        roots[bytes32(0)] = 1; // Genesis root at index 0
+        currentRootIndex = 1; // Genesis root index
     }
 
-    function registerVkey(bytes32 vkeyHash, address verifierAddr) external {
-        require(msg.sender == owner, "Only owner");
-        vkeys[vkeyHash] = ISpendabilityVerifier(verifierAddr);
-    }
-
-    function stagingRoot() external view returns (uint256) {
-        return InternalLeanIMT._root(_staging);
-    }
-
-    /// @notice Deposit tokens and register a commitment in the staging tree.
-    function shield(
-        address token,
-        uint256 amount,
-        uint256 commitment
+    /// @notice Deposits an asset into the pool and inserts the corresponding commitment into the staging area.
+    ///
+    /// @param asset The ERC20 token contract address.
+    /// @param amount The amount to deposit in.
+    /// @param commitment The commitment representing the private output note.
+    ///
+    /// @dev The caller must have approved this contract to spend at least `amount` of `asset`.
+    /// @dev Reverts with `StagingFull` if the staging area is full.
+    function deposit(
+        address asset,
+        uint128 amount,
+        bytes32 commitment
     ) external {
-        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-        InternalLeanIMT._insert(_staging, commitment);
-        emit Shielded(token, amount, commitment);
+        _commit(commitment);
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
+        emit Deposited(asset, amount, commitment);
     }
 
-    /// @notice Insert the current staging root into the archive tree and reset staging.
-    /// The proof must demonstrate newArchiveRoot = LeanIMT.insert(archiveRoot, stagingRoot).
-    function archive(
-        uint256[2] calldata pA,
-        uint256[2][2] calldata pB,
-        uint256[2] calldata pC,
-        uint256 newArchiveRoot
-    ) external {
-        require(_staging.size > 0, "Nothing to archive");
-
-        uint256 currentStagingRoot = InternalLeanIMT._root(_staging);
-
-        uint[3] memory pub;
-        pub[0] = archiveRoot;
-        pub[1] = currentStagingRoot;
-        pub[2] = newArchiveRoot;
-        require(archiveVerifier.verifyProof(pA, pB, pC, pub), "Invalid archive proof");
-
-        archiveRoot = newArchiveRoot;
-        _resetStaging();
-
-        emit Archived(newArchiveRoot, currentStagingRoot);
+    function operate(IPrivacyPool.Operation[] calldata operations) external {
+        for (uint256 i; i < operations.length; ++i) {
+            IPrivacyPool.Operation calldata op = operations[i];
+            _verifyOperation(op);
+            _executeOperation(op);
+        }
     }
 
-    /// @notice Process a private transaction: verify proof, nullify inputs,
-    /// insert output commitments into staging, and execute any unshields.
-    /// Slots with nullifiers_[i] == 0 are treated as dummy (unused) inputs.
-    function transact(
-        uint256[2] calldata pA,
-        uint256[2][2] calldata pB,
-        uint256[2] calldata pC,
-        uint256[N_INPUTS] calldata nullifiers_,
-        uint256[N_OUTPUTS] calldata commitmentsOut,
-        uint256[N_OUTPUTS] calldata unshieldRecipients,
-        uint256[N_OUTPUTS] calldata unshieldAmounts,
-        uint256[N_OUTPUTS] calldata unshieldAssets,
-        address[N_INPUTS] calldata spendabilityAddresses,
-        bytes[N_INPUTS] calldata spendabilityData
-    ) external {
-        _verifyProof(
-            pA, pB, pC,
-            nullifiers_, commitmentsOut,
-            unshieldRecipients, unshieldAmounts, unshieldAssets,
-            spendabilityAddresses, spendabilityData
+    /// @notice Verifies that the provided operation is valid or reverts if not.
+    function _verifyOperation(IPrivacyPool.Operation calldata op) private view {
+        /// Check public inputs against current state
+        if (roots[op.oldRoot] == 0) revert InvalidOldRoot();
+        if (aggregationHashIndex[op.leavesAggregationHash] == 0)
+            revert InvalidAggregationHash();
+
+        /// Compute the public input array for the zk proof.
+        bytes32 boundParamsHash = ProofLib.toBoundParamsHash(
+            op.spendabilityAddresses,
+            op.spendabilityData,
+            op.unshieldRecipients
         );
-        _checkSelfSpendability(nullifiers_, commitmentsOut, spendabilityAddresses, spendabilityData);
-        _nullify(nullifiers_);
-        _processOutputs(commitmentsOut, unshieldRecipients, unshieldAmounts, unshieldAssets);
-    }
 
-    function _verifyProof(
-        uint256[2] calldata pA,
-        uint256[2][2] calldata pB,
-        uint256[2] calldata pC,
-        uint256[N_INPUTS] calldata nullifiers_,
-        uint256[N_OUTPUTS] calldata commitmentsOut,
-        uint256[N_OUTPUTS] calldata unshieldRecipients,
-        uint256[N_OUTPUTS] calldata unshieldAmounts,
-        uint256[N_OUTPUTS] calldata unshieldAssets,
-        address[N_INPUTS] calldata spendabilityAddresses,
-        bytes[N_INPUTS] calldata spendabilityData
-    ) private view {
-        // Public signals layout (44 total):
-        //   [0]      stagingRoot
-        //   [1]      archiveRoot
-        //   [2..7]   nullifiers[0..5]
-        //   [8..13]  commitmentsOut[0..5]
-        //   [14..19] unshieldRecipients[0..5]
-        //   [20..25] unshieldAmounts[0..5]
-        //   [26..31] unshieldAssets[0..5]
-        //   [32..37] spendabilityAddresses[0..5]
-        //   [38..43] spendabilityData hashes[0..5]
-        uint[N_PUB] memory pub;
-        pub[0] = InternalLeanIMT._root(_staging);
-        pub[1] = archiveRoot;
-        for (uint256 i; i < N_INPUTS; ++i)  pub[2  + i] = nullifiers_[i];
-        for (uint256 i; i < N_OUTPUTS; ++i) pub[8  + i] = commitmentsOut[i];
-        for (uint256 i; i < N_OUTPUTS; ++i) pub[14 + i] = unshieldRecipients[i];
-        for (uint256 i; i < N_OUTPUTS; ++i) pub[20 + i] = unshieldAmounts[i];
-        for (uint256 i; i < N_OUTPUTS; ++i) pub[26 + i] = unshieldAssets[i];
-        for (uint256 i; i < N_INPUTS; ++i)  pub[32 + i] = uint256(uint160(spendabilityAddresses[i]));
-        for (uint256 i; i < N_INPUTS; ++i)  pub[38 + i] = uint256(keccak256(spendabilityData[i])) & FIELD_MASK;
-        require(verifier.verifyProof(pA, pB, pC, pub), "Invalid proof");
-    }
+        uint256[N_PUB] memory pubSignals = ProofLib.toPublicSignals(
+            op.oldRoot,
+            op.newRoot,
+            op.leavesAggregationHash,
+            op.nullifiers,
+            op.commitmentsOut,
+            op.unshieldAmounts,
+            op.unshieldAssets,
+            boundParamsHash
+        );
 
-    function _checkSelfSpendability(
-        uint256[N_INPUTS] calldata nullifiers_,
-        uint256[N_OUTPUTS] calldata commitmentsOut,
-        address[N_INPUTS] calldata spendabilityAddresses,
-        bytes[N_INPUTS] calldata spendabilityData
-    ) private view {
+        /// Verify that the provided zk proof is valid for the operation's public inputs.
+        if (
+            !VERIFIER.verifyProof(
+                op.proof.pA,
+                op.proof.pB,
+                op.proof.pC,
+                pubSignals
+            )
+        ) {
+            revert InvalidProof();
+        }
+
+        /// Verify that none of the nullifiers have been previously spent.
         for (uint256 i; i < N_INPUTS; ++i) {
-            if (spendabilityAddresses[i] != address(this)) continue;
-
-            (
-                bytes32 vkeyHash,
-                uint[2] memory spA,
-                uint[2][2] memory spB,
-                uint[2] memory spC
-            ) = abi.decode(spendabilityData[i], (bytes32, uint[2], uint[2][2], uint[2]));
-
-            ISpendabilityVerifier sv = vkeys[vkeyHash];
-            require(address(sv) != address(0), "Unknown vkey");
-
-            uint[7] memory pub;
-            pub[0] = nullifiers_[i];
-            for (uint256 j; j < N_OUTPUTS; ++j) pub[1 + j] = commitmentsOut[j];
-
-            require(sv.verifyProof(spA, spB, spC, pub), "Invalid spendability proof");
+            bytes32 hash = op.nullifiers[i];
+            if (hash == 0) continue; // dummy input slot
+            if (nullifierHashes[hash]) revert NullifierAlreadySpent(hash);
         }
     }
 
-    function _nullify(uint256[N_INPUTS] calldata nullifiers_) private {
+    /// @notice Executes the state changes specified by the operation.
+    /// @dev Assumes the operation has already been verified.
+    function _executeOperation(IPrivacyPool.Operation calldata op) private {
+        // Nullify the input notes
         for (uint256 i; i < N_INPUTS; ++i) {
-            if (nullifiers_[i] == 0) continue; // dummy input slot
-            require(!spent[nullifiers_[i]], "Nullifier already spent");
-            spent[nullifiers_[i]] = true;
-            emit Nullified(nullifiers_[i]);
-        }
-    }
+            bytes32 hash = op.nullifiers[i];
 
-    function _processOutputs(
-        uint256[N_OUTPUTS] calldata commitmentsOut,
-        uint256[N_OUTPUTS] calldata unshieldRecipients,
-        uint256[N_OUTPUTS] calldata unshieldAmounts,
-        uint256[N_OUTPUTS] calldata unshieldAssets
-    ) private {
+            if (hash == 0) continue; // dummy input slot
+            nullifierHashes[hash] = true;
+            emit Nullified(hash);
+        }
+
+        // Add any new commitments to the staging area
         for (uint256 i; i < N_OUTPUTS; ++i) {
-            if (commitmentsOut[i] != 0) {
-                InternalLeanIMT._insert(_staging, commitmentsOut[i]);
-                emit Committed(commitmentsOut[i]);
-            } else if (unshieldRecipients[i] != 0) {
-                address token = address(uint160(unshieldAssets[i]));
-                address recipient = address(uint160(unshieldRecipients[i]));
-                IERC20(token).safeTransfer(recipient, unshieldAmounts[i]);
-                emit Unshielded(token, recipient, unshieldAmounts[i]);
-            }
+            bytes32 commitment = op.commitmentsOut[i];
+
+            if (commitment == 0) continue;
+            _commit(commitment);
+            emit Committed(commitment);
+        }
+
+        // Pop consumed commitments from staging (guard against already-consumed hash)
+        uint256 aggCount = aggregationHashIndex[op.leavesAggregationHash];
+        if (aggCount > consumedCount) {
+            _staging.popFront(aggCount - consumedCount);
+            consumedCount = aggCount;
+        }
+
+        // Update the merkle tree accumulator with the new root
+        uint256 newIdx = roots[op.oldRoot] + 1;
+        if (newIdx > currentRootIndex) {
+            currentRootIndex = newIdx;
+            roots[op.newRoot] = newIdx;
+        }
+
+        // Execute any unshielding transfers
+        for (uint256 i; i < N_OUTPUTS; ++i) {
+            address asset = op.unshieldAssets[i];
+            uint128 amount = op.unshieldAmounts[i];
+            address recipient = op.unshieldRecipients[i];
+            if (amount == 0) continue;
+            if (recipient == address(0)) revert UnshieldRecipientZero(i);
+
+            IERC20(asset).safeTransfer(recipient, amount);
+            emit Withdrawn(asset, amount, recipient);
         }
     }
 
-    /// @dev Resets the staging tree to empty. Safe because InternalLeanIMT always
-    /// writes sideNodes[k] before reading it during sequential insertion — stale
-    /// values from the previous cycle are overwritten before first use.
-    /// The one exception is the root (sideNodes[depth]), which is explicitly cleared.
-    function _resetStaging() private {
-        _staging.sideNodes[_staging.depth] = 0;
-        _staging.size = 0;
-        _staging.depth = 0;
+    /// @notice Inserts a commitment into the staging area, reverting if the staging area is full.
+    function _commit(bytes32 commitment) private {
+        if (_staging.isFull()) revert StagingFull();
+        _staging.push(commitment);
+        currentAggregationHash = bytes32(
+            PoseidonT3.hash(
+                [uint256(currentAggregationHash), uint256(commitment)]
+            )
+        );
+        aggregationHashIndex[currentAggregationHash] =
+            consumedCount +
+            _staging.count;
     }
 }

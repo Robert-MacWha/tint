@@ -3,37 +3,20 @@
         "file": "aggregator",
         "template": "Aggregator",
         "params": [
-            6,
-            6,
-            8,
-            40
+            5,
+            5,
+            3,
+            15
         ],
         "pubs": [
-            "stagingRoot",
-            "archiveRoot",
+            "oldRoot",
+            "newRoot",
+            "leavesAggregationHash",
             "nullifiers",
             "commitmentsOut",
-            "unshieldRecipients",
             "unshieldAmounts",
             "unshieldAssets",
-            "spendabilityAddressesIn",
-            "spendabilityDataIn"
+            "boundParamsHash"
         ]
-    },
-    "dummy_spendability": {
-        "file": "dummy_spendability",
-        "template": "DummySpendability",
-        "params": [
-            6
-        ],
-        "pubs": [
-            "nullifier",
-            "commitmentsOut"
-        ]
-    },
-    "merkleTreeSha256_depth8": {
-        "file": "merkleTreeSha256",
-        "template": "SHA256MerkleProofVerifier",
-        "params": [8]
     }
 }

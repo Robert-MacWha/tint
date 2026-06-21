@@ -81,7 +81,6 @@ export function buildAggregatorInput(
         leafIndicesIn,
         assetsIn: inputs.map(n => n?.asset ?? 0n),
         amountsIn: inputs.map(n => n?.amount ?? 0n),
-        randomsIn: [0n, 0n],
         nullifyingKeysIn: inputs.map(n => n?.nullifyingKey ?? 0n),
         partialCommitmentsIn: inputs.map(n => n?.partialCommitment ?? 0n),
 

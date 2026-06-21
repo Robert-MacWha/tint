@@ -17,6 +17,8 @@ include "../node_modules/circomlib/circuits/comparators.circom";
 /// 4. Each output note's commitment is correctly computed from its asset, amount, and partial commitment.
 /// 5. The total amount of each asset in the input notes matches the total amount of that asset in the output notes.
 /// 6. Each output note's asset matches at least one input note's asset.
+/// 7. Verifies that leavesAggregationHash is the correct sequential Poseidon accumulation of all new leaves, excluding dummy leaves (0 for empty tree).
+/// 8. Verifies that newRoot is the result of inserting the batch of new leaves into oldRoot at the specified batchIndex.
 ///
 /// Dummy inputs: a slot with nullifiers[i] == 0 is treated as unused. The circuit
 /// skips nullifier and merkle proof checks for that slot, and enforces assetsIn[i] == 0
@@ -31,6 +33,8 @@ include "../node_modules/circomlib/circuits/comparators.circom";
 /// 6. Nullifiers recorded
 /// 7. Unshields processed
 /// 8. All amounts are within expected bounds (u128)
+/// 9. That the merkle root will be updated on-chain.
+/// 10. That leavesAggregationHash is a valid hash.
 template Aggregator(nInputs, nOutputs, innerDepth, outerDepth) {
     var totalDepth = innerDepth + outerDepth;
 
@@ -60,7 +64,6 @@ template Aggregator(nInputs, nOutputs, innerDepth, outerDepth) {
     signal input leafIndicesIn[nInputs];
     signal input assetsIn[nInputs];
     signal input amountsIn[nInputs];
-    signal input randomsIn[nInputs];
     signal input nullifyingKeysIn[nInputs];
     signal input partialCommitmentsIn[nInputs];
 

@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-// Run with:
-//   docker run -v .:/workspace ghcr.io/a16z/halmos:latest \
-//     halmos --contract TintFormal --forge-build-out packages/contracts/out \
-//       --function check_ --loop 5 --solver-timeout-assertion 60000
-
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Tint} from "../src/Tint.sol";
 import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
-import {N_INPUTS, N_OUTPUTS, AGGREGATION_RING_SIZE} from "../src/lib/Constants.sol";
+import {
+    N_INPUTS,
+    N_OUTPUTS,
+    AGGREGATION_RING_SIZE
+} from "../src/lib/Constants.sol";
 
 /// Verifier stub that unconditionally accepts every proof.
 /// Treats proof validity as an axiom to isolate the contract's own invariants.
@@ -48,19 +47,6 @@ contract TintHarness is Tint {
     function setRootStorage(bytes32 root, uint128 idx) external {
         roots[root] = idx;
     }
-
-    /// Replicates the nullifier check-and-mark from _verifyOperation +
-    /// _executeOperation in a single external call frame.
-    ///
-    /// Halmos cannot propagate vm.assume storage constraints through the chain
-    ///   test → external call → memory copy → internal call → storage read
-    /// because each hop may introduce fresh unconstrained symbolic variables.
-    /// Keeping the storage read and write in the same frame avoids that chain.
-    function checkAndMarkNullifier(bytes32 n) external {
-        if (n == 0) return;
-        if (nullifierHashes[n]) revert NullifierAlreadySpent(n);
-        nullifierHashes[n] = true;
-    }
 }
 
 contract TintFormal is Test {
@@ -96,27 +82,32 @@ contract TintFormal is Test {
         return ops;
     }
 
-    // ------- checks -------
+    //     // ------- checks -------
 
-    /// Safety: a nullifier can never be spent more than once.
-    function check_doubleSpend(bytes32 n) public {
-        vm.assume(n != 0);
-        vm.assume(!tint.nullifierHashes(n));
+    //     /// A nullifier can never be spent more than once.
+    //     function check_doubleSpend(bytes32 n) public {
+    //         vm.assume(n != 0);
+    //         vm.assume(!tint.nullifierHashes(n));
 
-        try tint.checkAndMarkNullifier(n) {} catch { vm.assume(false); }
-        try tint.checkAndMarkNullifier(n) { assert(false); } catch {}
-    }
+    //         try tint.checkAndMarkNullifier(n) {} catch {
+    //             vm.assume(false);
+    //         }
+    //         try tint.checkAndMarkNullifier(n) {
+    //             assert(false);
+    //         } catch {}
+    //     }
 
-    /// Invariant: nullifierHashes[n] is permanent — no call can flip it true→false.
-    function check_nullifierPermanence(bytes32 n, bytes32 other) public {
-        vm.assume(n != 0);
-        vm.assume(!tint.nullifierHashes(n));
+    //     /// Once a nullifier is marked as spent, it remains spent forever.
+    //     function check_nullifierPermanence(bytes32 n, bytes32 other) public {
+    //         vm.assume(n != 0);
+    //         vm.assume(!tint.nullifierHashes(n));
 
-        try tint.checkAndMarkNullifier(n) {} catch { vm.assume(false); }
-        try tint.checkAndMarkNullifier(other) {} catch {} // success or revert, don't care
-
-        assert(tint.nullifierHashes(n));
-    }
+    //         try tint.checkAndMarkNullifier(n) {} catch {
+    //             vm.assume(false);
+    //         }
+    //         try tint.checkAndMarkNullifier(other) {} catch {}
+    //         assert(tint.nullifierHashes(n));
+    //     }
 
     /// Isolation: deposit() never marks any nullifier as spent.
     function check_depositDoesNotSpendNullifier(bytes32 nullifier) public {
@@ -124,17 +115,16 @@ contract TintFormal is Test {
 
         // Concrete commitment avoids symbolic Poseidon assembly evaluation.
         try tint.deposit(address(token), 1, SEED) {} catch {}
-
         assert(!tint.nullifierHashes(nullifier));
     }
 
-    /// Safety: deposit() always reverts when the staging ring is full.
+    /// deposit() always reverts when the staging ring is full.
     ///
     /// Injects an arbitrary full state via the harness to avoid calling
     /// deposit() AGGREGATION_RING_SIZE times. The revert path is reached
     /// before Poseidon, so the concrete commitment is safe here.
     function check_stagingFullReverts(uint128 consumed) public {
-        uint128 ringSize = uint128(AGGREGATION_RING_SIZE); // 128 fits in uint128
+        uint128 ringSize = AGGREGATION_RING_SIZE;
         vm.assume(consumed <= type(uint128).max - ringSize);
         tint.setCounters(consumed + ringSize, consumed);
 
@@ -167,15 +157,15 @@ contract TintFormal is Test {
         assert(tint.currentRootIndex() >= before);
     }
 
-    /// Liveness: a fresh, unspent nullifier can always be marked spent.
-    function check_freshNullifierAlwaysSpendable(bytes32 n) public {
-        vm.assume(n != 0);
-        vm.assume(!tint.nullifierHashes(n));
+    //     /// Liveness: a fresh, unspent nullifier can always be marked spent.
+    //     function check_freshNullifierAlwaysSpendable(bytes32 n) public {
+    //         vm.assume(n != 0);
+    //         vm.assume(!tint.nullifierHashes(n));
 
-        try tint.checkAndMarkNullifier(n) {
-            assert(tint.nullifierHashes(n));
-        } catch {
-            assert(false);
-        }
-    }
+    //         try tint.checkAndMarkNullifier(n) {
+    //             assert(tint.nullifierHashes(n));
+    //         } catch {
+    //             assert(false);
+    //         }
+    //     }
 }

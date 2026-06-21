@@ -23,7 +23,7 @@ contract MockVerifier {
     }
 }
 
-contract TestTint is Tint {
+contract TintHarness is Tint {
     constructor(address _verifier) Tint(_verifier) {}
 
     /// @dev Warms all storage slots touched by deposit() without calling deposit().
@@ -38,13 +38,13 @@ contract TestTint is Tint {
 }
 
 contract TintGasReportTest is Test {
-    TestTint public tint;
+    TintHarness public tint;
     MockToken public token;
 
     function setUp() public {
         token = new MockToken();
         MockVerifier verifier = new MockVerifier();
-        tint = new TestTint(address(verifier));
+        tint = new TintHarness(address(verifier));
         token.approve(address(tint), type(uint256).max);
     }
 

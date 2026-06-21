@@ -48,9 +48,9 @@ library ProofLib {
         }
 
         for (uint256 i = 0; i < N_OUTPUTS; i++) {
-            pub[8 + i] = uint256(commitmentsOut[i]);
-            pub[14 + i] = unshieldAmounts[i];
-            pub[20 + i] = uint256(uint160(unshieldAssets[i]));
+            pub[3 + N_INPUTS + i] = uint256(commitmentsOut[i]);
+            pub[3 + N_INPUTS + N_OUTPUTS + i] = unshieldAmounts[i];
+            pub[3 + N_INPUTS + 2 * N_OUTPUTS + i] = uint256(uint160(unshieldAssets[i]));
         }
 
         // pack the bound params into the last public signal

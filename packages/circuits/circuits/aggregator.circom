@@ -67,8 +67,6 @@ template Aggregator(nInputs, nOutputs, innerDepth, outerDepth) {
     // Output notes
     signal input assetsOut[nOutputs];
     signal input amountsOut[nOutputs];
-
-    //? poseidon(randomOut, nullifyingPubKey, spendabilityAddress, spendabilityData)
     signal input partialCommitmentsOut[nOutputs];
 
     // ~10k non-linear constraints + ~20k linear constraints

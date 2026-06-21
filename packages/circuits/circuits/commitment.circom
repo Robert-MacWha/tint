@@ -14,20 +14,3 @@ template CommitmentHasher() {
 
     commitment <== hasher.out;
 }
-
-template PartialCommitmentHasher() {
-    signal input random;
-    signal input nullifyingPubKey;
-    signal input spendabilityAddress;
-    signal input spendabilityData;
-
-    signal output partialCommitment;
-
-    component hasher = Poseidon(4);
-    hasher.inputs[0] <== random;
-    hasher.inputs[1] <== nullifyingPubKey;
-    hasher.inputs[2] <== spendabilityAddress;
-    hasher.inputs[3] <== spendabilityData;
-
-    partialCommitment <== hasher.out;
-}

@@ -1,6 +1,7 @@
 pragma circom 2.2.3;
 
-include "./batchMerkleTree4.circom";
+// include "./batchMerkleTree4.circom";
+include "./leanIMT.circom";
 include "./commitment.circom";
 include "./amounts.circom";
 
@@ -35,9 +36,7 @@ include "../node_modules/circomlib/circuits/comparators.circom";
 /// 8. All amounts are within expected bounds (u128)
 /// 9. That the merkle root will be updated on-chain.
 /// 10. That leavesAggregationHash is a valid hash.
-template Aggregator(nInputs, nOutputs, innerDepth, outerDepth) {
-    var totalDepth = innerDepth + outerDepth;
-
+template Aggregator(nInputs, nOutputs, batchSize, depth) {
     /// Public Signals
     signal input oldRoot;
     signal input newRoot;
@@ -52,15 +51,14 @@ template Aggregator(nInputs, nOutputs, innerDepth, outerDepth) {
 
     /// Private Signals
     // Root update
-    var nLeaves = 1 << (2 * innerDepth);
-    signal input newLeaves[nLeaves];
+    signal input batchStartIndex;
+    signal input newLeaves[batchSize];
+    signal input initialFrontier[depth];
     signal input startingAggregationHash;
-    signal input batchIndex;
-    signal input batchSiblings[outerDepth][3];
 
     // Input Notes
     signal input commitmentsIn[nInputs];
-    signal input siblingsIn[nInputs][totalDepth][3];
+    signal input siblingsIn[nInputs][depth];
     signal input leafIndicesIn[nInputs];
     signal input assetsIn[nInputs];
     signal input amountsIn[nInputs];
@@ -73,18 +71,18 @@ template Aggregator(nInputs, nOutputs, innerDepth, outerDepth) {
     signal input partialCommitmentsOut[nOutputs];
 
     // ~10k non-linear constraints + ~20k linear constraints
-    component checkLeavesAggregation = CheckLeavesAggregationHash(nLeaves);
+    component checkLeavesAggregation = CheckLeavesAggregationHash(batchSize);
     checkLeavesAggregation.startingHash <== startingAggregationHash;
     checkLeavesAggregation.endingHash <== leavesAggregationHash;
     checkLeavesAggregation.leaves <== newLeaves;
 
     // ~30k non-linear constraints + ~25k linear constraints
-    component checkRootUpdate = CheckRootUpdate(innerDepth, outerDepth);
-    checkRootUpdate.oldRoot <== oldRoot;
-    checkRootUpdate.newRoot <== newRoot;
-    checkRootUpdate.newLeaves <== newLeaves;
-    checkRootUpdate.batchIndex <== batchIndex;
-    checkRootUpdate.batchSiblings <== batchSiblings;
+    component leanIMTBatchInsert = LeanIMTBatchInsert(depth, batchSize);
+    leanIMTBatchInsert.root <== oldRoot;
+    leanIMTBatchInsert.startIndex <== batchStartIndex;
+    leanIMTBatchInsert.leaves <== newLeaves;
+    leanIMTBatchInsert.initialFrontier <== initialFrontier;
+    leanIMTBatchInsert.out === newRoot;
 
     // Negligable
     component checkDummyInputs = CheckDummyInputs(nInputs);
@@ -106,7 +104,7 @@ template Aggregator(nInputs, nOutputs, innerDepth, outerDepth) {
     checkCommitments.partialCommitmentsOut <== partialCommitmentsOut;
 
     // ~60k non-linear constraints + ~65k linear constraints
-    component checkMerkleProofs = CheckMerkleProofs(nInputs, totalDepth);
+    component checkMerkleProofs = CheckMerkleProofs(nInputs, depth);
     checkMerkleProofs.root <== newRoot;
     checkMerkleProofs.nullifiers <== nullifiers;
     checkMerkleProofs.siblingsIn <== siblingsIn;
@@ -138,19 +136,19 @@ template Aggregator(nInputs, nOutputs, innerDepth, outerDepth) {
 
 /// Enforce that leavesAggregationHash is the correct sequential Poseidon accumulation
 /// of all non-zero leaves starting from startingHash. Zero leaves are skipped.
-template CheckLeavesAggregationHash(nLeaves) {
+template CheckLeavesAggregationHash(batchSize) {
     signal input startingHash;
     signal input endingHash;
-    signal input leaves[nLeaves];
+    signal input leaves[batchSize];
 
-    component isDummy[nLeaves];
-    component poseidons[nLeaves];
-    signal runningHash[nLeaves + 1];
-    signal delta[nLeaves];
+    component isDummy[batchSize];
+    component poseidons[batchSize];
+    signal runningHash[batchSize + 1];
+    signal delta[batchSize];
 
     runningHash[0] <== startingHash;
 
-    for (var i = 0; i < nLeaves; i++) {
+    for (var i = 0; i < batchSize; i++) {
         isDummy[i] = IsZero();
         isDummy[i].in <== leaves[i];
 
@@ -163,41 +161,9 @@ template CheckLeavesAggregationHash(nLeaves) {
         runningHash[i + 1] <== runningHash[i] + delta[i];
     }
 
-    endingHash === runningHash[nLeaves];
+    endingHash === runningHash[batchSize];
 }
 
-/// Enforce that the new root is the old root with the new leaves inserted.
-///
-/// The inner batch tree (innerDepth) hashes newLeaves into a single batchRoot.
-/// The outer accumulator (outerDepth) proves batchRoot was inserted at batchIndex,
-/// replacing 0, by showing the same sibling path reconstructs oldRoot (with 0) and
-/// newRoot (with batchRoot). Shared siblings guarantee that is the only change.
-template CheckRootUpdate(innerDepth, outerDepth) {
-    var nLeaves = 1 << (2 * innerDepth);
-
-    signal input oldRoot;
-    signal input newRoot;
-    signal input newLeaves[nLeaves];
-    signal input batchIndex;
-    signal input batchSiblings[outerDepth][3];
-
-    component batchTree = BatchMerkleRoot4(innerDepth);
-    batchTree.leaves <== newLeaves;
-
-    // Old slot was 0 (append-only outer tree)
-    component oldInclusion = BatchMerkleInclusion4(outerDepth);
-    oldInclusion.leaf <== 0;
-    oldInclusion.leafIndex <== batchIndex;
-    oldInclusion.siblings <== batchSiblings;
-    oldInclusion.root === oldRoot;
-
-    // New slot holds the batch root
-    component newInclusion = BatchMerkleInclusion4(outerDepth);
-    newInclusion.leaf <== batchTree.root;
-    newInclusion.leafIndex <== batchIndex;
-    newInclusion.siblings <== batchSiblings;
-    newInclusion.root === newRoot;
-}
 
 /// Enforce that dummy input slots (nullifiers[i] == 0) have zero asset and zero amount.
 /// This prevents dummy slots from affecting balance or orphan output checks.
@@ -270,7 +236,7 @@ template CheckMerkleProofs(nInputs, depth) {
     signal input nullifiers[nInputs];
 
     signal input leafIndicesIn[nInputs];
-    signal input siblingsIn[nInputs][depth][3];
+    signal input siblingsIn[nInputs][depth];
     signal input assetsIn[nInputs];
     signal input amountsIn[nInputs];
     signal input partialCommitmentsIn[nInputs];
@@ -289,7 +255,7 @@ template CheckMerkleProofs(nInputs, depth) {
         commitmentHashers[i].amount <== amountsIn[i];
         commitmentHashers[i].partialCommitment <== partialCommitmentsIn[i];
 
-        merkleVerifiers[i] = BatchMerkleInclusion4(depth);
+        merkleVerifiers[i] = LeanIMTInclusion(depth);
         merkleVerifiers[i].leaf <== commitmentHashers[i].commitment;
         merkleVerifiers[i].leafIndex <== leafIndicesIn[i];
         merkleVerifiers[i].siblings <== siblingsIn[i];

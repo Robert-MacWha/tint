@@ -16,7 +16,7 @@ contract AggregationRingHarness is AggregationRing {
     }
 
     function validateAndGetHash(uint128 idx) external view returns (bytes32) {
-        return _validateAndGetHash(idx);
+        return _getHash(idx);
     }
 }
 
@@ -138,19 +138,19 @@ contract AggregationRingTests is Test {
 
     // ------- validateAndGetHash -------
 
-    function test_validateAndGetHash_returnsCorrectHash() public {
+    function test_getHash_returnsCorrectHash() public {
         ring.commit(C1);
         bytes32 expected = ring.aggregationHashRing(0);
         assertEq(ring.validateAndGetHash(0), expected);
     }
 
-    function test_validateAndGetHash_indexTooHigh_reverts() public {
+    function test_getHash_indexTooHigh_reverts() public {
         ring.commit(C1); // totalStaged=1, valid range idx<=1
         vm.expectRevert(AggregationRing.InvalidAggregationIndex.selector);
         ring.validateAndGetHash(2);
     }
 
-    function test_validateAndGetHash_indexTooLow_reverts() public {
+    function test_getHash_indexTooLow_reverts() public {
         ring.commit(C1);
         ring.commit(C2);
         ring.advance(1); // totalConsumed=2

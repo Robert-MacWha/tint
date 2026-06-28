@@ -14,14 +14,17 @@
     "verify:aggregator": "pnpm circomkit verify aggregator"
   },
   "dependencies": {
+    "@zkpassport/poseidon2": "^0.6.2",
     "circomkit": "^0.0.22",
     "circomlib": "^2.0.5",
-    "circomlibjs": "^0.1.7"
+    "circomlibjs": "^0.1.7",
+    "viem": "^2.53.1"
   },
   "devDependencies": {
     "@types/circomlibjs": "^0.1.6",
     "@types/mocha": "^10.0.1",
     "@types/node": "^20.3.0",
+    "@zk-kit/lean-imt": "^2.2.4",
     "mocha": "^10.2.0",
     "poseidon-lite": "^0.3.0",
     "tsx": "^4.0.0",

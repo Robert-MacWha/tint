@@ -3,9 +3,12 @@ import { describe, before, it } from "mocha";
 import { circomkit } from "./common";
 import {
     buildAggregatorInput,
-    N_INPUTS, N_OUTPUTS, INNER_DEPTH, OUTER_DEPTH,
+    N_INPUTS, N_OUTPUTS,
     type Note, type Output,
 } from "./common/notes";
+
+const BATCH_SIZE = 4;
+const DEPTH = 3;
 
 const ASSET_A = 1n;
 const ASSET_B = 2n;
@@ -23,6 +26,12 @@ const output = (asset: bigint, amount: bigint, seed: number): Output => ({
 
 const baseInputs = (): (Note | null)[] => [note(ASSET_A, 100n, 0), note(ASSET_B, 50n, 1)];
 const baseOutputs = (): Output[] => [output(ASSET_A, 100n, 0), output(ASSET_B, 50n, 1)];
+const base = () => buildAggregatorInput(baseInputs(), baseOutputs());
+
+const dummyBase = () => buildAggregatorInput(
+    [note(ASSET_A, 100n, 0), null],
+    [output(ASSET_A, 60n, 0), output(ASSET_A, 40n, 1)],
+);
 
 describe("Aggregator", () => {
     let circuit: WitnessTester<string[], string[]>;
@@ -32,7 +41,7 @@ describe("Aggregator", () => {
         circuit = await circomkit.WitnessTester("aggregator", {
             file: "aggregator",
             template: "Aggregator",
-            params: [N_INPUTS, N_OUTPUTS, INNER_DEPTH, OUTER_DEPTH],
+            params: [N_INPUTS, N_OUTPUTS, BATCH_SIZE, DEPTH],
             pubs: [
                 "oldRoot", "newRoot", "leavesAggregationHash", "nullifiers",
                 "commitmentsOut", "unshieldAmounts", "unshieldAssets", "boundParamsHash",
@@ -40,21 +49,22 @@ describe("Aggregator", () => {
         });
     });
 
-    it("should pass for a balanced transaction", async () => {
-        await circuit.expectPass(buildAggregatorInput(baseInputs(), baseOutputs()));
-    });
-
-    it("should pass for a balanced transaction with archive-tree input (batchIndex=1)", async () => {
-        // batchIndex=1 puts the batch root at outer slot 1, exercising the Mux at a
-        // non-zero position in the outer level, and shifts leaf indices to [4, 5].
-        await circuit.expectPass(buildAggregatorInput(baseInputs(), baseOutputs(), 1));
-    });
-
-    it("should fail for amount mismatch", async () => {
-        const inp = buildAggregatorInput(baseInputs(), baseOutputs());
-        inp.amountsOut[0] += 1n;
+    type Inp = ReturnType<typeof base>;
+    const tamperFail = (mutate: (inp: Inp) => void) => async () => {
+        const inp = base();
+        mutate(inp);
         await circuit.expectFail(inp);
+    };
+
+    it("should pass for a balanced transaction", async () => {
+        await circuit.expectPass(base());
     });
+
+    it("should fail for amount mismatch",           tamperFail(inp => { inp.amountsOut[0] += 1n; }));
+    it("should fail for wrong nullifier preimage",  tamperFail(inp => { inp.nullifiers[0] += 1n; }));
+    it("should fail for wrong Merkle path",         tamperFail(inp => { inp.siblingsIn[0][0] += 1n; }));
+    it("should fail for wrong newRoot",             tamperFail(inp => { inp.newRoot += 1n; }));
+    it("should fail for wrong leavesAggregationHash", tamperFail(inp => { inp.leavesAggregationHash += 1n; }));
 
     it("should fail for asset mismatch (orphan output)", async () => {
         await circuit.expectFail(buildAggregatorInput(
@@ -63,48 +73,18 @@ describe("Aggregator", () => {
         ));
     });
 
-    it("should fail for wrong nullifier preimage", async () => {
-        const inp = buildAggregatorInput(baseInputs(), baseOutputs());
-        inp.nullifiers[0] += 1n;
-        await circuit.expectFail(inp);
-    });
-
-    it("should fail for wrong Merkle path", async () => {
-        const inp = buildAggregatorInput(baseInputs(), baseOutputs());
-        inp.siblingsIn[0][0][0] += 1n;
-        await circuit.expectFail(inp);
-    });
-
-    it("should fail for wrong newRoot", async () => {
-        const inp = buildAggregatorInput(baseInputs(), baseOutputs());
-        inp.newRoot += 1n;
-        await circuit.expectFail(inp);
-    });
-
-    it("should fail for wrong leavesAggregationHash", async () => {
-        const inp = buildAggregatorInput(baseInputs(), baseOutputs());
-        inp.leavesAggregationHash += 1n;
-        await circuit.expectFail(inp);
-    });
-
     it("should pass for dummy slot correctly ignored", async () => {
-        await circuit.expectPass(buildAggregatorInput(
-            [note(ASSET_A, 100n, 0), null],
-            [output(ASSET_A, 60n, 0), output(ASSET_A, 40n, 1)],
-        ));
+        await circuit.expectPass(dummyBase());
     });
 
     it("should fail for dummy slot with non-zero asset", async () => {
-        const inp = buildAggregatorInput(
-            [note(ASSET_A, 100n, 0), null],
-            [output(ASSET_A, 60n, 0), output(ASSET_A, 40n, 1)],
-        );
+        const inp = dummyBase();
         inp.assetsIn[1] = ASSET_A; // violates: isDummy * assetsIn === 0
         await circuit.expectFail(inp);
     });
 
     it("should pass for boundParamsHash as a committed public signal", async () => {
-        const inp = buildAggregatorInput(baseInputs(), baseOutputs());
+        const inp = base();
         inp.boundParamsHash = 42n;
         await circuit.expectPass(inp);
     });

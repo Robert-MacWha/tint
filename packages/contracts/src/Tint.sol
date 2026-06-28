@@ -71,9 +71,7 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
     function _verifyOperation(IPrivacyPool.Operation calldata op) private view {
         _validateOldRoot(op.oldRoot);
 
-        bytes32 leavesAggregationHash = _validateAndGetHash(
-            op.leavesAggregationIndex
-        );
+        bytes32 leavesAggregationHash = _getHash(op.leavesAggregationIndex);
 
         bytes32 boundParamsHash = ProofLib.toBoundParamsHash(
             op.spendabilityAddresses,

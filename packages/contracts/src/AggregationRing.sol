@@ -17,6 +17,9 @@ contract AggregationRing {
     error StagingFull();
     error InvalidAggregationIndex();
 
+    /// Stages a commitment into the aggregation ring, extending the Poseidon hash chain.
+    ///
+    /// @dev Reverts if the ring is full
     function _commit(bytes32 commitment) internal {
         if (totalStaged - totalConsumed >= AGGREGATION_RING_SIZE)
             revert StagingFull();
@@ -32,8 +35,10 @@ contract AggregationRing {
         totalStaged++;
     }
 
-    /// Returns the hash at `idx`, or reverts if the index is outside the valid window.
-    function _validateAndGetHash(uint128 idx) internal view returns (bytes32) {
+    /// Returns the hash at `idx`.
+    ///
+    /// @dev Reverts if the index is outside the valid window.
+    function _getHash(uint128 idx) internal view returns (bytes32) {
         if (idx > totalStaged || idx < totalConsumed)
             revert InvalidAggregationIndex();
         return aggregationHashRing[idx % AGGREGATION_RING_SIZE];

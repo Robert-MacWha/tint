@@ -1,9 +1,16 @@
-import { poseidon2, poseidon3, poseidon4 } from "poseidon-lite";
+import { poseidon2, poseidon3 } from "poseidon-lite";
+import { LeanIMT } from "@zk-kit/lean-imt";
+import { getFrontier } from ".";
 
 export const N_INPUTS = 2;
 export const N_OUTPUTS = 2;
-export const INNER_DEPTH = 1;
-export const OUTER_DEPTH = 1;
+
+const PRE_LEAVES = 1;
+const DEPTH = 3;
+
+const PRE_LEAF = 1337n;
+
+const hash = (a: bigint, b: bigint) => poseidon2([a, b]);
 
 export type Note = {
     asset: bigint;
@@ -18,11 +25,9 @@ export type Output = {
     partialCommitment: bigint;
 };
 
-// Build the full aggregator witness for a 2-in / 2-out circuit (innerDepth=1, outerDepth=1).
 export function buildAggregatorInput(
     inputs: (Note | null)[],
     outputs: Output[],
-    batchIndex = 0
 ) {
     const commitmentsIn = inputs.map(n =>
         n ? poseidon3([n.asset, n.amount, n.partialCommitment]) : 0n
@@ -30,51 +35,52 @@ export function buildAggregatorInput(
     const commitmentsOut = outputs.map(o =>
         poseidon3([o.asset, o.amount, o.partialCommitment])
     );
+
     const newLeaves = [...commitmentsIn, ...commitmentsOut];
 
-    // Outer tree has depth 1: root = poseidon4([slot0, slot1, slot2, slot3]).
-    // Old root has all slots empty; new root inserts batchRoot at batchIndex.
-    const batchRoot = poseidon4(newLeaves);
-    const outerSlots = [0n, 0n, 0n, 0n];
-    outerSlots[batchIndex] = batchRoot;
-    const oldRoot = poseidon4([0n, 0n, 0n, 0n]);
-    const newRoot = poseidon4(outerSlots);
+    // Build tree: 1 pre-existing leaf, then the batch.
+    const tree = new LeanIMT(hash);
+    tree.insert(PRE_LEAF);
 
-    // leavesAggregationHash: sequential poseidon2 accumulation over non-zero leaves.
+    const initialFrontier = getFrontier(tree, DEPTH);
+    const oldRoot = tree.root;
+    const batchStartIndex = BigInt(PRE_LEAVES);
+
+    for (const leaf of newLeaves) {
+        tree.insert(leaf);
+    }
+
     let aggHash = 0n;
     for (const leaf of newLeaves) {
         if (leaf !== 0n) aggHash = poseidon2([aggHash, leaf]);
     }
 
-    // Per-input: leafIndex = batchIndex * 4 + batchPosition.
-    const leafIndicesIn = inputs.map((_, i) => BigInt(batchIndex * 4 + i));
+    // Input notes land at positions PRE_LEAVES+0, PRE_LEAVES+1 in the leanIMT.
+    const leafIndicesIn = inputs.map((_, i) => batchStartIndex + BigInt(i));
 
     const nullifiers = inputs.map((n, i) =>
         n ? poseidon2([n.nullifyingKey, leafIndicesIn[i]]) : 0n
     );
 
-    // Merkle proof for each input:
-    //   level 0 (inner): the 3 other leaves in the batch
-    //   level 1 (outer): [0,0,0] — the other 3 outer slots are always empty
-    const siblingsIn = inputs.map((_, i) => [
-        [0, 1, 2, 3].filter(k => k !== i).map(k => newLeaves[k]),
-        [0n, 0n, 0n],
-    ]);
+    const siblingsIn = inputs.map((n, i) => {
+        if (!n) return new Array(DEPTH).fill(0n);
+        return tree.generateProof(PRE_LEAVES + i).siblings as bigint[];
+    });
 
     return {
         oldRoot,
-        newRoot,
+        newRoot: tree.root,
         leavesAggregationHash: aggHash,
         nullifiers,
         commitmentsOut,
-        unshieldAmounts: [0n, 0n],
-        unshieldAssets: [0n, 0n],
+        unshieldAmounts: Array(N_OUTPUTS).fill(0n),
+        unshieldAssets: Array(N_OUTPUTS).fill(0n),
         boundParamsHash: 1n,
 
+        batchStartIndex,
         newLeaves,
+        initialFrontier,
         startingAggregationHash: 0n,
-        batchIndex: BigInt(batchIndex),
-        batchSiblings: [[0n, 0n, 0n]],
 
         commitmentsIn,
         siblingsIn,

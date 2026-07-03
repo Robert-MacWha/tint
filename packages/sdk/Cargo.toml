@@ -1,0 +1,14 @@
+[package]
+name = "tint-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+alloy = "2.1.0"
+async-trait = "0.1.89"
+circom-witness-rs = "0.2.3"
+thiserror = "2.0.18"
+zk-kit-lean-imt = "0.1.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }

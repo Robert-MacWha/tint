@@ -21,9 +21,19 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
 
     mapping(bytes32 nullifierHash => bool spent) public nullifierHashes;
 
-    event Deposited(address indexed asset, uint128 amount, bytes32 commitment);
+    event Deposited(
+        address indexed asset,
+        uint128 amount,
+        address indexed spendabilityAddress,
+        bytes spendabilityData,
+        bytes32 commitment
+    );
     event Nullified(bytes32 indexed nullifier);
-    event Committed(bytes32 indexed commitment);
+    event Committed(
+        bytes32 indexed commitment,
+        address indexed spendabilityAddress,
+        bytes spendabilityData
+    );
     event Withdrawn(
         address indexed asset,
         uint128 amount,
@@ -50,25 +60,46 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
     function deposit(
         address asset,
         uint128 amount,
+        address spendabilityAddress,
+        bytes calldata spendabilityData,
         bytes32 commitment
     ) external {
         if (amount == 0) revert ZeroAmount();
         if (commitment == bytes32(0)) revert ZeroCommitment();
+        // TODO: Consider computing commitment here instead of requiring the caller to provide it.
+        // Would increase gas cost for deposit by ~50k(?) but reduce the risk of user error.
         _commit(commitment);
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
-        emit Deposited(asset, amount, commitment);
+        emit Deposited(
+            asset,
+            amount,
+            spendabilityAddress,
+            spendabilityData,
+            commitment
+        );
+    }
+
+    /// @notice Pre-validates an operation, writing a flag to tstore to indicate that the operation is valid.
+    ///
+    /// @dev allows validation to be skipped in the `operate` function if the operation has already been validated.
+    function preValidateOperation(IPrivacyPool.Operation calldata op) public {
+        verifyOperation(op);
+        // TODO: Store validation result in tstore in a way that's associated with the caller ERC-7562-style
+        // so we can use this with paymasters.
     }
 
     function operate(IPrivacyPool.Operation[] calldata operations) public {
         for (uint256 i; i < operations.length; ++i) {
             IPrivacyPool.Operation calldata op = operations[i];
-            _verifyOperation(op);
+            verifyOperation(op);
             _executeOperation(op);
         }
     }
 
     /// @notice Verifies that the provided operation is valid or reverts if not.
-    function _verifyOperation(IPrivacyPool.Operation calldata op) private view {
+    ///
+    /// TODO: Ensure there's enough space for new commitments so `_commit` doesn't revert.
+    function verifyOperation(IPrivacyPool.Operation calldata op) public view {
         _validateOldRoot(op.oldRoot);
 
         bytes32 leavesAggregationHash = _getHash(op.leavesAggregationIndex);
@@ -123,7 +154,11 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
             bytes32 commitment = op.commitmentsOut[i];
             if (commitment == 0) continue;
             _commit(commitment);
-            emit Committed(commitment);
+            emit Committed(
+                commitment,
+                op.spendabilityAddresses[i],
+                op.spendabilityData[i]
+            );
         }
 
         _advanceConsumed(op.leavesAggregationIndex);
@@ -135,7 +170,6 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
             uint128 amount = op.unshieldAmounts[i];
             address recipient = op.unshieldRecipients[i];
             if (amount == 0) continue;
-            if (recipient == address(0)) revert UnshieldRecipientZero(i);
             IERC20(asset).safeTransfer(recipient, amount);
             emit Withdrawn(asset, amount, recipient);
         }

@@ -1,13 +1,24 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      nixpkgs,
+      rust-overlay,
+    }:
     let
       system = "x86_64-linux";
-      pkgs = nixpkgs.legacyPackages.${system};
+      pkgs = import nixpkgs {
+        inherit system;
+        overlays = [ rust-overlay.overlays.default ];
+      };
 
       circomspect = pkgs.rustPlatform.buildRustPackage rec {
         pname = "circomspect";
@@ -23,6 +34,18 @@
         cargoHash = "sha256-SNY/QFOUAOszvhCGORp4sTaseLSlzylduVsa68ytIOM=";
       };
 
+      rustToolchain = pkgs.rust-bin.stable."1.93.0".default.override {
+        extensions = [
+          "rust-src"
+          "llvm-tools"
+          "rust-analyzer"
+        ];
+        targets = [
+          "wasm32-unknown-unknown"
+          "wasm32-wasip1"
+        ];
+      };
+
     in
     {
       devShells.${system}.default = pkgs.mkShell {
@@ -34,6 +57,9 @@
           pkgs.foundry
 
           circomspect
+
+          rustToolchain
+          pkgs.bacon
         ];
       };
     };

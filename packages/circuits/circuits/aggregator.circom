@@ -40,7 +40,8 @@ template Aggregator(nInputs, nOutputs, batchSize, depth) {
     /// Public Signals
     signal input oldRoot;
     signal input newRoot;
-    signal input leavesAggregationHash;             // Poseidon hash of all new leaves, excluding dummy leaves (0 for empty tree)
+    signal input startAggregationHash;
+    signal input endAggregationHash;
     signal input nullifiers[nInputs];               // Nullifiers for input notes (0 for dummy slot)
     signal input commitmentsOut[nOutputs];          // Commitments for output notes (0 for unshields)
     signal input unshieldAmounts[nOutputs];         // Amounts for unshield outputs (0 for internal transfers)
@@ -54,7 +55,6 @@ template Aggregator(nInputs, nOutputs, batchSize, depth) {
     signal input batchStartIndex;
     signal input newLeaves[batchSize];
     signal input initialFrontier[depth];
-    signal input startingAggregationHash;
 
     // Input Notes
     signal input commitmentsIn[nInputs];
@@ -72,8 +72,8 @@ template Aggregator(nInputs, nOutputs, batchSize, depth) {
 
     // ~10k non-linear constraints + ~20k linear constraints
     component checkLeavesAggregation = CheckLeavesAggregationHash(batchSize);
-    checkLeavesAggregation.startingHash <== startingAggregationHash;
-    checkLeavesAggregation.endingHash <== leavesAggregationHash;
+    checkLeavesAggregation.startingHash <== startAggregationHash;
+    checkLeavesAggregation.endingHash <== endAggregationHash;
     checkLeavesAggregation.leaves <== newLeaves;
 
     // ~30k non-linear constraints + ~25k linear constraints

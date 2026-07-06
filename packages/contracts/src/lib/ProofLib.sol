@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {PoseidonT4} from "poseidon-solidity/PoseidonT4.sol";
 import {N_INPUTS, N_OUTPUTS, N_PUB} from "./Constants.sol";
 
 library ProofLib {
@@ -9,6 +10,21 @@ library ProofLib {
         uint256[2] pA;
         uint256[2][2] pB;
         uint256[2] pC;
+    }
+
+    function toCommitment(
+        address asset,
+        uint128 amount,
+        bytes32 partialCommitment
+    ) internal pure returns (bytes32) {
+        return
+            PoseidonT4.poseidon(
+                [
+                    uint256(uint160(asset)),
+                    uint256(amount),
+                    uint256(partialCommitment)
+                ]
+            );
     }
 
     function toBoundParamsHash(
@@ -50,7 +66,9 @@ library ProofLib {
         for (uint256 i = 0; i < N_OUTPUTS; i++) {
             pub[3 + N_INPUTS + i] = uint256(commitmentsOut[i]);
             pub[3 + N_INPUTS + N_OUTPUTS + i] = unshieldAmounts[i];
-            pub[3 + N_INPUTS + 2 * N_OUTPUTS + i] = uint256(uint160(unshieldAssets[i]));
+            pub[3 + N_INPUTS + 2 * N_OUTPUTS + i] = uint256(
+                uint160(unshieldAssets[i])
+            );
         }
 
         // pack the bound params into the last public signal

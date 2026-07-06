@@ -24,9 +24,7 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
     event Deposited(
         address indexed asset,
         uint128 amount,
-        address indexed spendabilityAddress,
-        bytes spendabilityData,
-        bytes32 commitment
+        bytes32 partialCommitment,
     );
     event Nullified(bytes32 indexed nullifier);
     event Committed(
@@ -41,7 +39,6 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
     );
 
     error ZeroAmount();
-    error ZeroCommitment();
     error InvalidProof();
     error NullifierAlreadySpent(bytes32 nullifier);
     error UnshieldRecipientZero(uint256 index);
@@ -54,28 +51,23 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
     ///
     /// @param asset The ERC20 token contract address.
     /// @param amount The amount to deposit in.
-    /// @param commitment The commitment representing the private output note.
+    /// @param partialCommitment The partial commitment for the private output note.
     ///
     /// @dev The caller must have approved this contract to spend at least `amount` of `asset`.
     function deposit(
         address asset,
         uint128 amount,
-        address spendabilityAddress,
-        bytes calldata spendabilityData,
-        bytes32 commitment
+        bytes32 partialCommitment,
     ) external {
         if (amount == 0) revert ZeroAmount();
-        if (commitment == bytes32(0)) revert ZeroCommitment();
-        // TODO: Consider computing commitment here instead of requiring the caller to provide it.
-        // Would increase gas cost for deposit by ~50k(?) but reduce the risk of user error.
+
+        bytes32 commitment = ProofLib.toCommitment(asset, amount, partialCommitment);
         _commit(commitment);
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
         emit Deposited(
             asset,
             amount,
-            spendabilityAddress,
-            spendabilityData,
-            commitment
+            partialCommitment
         );
     }
 
@@ -88,12 +80,9 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
         // so we can use this with paymasters.
     }
 
-    function operate(IPrivacyPool.Operation[] calldata operations) public {
-        for (uint256 i; i < operations.length; ++i) {
-            IPrivacyPool.Operation calldata op = operations[i];
-            verifyOperation(op);
-            _executeOperation(op);
-        }
+    function operate(IPrivacyPool.Operation calldata operation) public {
+        verifyOperation(operation);
+        _executeOperation(operation);
     }
 
     /// @notice Verifies that the provided operation is valid or reverts if not.

@@ -3,4 +3,4 @@ pragma circom 2.1.2;
 
 include "../aggregator.circom";
 
-component main {public[oldRoot, newRoot, leavesAggregationHash, nullifiers, commitmentsOut, unshieldAmounts, unshieldAssets, boundParamsHash]} = Aggregator(5, 5, 16, 24);
+component main {public[oldRoot, newRoot, startAggregationHash, endAggregationHash, nullifiers, commitmentsOut, unshieldAmounts, unshieldAssets, boundParamsHash]} = Aggregator(5, 5, 16, 24);

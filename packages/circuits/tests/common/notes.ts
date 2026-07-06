@@ -1,6 +1,5 @@
 import { poseidon2, poseidon3 } from "poseidon-lite";
-import { LeanIMT } from "@zk-kit/lean-imt";
-import { getFrontier } from ".";
+import { SimpleIMT } from ".";
 
 export const N_INPUTS = 2;
 export const N_OUTPUTS = 2;
@@ -9,8 +8,6 @@ const PRE_LEAVES = 1;
 const DEPTH = 3;
 
 const PRE_LEAF = 1337n;
-
-const hash = (a: bigint, b: bigint) => poseidon2([a, b]);
 
 export type Note = {
     asset: bigint;
@@ -39,10 +36,10 @@ export function buildAggregatorInput(
     const newLeaves = [...commitmentsIn, ...commitmentsOut];
 
     // Build tree: 1 pre-existing leaf, then the batch.
-    const tree = new LeanIMT(hash);
+    const tree = new SimpleIMT(DEPTH);
     tree.insert(PRE_LEAF);
 
-    const initialFrontier = getFrontier(tree, DEPTH);
+    const initialFrontier = tree.frontier;
     const oldRoot = tree.root;
     const batchStartIndex = BigInt(PRE_LEAVES);
 
@@ -50,12 +47,12 @@ export function buildAggregatorInput(
         tree.insert(leaf);
     }
 
-    let aggHash = 0n;
+    let endAggregationHash = 0n;
     for (const leaf of newLeaves) {
-        if (leaf !== 0n) aggHash = poseidon2([aggHash, leaf]);
+        if (leaf !== 0n) endAggregationHash = poseidon2([endAggregationHash, leaf]);
     }
 
-    // Input notes land at positions PRE_LEAVES+0, PRE_LEAVES+1 in the leanIMT.
+    // Input notes land at positions PRE_LEAVES+0, PRE_LEAVES+1 in the tree.
     const leafIndicesIn = inputs.map((_, i) => batchStartIndex + BigInt(i));
 
     const nullifiers = inputs.map((n, i) =>
@@ -64,13 +61,14 @@ export function buildAggregatorInput(
 
     const siblingsIn = inputs.map((n, i) => {
         if (!n) return new Array(DEPTH).fill(0n);
-        return tree.generateProof(PRE_LEAVES + i).siblings as bigint[];
+        return tree.generateProof(PRE_LEAVES + i);
     });
 
     return {
         oldRoot,
         newRoot: tree.root,
-        leavesAggregationHash: aggHash,
+        startAggregationHash: 0n,
+        endAggregationHash,
         nullifiers,
         commitmentsOut,
         unshieldAmounts: Array(N_OUTPUTS).fill(0n),
@@ -80,9 +78,7 @@ export function buildAggregatorInput(
         batchStartIndex,
         newLeaves,
         initialFrontier,
-        startingAggregationHash: 0n,
 
-        commitmentsIn,
         siblingsIn,
         leafIndicesIn,
         assetsIn: inputs.map(n => n?.asset ?? 0n),

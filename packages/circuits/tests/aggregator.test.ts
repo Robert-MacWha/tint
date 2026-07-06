@@ -43,8 +43,8 @@ describe("Aggregator", () => {
             template: "Aggregator",
             params: [N_INPUTS, N_OUTPUTS, BATCH_SIZE, DEPTH],
             pubs: [
-                "oldRoot", "newRoot", "leavesAggregationHash", "nullifiers",
-                "commitmentsOut", "unshieldAmounts", "unshieldAssets", "boundParamsHash",
+                "oldRoot", "newRoot", "startAggregationHash", "endAggregationHash",
+                "nullifiers", "commitmentsOut", "unshieldAmounts", "unshieldAssets", "boundParamsHash",
             ],
         });
     });
@@ -64,7 +64,7 @@ describe("Aggregator", () => {
     it("should fail for wrong nullifier preimage",  tamperFail(inp => { inp.nullifiers[0] += 1n; }));
     it("should fail for wrong Merkle path",         tamperFail(inp => { inp.siblingsIn[0][0] += 1n; }));
     it("should fail for wrong newRoot",             tamperFail(inp => { inp.newRoot += 1n; }));
-    it("should fail for wrong leavesAggregationHash", tamperFail(inp => { inp.leavesAggregationHash += 1n; }));
+    it("should fail for wrong endAggregationHash",    tamperFail(inp => { inp.endAggregationHash += 1n; }));
 
     it("should fail for asset mismatch (orphan output)", async () => {
         await circuit.expectFail(buildAggregatorInput(

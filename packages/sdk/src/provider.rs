@@ -90,7 +90,6 @@ impl Provider {
             batch_start_index,
             new_leaves,
             initial_frontier,
-            commitments_in: operation.commitment_hashes(),
             siblings_in: [[B256::ZERO; DEPTH]; N_INPUTS], // TODO
             leaf_indices_in: [0; N_INPUTS],               // TODO
             assets_in: operation.assets_in(),

@@ -14,7 +14,6 @@ async-trait = "0.1.89"
 circom-witness-rs = "0.2.3"
 ruint = { version = "1.19.0", features = ["ark-ff-06"] }
 thiserror = "2.0.18"
-zk-kit-lean-imt = "0.1.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }

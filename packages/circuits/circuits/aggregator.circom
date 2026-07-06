@@ -1,7 +1,6 @@
 pragma circom 2.2.3;
 
-// include "./batchMerkleTree4.circom";
-include "./leanIMT.circom";
+include "./merkleTree.circom";
 include "./commitment.circom";
 include "./amounts.circom";
 
@@ -57,7 +56,6 @@ template Aggregator(nInputs, nOutputs, batchSize, depth) {
     signal input initialFrontier[depth];
 
     // Input Notes
-    signal input commitmentsIn[nInputs];
     signal input siblingsIn[nInputs][depth];
     signal input leafIndicesIn[nInputs];
     signal input assetsIn[nInputs];
@@ -77,7 +75,7 @@ template Aggregator(nInputs, nOutputs, batchSize, depth) {
     checkLeavesAggregation.leaves <== newLeaves;
 
     // ~30k non-linear constraints + ~25k linear constraints
-    component leanIMTBatchInsert = LeanIMTBatchInsert(depth, batchSize);
+    component leanIMTBatchInsert = MerkleTreeBatchInsert(depth, batchSize);
     leanIMTBatchInsert.root <== oldRoot;
     leanIMTBatchInsert.startIndex <== batchStartIndex;
     leanIMTBatchInsert.leaves <== newLeaves;
@@ -255,7 +253,7 @@ template CheckMerkleProofs(nInputs, depth) {
         commitmentHashers[i].amount <== amountsIn[i];
         commitmentHashers[i].partialCommitment <== partialCommitmentsIn[i];
 
-        merkleVerifiers[i] = LeanIMTInclusion(depth);
+        merkleVerifiers[i] = MerkleTreeInclusion(depth);
         merkleVerifiers[i].leaf <== commitmentHashers[i].commitment;
         merkleVerifiers[i].leafIndex <== leafIndicesIn[i];
         merkleVerifiers[i].siblings <== siblingsIn[i];

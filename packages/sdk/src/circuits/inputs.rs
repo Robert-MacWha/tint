@@ -5,7 +5,7 @@ use alloy::primitives::{Address, B256, U256};
 pub const N_INPUTS: usize = 5;
 pub const N_OUTPUTS: usize = 5;
 pub const BATCH_SIZE: usize = 16;
-pub const DEPTH: usize = 32;
+pub const DEPTH: usize = 24;
 
 pub struct AggregatorProofInputs {
     // Public Inputs
@@ -23,7 +23,6 @@ pub struct AggregatorProofInputs {
     pub batch_start_index: u64,
     pub new_leaves: [B256; BATCH_SIZE],
     pub initial_frontier: [B256; DEPTH],
-    pub commitments_in: [B256; N_INPUTS],
     pub siblings_in: [[B256; DEPTH]; N_INPUTS],
     pub leaf_indices_in: [u64; N_INPUTS],
     pub assets_in: [Address; N_INPUTS],
@@ -71,10 +70,6 @@ impl AggregatorProofInputs {
             (
                 "initialFrontier".to_string(),
                 self.initial_frontier.map(b2u).concat(),
-            ),
-            (
-                "commitmentsIn".to_string(),
-                self.commitments_in.map(b2u).concat(),
             ),
             (
                 "siblingsIn".to_string(),

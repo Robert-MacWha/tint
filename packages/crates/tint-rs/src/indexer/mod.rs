@@ -2,9 +2,6 @@ use std::sync::Arc;
 
 use alloy_primitives::{B256, keccak256};
 
-use crate::circuits::inputs::{
-    BatchChunkInsertInputs, CHUNK_DEPTH, CHUNK_PATH_LEN, CHUNK_SIZE, DEPTH,
-};
 use merkle_tree::IncrementalMerkleTree;
 
 pub mod merkle_tree;

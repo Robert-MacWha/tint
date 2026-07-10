@@ -1,8 +1,8 @@
 mod abis;
 mod circuit;
-mod circuits;
 mod database;
 mod indexer;
+mod main;
 mod note;
 mod operation;
 mod provider;

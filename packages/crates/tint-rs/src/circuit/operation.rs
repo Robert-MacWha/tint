@@ -2,22 +2,17 @@ use std::borrow::Borrow;
 
 use ark_bn254::Fr;
 use ark_r1cs_std::{
-    alloc::AllocVar,
-    boolean::Boolean,
-    eq::EqGadget,
-    fields::{FieldVar, fp::FpVar},
-    prelude::ToBitsGadget,
+    alloc::AllocVar, boolean::Boolean, eq::EqGadget, fields::FieldVar, prelude::ToBitsGadget,
 };
 use ark_relations::gr1cs::{Namespace, SynthesisError};
 
 use crate::{
     circuit::{FrVar, try_array_from_fn, variable},
-    circuits::inputs::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
     note::{commitment::Commitment, withdrawal::Withdrawal},
     operation::Operation,
 };
 
-pub struct OperationVar {
+pub struct OperationVar<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize> {
     pub inputs: [CommitmentVar; N_INPUTS],
     pub output_commitments: [CommitmentVar; N_OUTPUTS],
     pub output_withdrawals: [WithdrawalVar; N_WITHDRAWALS],
@@ -40,10 +35,10 @@ pub struct PartialCommitmentVar {
     pub random: FrVar,
 }
 
-impl OperationVar {
-    /// Validates that there is no asset creation or destruction in the operation.
+impl<const I: usize, const O: usize, const W: usize> OperationVar<I, O, W> {
+    /// Verifies that there is no asset creation or destruction in the operation.
     #[tracing::instrument(target = "r1cs", skip_all)]
-    pub fn validate(&self) -> Result<(), SynthesisError> {
+    pub fn verify(&self) -> Result<(), SynthesisError> {
         self.enforce_u128()?;
         self.check_balance()
     }
@@ -112,8 +107,10 @@ impl OperationVar {
     }
 }
 
-impl AllocVar<Operation, Fr> for OperationVar {
-    fn new_variable<T: Borrow<Operation>>(
+impl<const I: usize, const O: usize, const W: usize> AllocVar<Operation<I, O, W>, Fr>
+    for OperationVar<I, O, W>
+{
+    fn new_variable<T: Borrow<Operation<I, O, W>>>(
         cs: impl Into<Namespace<Fr>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: ark_r1cs_std::prelude::AllocationMode,
@@ -198,6 +195,7 @@ fn enforce_u128(v: &FrVar) -> Result<(), SynthesisError> {
 #[cfg(test)]
 mod tests {
     use alloy_primitives::{Address, address};
+    use ark_r1cs_std::fields::fp::FpVar;
     use ark_relations::gr1cs::ConstraintSystem;
 
     use super::*;
@@ -205,8 +203,8 @@ mod tests {
     const DEAD_BEEF: Address = address!("0x00000000000000000000000000000000deadbeef");
     const C0FFEE: Address = address!("0x0000000000000000000000000000000000c0ffee");
 
-    fn default_operation() -> Operation {
-        let mut op = Operation::default();
+    fn default_operation() -> Operation<3, 3, 3> {
+        let mut op = Operation::<3, 3, 3>::default();
         op.inputs[0].asset = DEAD_BEEF.into();
         op.inputs[0].amount = 10;
         op.inputs[1].asset = DEAD_BEEF.into();
@@ -216,20 +214,20 @@ mod tests {
         op
     }
 
-    /// Tests that an empty operation is valid.
+    /// Expect that an empty operation is valid.
     #[test]
-    fn test_empty() {
+    fn empty() {
         let cs = ConstraintSystem::<Fr>::new_ref();
-        let op = Operation::default();
+        let op = Operation::<3, 3, 3>::default();
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
-        var.validate().unwrap();
+        var.verify().unwrap();
         assert!(cs.is_satisfied().unwrap());
     }
 
-    /// Tests that a balanced operation is valid.
+    /// Expect that a balanced operation is valid.
     #[test]
-    fn test_balanced() {
+    fn balanced() {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let mut op = default_operation();
 
@@ -241,13 +239,13 @@ mod tests {
         op.output_withdrawals[0].amount = 5;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
-        var.validate().unwrap();
+        var.verify().unwrap();
         assert!(cs.is_satisfied().unwrap());
     }
 
-    /// Tests that an unbalanced operation is invalid.
+    /// Expect that an unbalanced operation is invalid.
     #[test]
-    fn test_unbalanced() {
+    fn unbalanced_unsatisfied() {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let mut op = default_operation();
 
@@ -257,13 +255,13 @@ mod tests {
         op.output_commitments[1].amount = 10;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
-        var.validate().unwrap();
+        var.verify().unwrap();
         assert!(!cs.is_satisfied().unwrap());
     }
 
-    /// Tests that an operation with an overflowed output amount is invalid.
+    /// Expect that an operation with an overflowed output amount is invalid.
     #[test]
-    fn test_enforce_u128() {
+    fn enforce_u128() {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let op = default_operation();
 
@@ -275,9 +273,9 @@ mod tests {
         assert!(!cs.is_satisfied().unwrap());
     }
 
-    /// Tests that the input sum is calculated correctly.
+    /// Expect that the input sum is calculated correctly.
     #[test]
-    fn test_input_sum_for_asset() {
+    fn input_sum_for_asset() {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let op = default_operation();
 
@@ -294,9 +292,9 @@ mod tests {
         assert!(cs.is_satisfied().unwrap());
     }
 
-    /// Tests that the output sum is calculated correctly.
+    /// Expect that the output sum is calculated correctly.
     #[test]
-    fn test_output_sum_for_asset() {
+    fn output_sum_for_asset() {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let mut op = default_operation();
 

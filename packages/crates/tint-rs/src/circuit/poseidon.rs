@@ -8,6 +8,7 @@ use ark_r1cs_std::{
     fields::FieldVar,
 };
 use ark_relations::gr1cs::{Namespace, SynthesisError};
+use std::sync::Arc;
 
 use crate::circuit::FrVar;
 
@@ -17,13 +18,13 @@ use crate::circuit::FrVar;
 /// compatibility.
 #[derive(Debug, Clone)]
 pub struct PoseidonHasher<const N: usize> {
-    pub parameters: PoseidonConfig<Fr>,
+    pub parameters: Arc<PoseidonConfig<Fr>>,
 }
 
 /// In-circuit counterpart of [`PoseidonHasher`].
 #[derive(Clone)]
 pub struct PoseidonHasherGadget<const N: usize> {
-    pub parameters: PoseidonConfig<Fr>,
+    pub parameters: Arc<PoseidonConfig<Fr>>,
 }
 
 /// A native field element (`Fr`) or its in-circuit counterpart (`FrVar`).
@@ -39,7 +40,9 @@ impl<const N: usize> PoseidonHasher<N> {
             light_poseidon::parameters::bn254_x5::get_poseidon_parameters((N + 1) as u8).ok()?;
         let parameters = light_poseidon_parameters_to_ark(light_params)?;
 
-        Some(Self { parameters })
+        Some(Self {
+            parameters: Arc::new(parameters),
+        })
     }
 
     /// Hashes `N` field elements, matching circomlib's `Poseidon(N)`.

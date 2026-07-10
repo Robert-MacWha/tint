@@ -41,7 +41,7 @@ impl<const D: usize, const K: usize> InclusionProofVar<D, K> {
         computed_root.enforce_equal(root)
     }
 
-    /// Computes the root of the merkle tree asuming the leaf and path on `self` are correct.
+    /// Compute the root implied by this inclusion proof.
     pub fn root(&self, hasher: &PoseidonHasherGadget<K>) -> Result<FrVar, SynthesisError> {
         let mut current_hash = self.leaf.clone();
 
@@ -97,90 +97,95 @@ impl<const D: usize, const K: usize> AllocVar<InclusionProof<K, D>, Fr>
 
 #[cfg(test)]
 mod tests {
-    use ark_ff::Zero;
     use ark_r1cs_std::GR1CSVar;
     use ark_relations::gr1cs::ConstraintSystem;
 
     use super::*;
-    use crate::circuit::poseidon::PoseidonHasher;
+    use crate::{circuit::poseidon::PoseidonHasher, indexer::merkle_tree::IncrementalMerkleTree};
 
+    /// Expect that the inclusion proof verifies correctly in circuit.
     #[test]
-    fn allocates_and_verifies_when_depth_and_arity_differ() {
-        const K: usize = 2;
-        const D: usize = 5;
+    fn verify_membership() {
+        let native_hasher = PoseidonHasher::new().unwrap();
+        let native_leaves = (0..32).map(Fr::from).collect::<Vec<_>>();
+        let tree =
+            IncrementalMerkleTree::<5, 2>::from_leaves(&native_leaves, native_hasher.clone());
+        let root = tree.root();
 
-        let native_hasher = PoseidonHasher::<K>::new().unwrap();
-        let siblings = [[Fr::from(1u64), Fr::from(2u64)]; D];
-        let leaf = Fr::from(7u64);
-        let path = [0u8; D];
-
-        let mut root = leaf;
-        for group in siblings.iter().rev() {
-            let mut input = *group;
-            input[0] = root;
-            root = native_hasher.hash(input);
-        }
-
-        let proof = InclusionProof::<K, D> {
-            path,
-            siblings,
-            leaf,
-        };
+        let target = native_leaves[7];
+        let target_path = tree.path(target).unwrap();
+        let inclusion_proof = tree.inclusion(target_path);
 
         let cs = ConstraintSystem::<Fr>::new_ref();
-        let hasher = PoseidonHasherGadget::<K>::new_variable(
+        let hasher = PoseidonHasherGadget::<2>::new_constant(cs.clone(), &native_hasher).unwrap();
+        let proof_var = InclusionProofVar::<5, 2>::new_variable(
             cs.clone(),
-            || Ok(&native_hasher),
-            AllocationMode::Constant,
-        )
-        .unwrap();
-        let proof_var = InclusionProofVar::<D, K>::new_variable(
-            cs.clone(),
-            || Ok(&proof),
+            || Ok(&inclusion_proof),
             AllocationMode::Witness,
         )
         .unwrap();
-        let root_var = variable(cs.clone(), root, AllocationMode::Input).unwrap();
 
+        let root_var = variable(cs.clone(), root, AllocationMode::Input).unwrap();
         proof_var.verify_membership(&root_var, &hasher).unwrap();
 
         assert!(cs.is_satisfied().unwrap());
-        assert_ne!(D, K, "regression test must exercise D != K");
-        assert_ne!(root_var.value().unwrap(), Fr::zero());
     }
 
+    /// Expect that an invalid inclusion proof fails to verify in circuit.
     #[test]
-    fn rejects_out_of_range_digit() {
-        const K: usize = 2;
-        const D: usize = 3;
+    fn invalid_proof() {
+        let native_hasher = PoseidonHasher::new().unwrap();
+        let native_leaves = (0..32).map(Fr::from).collect::<Vec<_>>();
+        let tree =
+            IncrementalMerkleTree::<5, 2>::from_leaves(&native_leaves, native_hasher.clone());
+        let root = tree.root();
 
-        let siblings = [[Fr::from(1u64), Fr::from(2u64)]; D];
-        let leaf = Fr::from(7u64);
-        // 2 is out of range for arity K=2 (valid digits are 0 or 1); a prover
-        // could otherwise use this to drop `current_hash` from the hash input
-        // entirely, as neither slot 0 nor slot 1 would be selected.
-        let proof = InclusionProof::<K, D> {
-            path: [2u8; D],
-            siblings,
-            leaf,
-        };
+        let target = native_leaves[7];
+        let target_path = tree.path(target).unwrap();
+        let mut inclusion_proof = tree.inclusion(target_path);
+        inclusion_proof.path[0] = 1u8; // corrupt the proof
 
         let cs = ConstraintSystem::<Fr>::new_ref();
-        let proof_var = InclusionProofVar::<D, K>::new_variable(
+        let hasher = PoseidonHasherGadget::<2>::new_constant(cs.clone(), &native_hasher).unwrap();
+        let proof_var = InclusionProofVar::<5, 2>::new_variable(
             cs.clone(),
-            || Ok(&proof),
+            || Ok(&inclusion_proof),
             AllocationMode::Witness,
         )
         .unwrap();
-        let native_hasher = PoseidonHasher::<K>::new().unwrap();
-        let hasher = PoseidonHasherGadget::<K>::new_variable(
-            cs.clone(),
-            || Ok(&native_hasher),
-            AllocationMode::Constant,
-        )
-        .unwrap();
 
-        let _ = proof_var.root(&hasher).unwrap();
+        let root_var = variable(cs.clone(), root, AllocationMode::Input).unwrap();
+        proof_var.verify_membership(&root_var, &hasher).unwrap();
+
+        assert!(!cs.is_satisfied().unwrap());
+    }
+
+    /// Expect that the one-hot selector is computed correctly for a valid digit.
+    #[test]
+    fn onehot_selector() {
+        const K: usize = 4;
+
+        let cs = ConstraintSystem::<Fr>::new_ref();
+        let digit = UInt8::new_variable(cs.clone(), || Ok(2u8), AllocationMode::Witness).unwrap();
+        let selector = InclusionProofVar::<2, K>::one_hot_selector(&digit).unwrap();
+
+        assert!(selector[0].value().unwrap() == false);
+        assert!(selector[1].value().unwrap() == false);
+        assert!(selector[2].value().unwrap() == true);
+        assert!(selector[3].value().unwrap() == false);
+
+        assert!(cs.is_satisfied().unwrap());
+    }
+
+    /// Expect that the one-hot selector fails for a digit that is out of range.
+    #[test]
+    fn onehot_out_of_range() {
+        const K: usize = 4;
+
+        let cs = ConstraintSystem::<Fr>::new_ref();
+        let digit =
+            UInt8::new_variable(cs.clone(), || Ok((K + 1) as u8), AllocationMode::Witness).unwrap();
+        let _ = InclusionProofVar::<2, K>::one_hot_selector(&digit).unwrap();
 
         assert!(!cs.is_satisfied().unwrap());
     }

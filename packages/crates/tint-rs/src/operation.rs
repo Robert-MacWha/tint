@@ -1,16 +1,17 @@
-use crate::{
-    circuits::inputs::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
-    note::{commitment::Commitment, withdrawal::Withdrawal},
-};
+use std::array::repeat;
 
-#[derive(Default, Clone, Debug)]
-pub struct Operation {
+use crate::note::{commitment::Commitment, withdrawal::Withdrawal};
+
+#[derive(Clone, Debug)]
+pub struct Operation<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize> {
     pub inputs: [Commitment; N_INPUTS],
     pub output_commitments: [Commitment; N_OUTPUTS],
     pub output_withdrawals: [Withdrawal; N_WITHDRAWALS],
 }
 
-impl Operation {
+impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
+    Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>
+{
     pub fn new(
         inputs: [Commitment; N_INPUTS],
         output_commitments: [Commitment; N_OUTPUTS],
@@ -142,4 +143,14 @@ impl Operation {
     //         .each_ref()
     //         .map(|o| o.random().unwrap_or_default())
     // }
+}
+
+impl<const I: usize, const O: usize, const W: usize> Default for Operation<I, O, W> {
+    fn default() -> Self {
+        Operation {
+            inputs: repeat(Commitment::default()),
+            output_commitments: repeat(Commitment::default()),
+            output_withdrawals: repeat(Withdrawal::default()),
+        }
+    }
 }

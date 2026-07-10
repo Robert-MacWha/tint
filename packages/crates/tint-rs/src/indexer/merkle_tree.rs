@@ -4,16 +4,16 @@ use ark_ff::Zero;
 use crate::circuit::poseidon::PoseidonHasher;
 
 /// Fixed-depth incremental Merkle tree.
-///
-/// `levels[0]` holds the leaves and `levels[D]` always holds exactly the
-/// root (once written). Inserting/appending only recomputes the ancestor
-/// chain of the affected leaf (see [`Self::propagate`]), rather than
-/// rebuilding the whole tree, since insertion is the common-case operation.
 pub struct IncrementalMerkleTree<const D: usize, const K: usize> {
     hasher: PoseidonHasher<K>,
     levels: Vec<Vec<Fr>>,
-    /// `zeros[l]` is the hash of an entirely-empty subtree at level `l`.
     zeros: Vec<Fr>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum MerkleTreeError {
+    #[error("cannot insert more than SUBTREE_SIZE leaves at once")]
+    TooManyLeaves,
 }
 
 /// Path from the root to a node in the Merkle tree, as one base-`K` digit
@@ -27,23 +27,25 @@ pub struct InclusionProof<const K: usize, const PATH_LEN: usize> {
     pub leaf: Fr,
 }
 
-/// Witness for proving a batch of up to `CHUNK_SIZE` leaves was inserted into
-/// the tree, starting right after the last previously-filled leaf (may span
-/// two adjacent `CHUNK_SIZE`-leaf chunks). `current_siblings`/`next_siblings`
-/// are the sibling path (of length `CHUNK_PATH_LEN`) above the current and
-/// next chunk, respectively; the chunk index and fill level are not stored
-/// here since they're derived in-circuit from the tree's leaf count instead
-/// (see `ChunkInsertionProofVar::insert`).
-pub struct ChunkInsertionProof<const K: usize, const CHUNK_SIZE: usize, const CHUNK_PATH_LEN: usize>
-{
-    pub existing_leaves: [Fr; CHUNK_SIZE],
-    pub new_leaves: [Fr; CHUNK_SIZE],
-    pub current_siblings: [[Fr; K]; CHUNK_PATH_LEN],
-    pub next_siblings: [[Fr; K]; CHUNK_PATH_LEN],
+/// Proof for appending up to `SUBTREE_SIZE` leaves into a Merkle tree of
+/// depth `D` and arity `K`.
+pub struct SubtreeAppendProof<
+    const K: usize,
+    const SUBTREE_PATH_LEN: usize,
+    const SUBTREE_SIZE: usize,
+> {
+    /// The leaves in the subtree before this append, padded with zeros to `SUBTREE_SIZE`.
+    pub existing_leaves: [Fr; SUBTREE_SIZE],
+    /// The leaves being appended, padded with zeros to `SUBTREE_SIZE`.
+    pub new_leaves: [Fr; SUBTREE_SIZE],
+    /// The sibling hashes along the path to the current subtree.
+    pub current_siblings: [[Fr; K]; SUBTREE_PATH_LEN],
+    /// The sibling hashes along the path to the next subtree.
+    pub next_siblings: [[Fr; K]; SUBTREE_PATH_LEN],
 }
 
 impl<const K: usize, const PATH_LEN: usize> InclusionProof<K, PATH_LEN> {
-    /// Recomputes the Merkle root implied by this proof.
+    /// Computes the Merkle root implied by this proof.
     pub fn root(&self, hasher: &PoseidonHasher<K>) -> Fr {
         let mut current = self.leaf;
         for (&digit, sibling_group) in self.path.iter().rev().zip(self.siblings.iter().rev()) {
@@ -66,13 +68,9 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
     }
 
     pub fn from_leaves(leaves: &[Fr], hasher: PoseidonHasher<K>) -> Self {
-        let zeros = Self::compute_zeros(&hasher);
-        let levels = Self::build_levels(leaves, &hasher, &zeros);
-        Self {
-            hasher,
-            levels,
-            zeros,
-        }
+        let mut tree = Self::new(hasher);
+        tree.append(leaves);
+        tree
     }
 
     pub fn root(&self) -> Fr {
@@ -107,8 +105,11 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
     pub fn inclusion<const PATH_LEN: usize>(
         &self,
         path: Path<PATH_LEN>,
-    ) -> Option<InclusionProof<K, PATH_LEN>> {
-        let level = D.checked_sub(PATH_LEN)?;
+    ) -> InclusionProof<K, PATH_LEN> {
+        let level = const {
+            assert!(PATH_LEN <= D, "PATH_LEN must be <= D");
+            D - PATH_LEN
+        };
 
         let mut index = Self::index_for_path(&path);
         let leaf = self.levels[level]
@@ -129,82 +130,63 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
             index /= K;
         }
 
-        Some(InclusionProof {
+        InclusionProof {
             path,
             siblings,
             leaf,
-        })
+        }
     }
 
-    /// Inserts up to `CHUNK_SIZE` leaves as a batch, starting right after the
-    /// last previously-inserted leaf. Returns the witness data needed by
-    /// `ChunkInsertionProofVar::insert`, plus the tree's leaf count *before*
-    /// this call (from which the circuit derives chunk index/fill level).
-    pub fn insert_chunk<const CHUNK_SIZE: usize, const CHUNK_PATH_LEN: usize>(
+    /// Appends up to `SUBTREE_SIZE` leaves as a batch.
+    ///
+    /// Returns an error if `new_leaves.len() > SUBTREE_SIZE`.
+    pub fn append_subtree<const SUBTREE_PATH_LEN: usize, const SUBTREE_SIZE: usize>(
         &mut self,
         new_leaves: &[Fr],
-    ) -> (ChunkInsertionProof<K, CHUNK_SIZE, CHUNK_PATH_LEN>, usize) {
-        assert!(
-            new_leaves.len() <= CHUNK_SIZE,
-            "chunk insertion cannot exceed CHUNK_SIZE new leaves"
-        );
-        assert!(
-            CHUNK_SIZE == K.pow((D - CHUNK_PATH_LEN) as u32),
-            "CHUNK_SIZE must equal K^(D - CHUNK_PATH_LEN)"
-        );
-
-        let old_root_length = self.levels[0].len();
-        let chunk_index = old_root_length / CHUNK_SIZE;
-        let chunk_filled = old_root_length % CHUNK_SIZE;
-
-        let mut existing_leaves = [Fr::zero(); CHUNK_SIZE];
-        for (i, leaf) in existing_leaves.iter_mut().enumerate().take(chunk_filled) {
-            *leaf = self.levels[0][chunk_index * CHUNK_SIZE + i];
+    ) -> Result<SubtreeAppendProof<K, SUBTREE_PATH_LEN, SUBTREE_SIZE>, MerkleTreeError> {
+        const {
+            assert!(
+                SUBTREE_SIZE == K.pow((D - SUBTREE_PATH_LEN) as u32),
+                "SUBTREE_SIZE must equal K^(D - SUBTREE_PATH_LEN)"
+            );
+        }
+        if new_leaves.len() > SUBTREE_SIZE {
+            return Err(MerkleTreeError::TooManyLeaves);
         }
 
-        let mut padded_new_leaves = [Fr::zero(); CHUNK_SIZE];
+        let old_root_length = self.levels[0].len();
+        let subtree_index = old_root_length / SUBTREE_SIZE;
+        let filled = old_root_length % SUBTREE_SIZE;
+
+        let mut existing_leaves = [Fr::zero(); SUBTREE_SIZE];
+        for (i, leaf) in existing_leaves.iter_mut().enumerate().take(filled) {
+            *leaf = self.levels[0][subtree_index * SUBTREE_SIZE + i];
+        }
+
+        let mut padded_new_leaves = [Fr::zero(); SUBTREE_SIZE];
         padded_new_leaves[..new_leaves.len()].copy_from_slice(new_leaves);
 
-        // Captured from the tree's state *before* any mutation. When the
-        // current and next chunk are themselves tree-siblings at the lowest
-        // chunk-tree level (e.g. chunk indices 0 and 1), `current_siblings`'
-        // lowest-level entry *is* the next chunk's root — which must still
-        // reflect its old (pre-overflow) value here, since it's reused for
-        // both the old-root proof and the post-current-chunk-update
-        // intermediate-root proof, neither of which have touched the next
-        // chunk yet.
         let current_siblings = self
-            .inclusion::<CHUNK_PATH_LEN>(Self::path_for_index(chunk_index))
-            .expect("current chunk path should resolve to a valid subtree")
+            .inclusion::<SUBTREE_PATH_LEN>(Self::path_for_index(subtree_index))
             .siblings;
-
         for (i, &leaf) in new_leaves.iter().enumerate() {
             self.insert(old_root_length + i, leaf);
         }
 
-        // Captured *after* all mutations. This is safe even though it's used
-        // for the (pre-next-chunk-write) intermediate-root proof too: a
-        // sibling array never includes the node's own subtree, and the
-        // current chunk (the only other thing that changed) is only written
-        // once, so its root is identical in the intermediate and final tree.
         let next_siblings = self
-            .inclusion::<CHUNK_PATH_LEN>(Self::path_for_index(chunk_index + 1))
-            .expect("next chunk path should resolve to a valid subtree")
+            .inclusion::<SUBTREE_PATH_LEN>(Self::path_for_index(subtree_index + 1))
             .siblings;
 
-        (
-            ChunkInsertionProof {
-                existing_leaves,
-                new_leaves: padded_new_leaves,
-                current_siblings,
-                next_siblings,
-            },
-            old_root_length,
-        )
+        Ok(SubtreeAppendProof {
+            existing_leaves,
+            new_leaves: padded_new_leaves,
+            current_siblings,
+            next_siblings,
+        })
     }
 
     /// Recomputes the ancestor chain of `levels[0][index]`, from its parent up
-    /// to the root. Touches exactly `D` nodes, regardless of tree size.
+    /// to the root.
     fn propagate(&mut self, mut index: usize) {
         for level in 0..D {
             let group_start = (index / K) * K;
@@ -235,32 +217,6 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
             zeros.push(hasher.hash([prev; K]));
         }
         zeros
-    }
-
-    /// Builds the tree bottom-up from `leaves` in one pass. Used only for bulk
-    /// construction; incremental updates go through [`Self::propagate`] instead.
-    fn build_levels(leaves: &[Fr], hasher: &PoseidonHasher<K>, zeros: &[Fr]) -> Vec<Vec<Fr>> {
-        let mut levels = Vec::with_capacity(D + 1);
-        levels.push(leaves.to_vec());
-
-        for level in 0..D {
-            let cur = &levels[level];
-            let mut next = Vec::with_capacity(cur.len().div_ceil(K));
-            let mut i = 0;
-            while i < cur.len() {
-                let mut chunk = [zeros[level]; K];
-                for (k, slot) in chunk.iter_mut().enumerate() {
-                    if let Some(&value) = cur.get(i + k) {
-                        *slot = value;
-                    }
-                }
-                next.push(hasher.hash(chunk));
-                i += K;
-            }
-            levels.push(next);
-        }
-
-        levels
     }
 
     /// Decomposes `index` into a root-first, base-`K` path of digits.
@@ -329,7 +285,7 @@ mod tests {
 
         let target = leaves[5];
         let path = tree.path(target).expect("leaf should be found");
-        let proof = tree.inclusion(path).expect("proof should be constructed");
+        let proof = tree.inclusion(path);
 
         assert_eq!(proof.leaf, target);
 
@@ -349,9 +305,7 @@ mod tests {
         let tree = IncrementalMerkleTree::<D, K>::from_leaves(&leaves, hasher);
 
         let path: Path<PATH_LEN> = IncrementalMerkleTree::<D, K>::path_for_index(SUBTREE_INDEX);
-        let proof = tree
-            .inclusion(path)
-            .expect("subtree proof should be constructed");
+        let proof = tree.inclusion(path);
 
         let verify_hasher = PoseidonHasher::<K>::new().unwrap();
         assert_eq!(proof.root(&verify_hasher), tree.root());
@@ -403,43 +357,10 @@ mod tests {
         let path = tree
             .path(updated_leaf)
             .expect("updated leaf should be found");
-        let proof = tree.inclusion(path).expect("proof should be constructed");
+        let proof = tree.inclusion(path);
         assert_eq!(proof.leaf, updated_leaf);
 
         let verify_hasher = PoseidonHasher::<K>::new().unwrap();
         assert_eq!(proof.root(&verify_hasher), tree.root());
-    }
-
-    #[test]
-    fn insert_chunk_matches_manual_insert() {
-        const D: usize = 6;
-        const K: usize = 2;
-        const CHUNK_SIZE: usize = 4;
-        const CHUNK_PATH_LEN: usize = 4;
-
-        let hasher = PoseidonHasher::<K>::new().unwrap();
-        let mut tree = IncrementalMerkleTree::<D, K>::new(hasher);
-        // Pre-fill part of the first chunk manually, matching insert_chunk's
-        // own semantics (contiguous append from leaf count 0).
-        tree.append(&[Fr::from(1u64), Fr::from(2u64)]);
-
-        let mut reference_tree =
-            IncrementalMerkleTree::<D, K>::new(PoseidonHasher::<K>::new().unwrap());
-        reference_tree.append(&[Fr::from(1u64), Fr::from(2u64)]);
-
-        let old_root = tree.root();
-        let new_leaves = [Fr::from(3u64), Fr::from(4u64), Fr::from(5u64)];
-        let (proof, old_root_length) = tree.insert_chunk::<CHUNK_SIZE, CHUNK_PATH_LEN>(&new_leaves);
-
-        assert_eq!(old_root_length, 2);
-        assert_eq!(proof.existing_leaves[0], Fr::from(1u64));
-        assert_eq!(proof.existing_leaves[1], Fr::from(2u64));
-        assert_eq!(proof.existing_leaves[2], Fr::zero());
-        assert_eq!(&proof.new_leaves[..3], &new_leaves);
-        assert_eq!(proof.new_leaves[3], Fr::zero());
-
-        reference_tree.append(&new_leaves);
-        assert_ne!(tree.root(), old_root);
-        assert_eq!(tree.root(), reference_tree.root());
     }
 }

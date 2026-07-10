@@ -1,4 +1,5 @@
 mod abis;
+mod circuit;
 mod circuits;
 mod database;
 mod indexer;

@@ -1,0 +1,9 @@
+[workspace]
+members = ["tint-rs"]
+resolver = "3"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+
+[patch.crates-io]
+light-poseidon = { git = "https://github.com/Robert-MacWha/light-poseidon", branch = "main" } # Bump to latest version of arkworks

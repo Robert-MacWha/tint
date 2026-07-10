@@ -3,12 +3,10 @@ import { describe, before, it } from "mocha";
 import { circomkit } from "./common";
 import {
     buildAggregatorInput,
-    N_INPUTS, N_OUTPUTS,
+    N_INPUTS, N_OUTPUTS, CHUNK_DEPTH, DEPTH,
     type Note, type Output,
 } from "./common/notes";
-
-const BATCH_SIZE = 4;
-const DEPTH = 3;
+import { poseidon1 } from "poseidon-lite";
 
 const ASSET_A = 1n;
 const ASSET_B = 2n;
@@ -17,11 +15,15 @@ const ASSET_C = 3n;
 const note = (asset: bigint, amount: bigint, seed: number): Note => ({
     asset, amount,
     nullifyingKey: BigInt(1000 + seed),
-    partialCommitment: BigInt(500_000 + seed),
+    spendabilityHash: BigInt(500_000 + seed),
+    random: BigInt(999_000 + seed),
 });
 
 const output = (asset: bigint, amount: bigint, seed: number): Output => ({
-    asset, amount, partialCommitment: BigInt(900_000 + seed),
+    asset, amount,
+    nullifyingPubKey: poseidon1([BigInt(2000 + seed)]),
+    spendabilityHash: BigInt(700_000 + seed),
+    random: BigInt(888_000 + seed),
 });
 
 const baseInputs = (): (Note | null)[] => [note(ASSET_A, 100n, 0), note(ASSET_B, 50n, 1)];
@@ -41,10 +43,11 @@ describe("Aggregator", () => {
         circuit = await circomkit.WitnessTester("aggregator", {
             file: "aggregator",
             template: "Aggregator",
-            params: [N_INPUTS, N_OUTPUTS, BATCH_SIZE, DEPTH],
+            params: [N_INPUTS, N_OUTPUTS, CHUNK_DEPTH, DEPTH],
             pubs: [
                 "oldRoot", "newRoot", "startAggregationHash", "endAggregationHash",
                 "nullifiers", "commitmentsOut", "unshieldAmounts", "unshieldAssets", "boundParamsHash",
+                "spendabilityHashesIn", "spendabilityHashesOut",
             ],
         });
     });
@@ -64,7 +67,7 @@ describe("Aggregator", () => {
     it("should fail for wrong nullifier preimage",  tamperFail(inp => { inp.nullifiers[0] += 1n; }));
     it("should fail for wrong Merkle path",         tamperFail(inp => { inp.siblingsIn[0][0] += 1n; }));
     it("should fail for wrong newRoot",             tamperFail(inp => { inp.newRoot += 1n; }));
-    it("should fail for wrong endAggregationHash",    tamperFail(inp => { inp.endAggregationHash += 1n; }));
+    it("should fail for wrong endAggregationHash",  tamperFail(inp => { inp.endAggregationHash += 1n; }));
 
     it("should fail for asset mismatch (orphan output)", async () => {
         await circuit.expectFail(buildAggregatorInput(
@@ -79,7 +82,7 @@ describe("Aggregator", () => {
 
     it("should fail for dummy slot with non-zero asset", async () => {
         const inp = dummyBase();
-        inp.assetsIn[1] = ASSET_A; // violates: isDummy * assetsIn === 0
+        inp.assetsIn[1] = ASSET_A;
         await circuit.expectFail(inp);
     });
 

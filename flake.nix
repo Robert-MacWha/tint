@@ -60,6 +60,7 @@
 
           rustToolchain
           pkgs.bacon
+          pkgs.wasm-pack
         ];
       };
     };

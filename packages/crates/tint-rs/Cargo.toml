@@ -1,0 +1,49 @@
+[package]
+name = "tint-rs"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+parallel = ["ark-ff/parallel", "ark-groth16/parallel"]
+# build-witness = ["circom-witness-rs/build-witness"]
+
+[dependencies]
+alloy-primitives = "1.6.0"
+alloy-sol-macro = "1.6.0"
+alloy-sol-types = "1.6.0"
+ark-bn254 = "0.6.0"
+ark-crypto-primitives = { version = "0.6.0", features = [
+    "crh",
+    "merkle_tree",
+    "constraints",
+] }
+ark-ff = { version = "0.6.0" }
+ark-groth16 = { version = "0.6.0" }
+ark-snark = "0.6.0"
+ark-r1cs-std = "0.6.0"
+ark-relations = "0.6.0"
+# ark-relations = "0.6.0"
+async-trait = "0.1.89"
+# circom-witness-rs = "0.2.3"
+ruint = { version = "1.19.0", features = ["ark-ff-06"] }
+thiserror = "2.0.18"
+tracing = "0.1.44"
+light-poseidon = "0.4.0"
+
+[dev-dependencies]
+ark-std = "0.6.0"
+wasm-bindgen-test = "0.3"
+web-time = "1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+criterion = "0.8.2"
+tracing-subscriber = { version = "0.3", features = ["registry"] }
+
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
+
+[[bench]]
+name = "sha256"
+harness = false

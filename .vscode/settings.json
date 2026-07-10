@@ -1,5 +1,6 @@
 {
     "rust-analyzer.linkedProjects": [
-        "packages/sdk/Cargo.toml"
-    ]
+        "packages/crates/Cargo.toml"
+    ],
+    "solidity.packageDefaultDependenciesDirectory": "packages/app/lib",
 }

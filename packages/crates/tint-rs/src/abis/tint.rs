@@ -1,4 +1,6 @@
-use alloy::sol;
+use alloy_sol_macro::sol;
+use ark_bn254::Bn254;
+use ark_groth16::Proof;
 
 sol! {
     contract Tint {
@@ -6,6 +8,7 @@ sol! {
             address indexed asset,
             uint128 amount,
             bytes32 partialCommitment,
+            bytes encrypted,
         );
         event Committed(
             bytes32 indexed commitment
@@ -48,6 +51,20 @@ sol! {
             uint256[2] pA;
             uint256[2][2] pB;
             uint256[2] pC;
+        }
+    }
+}
+
+impl From<Proof<Bn254>> for ProofLib::Proof {
+    fn from(p: Proof<Bn254>) -> Self {
+        ProofLib::Proof {
+            pA: [p.a.x.into(), p.a.y.into()],
+            // TODO: Check if the order here is right - I think it should be swapped
+            pB: [
+                [p.b.x.c0.into(), p.b.x.c1.into()],
+                [p.b.y.c0.into(), p.b.y.c1.into()],
+            ],
+            pC: [p.c.x.into(), p.c.y.into()],
         }
     }
 }

@@ -1,6 +1,6 @@
 pragma circom 2.2.3;
 
-include "../node_modules/circomlib/circuits/comparators.circom";
+include "./comparators.circom";
 
 /// For unshields (commitmentsOut[i] == 0), enforce that the public amount and 
 /// asset match the private unshield values. For internal transfers 

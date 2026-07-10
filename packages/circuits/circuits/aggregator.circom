@@ -1,11 +1,11 @@
 pragma circom 2.2.3;
 
-include "./merkleTree.circom";
+include "./batchMerkleTree.circom";
 include "./commitment.circom";
 include "./amounts.circom";
 
 include "../node_modules/circomlib/circuits/poseidon.circom";
-include "../node_modules/circomlib/circuits/comparators.circom";
+include "./comparators.circom";
 
 /// Aggregator circuit
 ///
@@ -18,7 +18,8 @@ include "../node_modules/circomlib/circuits/comparators.circom";
 /// 5. The total amount of each asset in the input notes matches the total amount of that asset in the output notes.
 /// 6. Each output note's asset matches at least one input note's asset.
 /// 7. Verifies that leavesAggregationHash is the correct sequential Poseidon accumulation of all new leaves, excluding dummy leaves (0 for empty tree).
-/// 8. Verifies that newRoot is the result of inserting the batch of new leaves into oldRoot at the specified batchIndex.
+/// 8. Verifies that newRoot is the result of inserting the batch of new leaves into the current
+///    and next chunks via BatchChunkInsert.
 ///
 /// Dummy inputs: a slot with nullifiers[i] == 0 is treated as unused. The circuit
 /// skips nullifier and merkle proof checks for that slot, and enforces assetsIn[i] == 0
@@ -35,13 +36,16 @@ include "../node_modules/circomlib/circuits/comparators.circom";
 /// 8. All amounts are within expected bounds (u128)
 /// 9. That the merkle root will be updated on-chain.
 /// 10. That leavesAggregationHash is a valid hash.
-template Aggregator(nInputs, nOutputs, batchSize, depth) {
+template Aggregator(nInputs, nOutputs, chunkDepth, depth) {
+    var chunkSize = 1 << chunkDepth;
+
     /// Public Signals
     signal input oldRoot;
     signal input newRoot;
     signal input startAggregationHash;
     signal input endAggregationHash;
     signal input nullifiers[nInputs];               // Nullifiers for input notes (0 for dummy slot)
+    signal input spendabilityHashesIn[nInputs];     // keccak(spendabilityAddress, spendabilityData)
     signal input commitmentsOut[nOutputs];          // Commitments for output notes (0 for unshields)
     signal input unshieldAmounts[nOutputs];         // Amounts for unshield outputs (0 for internal transfers)
     signal input unshieldAssets[nOutputs];          // Assets for unshield outputs (0 for internal transfers)
@@ -51,9 +55,12 @@ template Aggregator(nInputs, nOutputs, batchSize, depth) {
 
     /// Private Signals
     // Root update
-    signal input batchStartIndex;
-    signal input newLeaves[batchSize];
-    signal input initialFrontier[depth];
+    signal input newLeaves[chunkSize];
+    signal input currentChunkFilled;
+    signal input currentChunkIndex;
+    signal input existingChunkLeaves[chunkSize];
+    signal input currentChunkSiblings[depth - chunkDepth];
+    signal input nextChunkSiblings[depth - chunkDepth];
 
     // Input Notes
     signal input siblingsIn[nInputs][depth];
@@ -61,26 +68,29 @@ template Aggregator(nInputs, nOutputs, batchSize, depth) {
     signal input assetsIn[nInputs];
     signal input amountsIn[nInputs];
     signal input nullifyingKeysIn[nInputs];
-    signal input partialCommitmentsIn[nInputs];
+    signal input randomIn[nInputs];
 
     // Output notes
     signal input assetsOut[nOutputs];
     signal input amountsOut[nOutputs];
-    signal input partialCommitmentsOut[nOutputs];
+    signal input spendabilityHashesOut[nOutputs];   // keccak(spendabilityAddress, spendabilityData)
+    signal input nullifyingPubKeysOut[nOutputs];
+    signal input randomOut[nOutputs];
 
-    // ~10k non-linear constraints + ~20k linear constraints
-    component checkLeavesAggregation = CheckLeavesAggregationHash(batchSize);
+    component checkLeavesAggregation = CheckLeavesAggregationHash(chunkSize);
     checkLeavesAggregation.startingHash <== startAggregationHash;
     checkLeavesAggregation.endingHash <== endAggregationHash;
     checkLeavesAggregation.leaves <== newLeaves;
 
-    // ~30k non-linear constraints + ~25k linear constraints
-    component leanIMTBatchInsert = MerkleTreeBatchInsert(depth, batchSize);
-    leanIMTBatchInsert.root <== oldRoot;
-    leanIMTBatchInsert.startIndex <== batchStartIndex;
-    leanIMTBatchInsert.leaves <== newLeaves;
-    leanIMTBatchInsert.initialFrontier <== initialFrontier;
-    leanIMTBatchInsert.out === newRoot;
+    component chunkInsert = BatchChunkInsert(depth, chunkDepth);
+    chunkInsert.oldRoot <== oldRoot;
+    chunkInsert.newRoot <== newRoot;
+    chunkInsert.currentChunkFilled <== currentChunkFilled;
+    chunkInsert.currentChunkIndex <== currentChunkIndex;
+    chunkInsert.existingLeaves <== existingChunkLeaves;
+    chunkInsert.newLeaves <== newLeaves;
+    chunkInsert.currentSiblings <== currentChunkSiblings;
+    chunkInsert.nextSiblings <== nextChunkSiblings;
 
     // Negligable
     component checkDummyInputs = CheckDummyInputs(nInputs);
@@ -99,7 +109,9 @@ template Aggregator(nInputs, nOutputs, batchSize, depth) {
     checkCommitments.commitmentsOut <== commitmentsOut;
     checkCommitments.assetsOut <== assetsOut;
     checkCommitments.amountsOut <== amountsOut;
-    checkCommitments.partialCommitmentsOut <== partialCommitmentsOut;
+    checkCommitments.spendabilityHashesOut <== spendabilityHashesOut;
+    checkCommitments.nullifyingPubKeysOut <== nullifyingPubKeysOut;
+    checkCommitments.randomOut <== randomOut;
 
     // ~60k non-linear constraints + ~65k linear constraints
     component checkMerkleProofs = CheckMerkleProofs(nInputs, depth);
@@ -109,7 +121,9 @@ template Aggregator(nInputs, nOutputs, batchSize, depth) {
     checkMerkleProofs.leafIndicesIn <== leafIndicesIn;
     checkMerkleProofs.assetsIn <== assetsIn;
     checkMerkleProofs.amountsIn <== amountsIn;
-    checkMerkleProofs.partialCommitmentsIn <== partialCommitmentsIn;
+    checkMerkleProofs.spendabilityHashesIn <== spendabilityHashesIn;
+    checkMerkleProofs.nullifyingKeysIn <== nullifyingKeysIn;
+    checkMerkleProofs.randomIn <== randomIn;
 
     // Negligable
     component checkUnshields = CheckUnshields(nOutputs);
@@ -180,7 +194,7 @@ template CheckDummyInputs(nInputs) {
     }
 }
 
-/// Enforce that for non-dummy input slots, nullifiers are correctly computed as 
+/// Enforce that for non-dummy input slots, nullifiers are correctly computed as
 /// Poseidon(nullifyingKey, leafIndex).
 template CheckNullifiers(nInputs) {
     signal input nullifiers[nInputs];
@@ -203,32 +217,42 @@ template CheckNullifiers(nInputs) {
     }
 }
 
-/// Enforce that commitments are correctly computed as Poseidon(asset, amount, partialCommitment).
+/// Enforce that commitments are correctly computed as
+/// Poseidon(asset, amount, Poseidon(spendabilityHash, nullifyingPubKey, random)).
 template CheckCommitments(nOutputs) {
     signal input commitmentsOut[nOutputs];
     signal input assetsOut[nOutputs];
     signal input amountsOut[nOutputs];
-    signal input partialCommitmentsOut[nOutputs];
+    signal input spendabilityHashesOut[nOutputs];
+    signal input nullifyingPubKeysOut[nOutputs];
+    signal input randomOut[nOutputs];
 
     component isDummy[nOutputs];
+    component partialHasher[nOutputs];
     component commitmentHasher[nOutputs];
 
     for (var i = 0; i < nOutputs; i++) {
         isDummy[i] = IsZero();
         isDummy[i].in <== commitmentsOut[i];
 
+        partialHasher[i] = PartialCommitmentHasher();
+        partialHasher[i].spendabilityHash <== spendabilityHashesOut[i];
+        partialHasher[i].nullifyingPubKey <== nullifyingPubKeysOut[i];
+        partialHasher[i].random <== randomOut[i];
+
         commitmentHasher[i] = CommitmentHasher();
         commitmentHasher[i].asset <== assetsOut[i];
         commitmentHasher[i].amount <== amountsOut[i];
-        commitmentHasher[i].partialCommitment <== partialCommitmentsOut[i];
+        commitmentHasher[i].partialCommitment <== partialHasher[i].partialCommitment;
 
         // If not a dummy slot, enforce that the computed commitment matches the provided commitment.
         (1 - isDummy[i].out) * (commitmentHasher[i].commitment - commitmentsOut[i]) === 0;
     }
 }
 
-/// Enforce that for non-dummy input slots, the input note commtiment is included in the
-/// new root.
+/// Enforce that for non-dummy input slots, the input note commitment is included in the
+/// new root. Derives nullifyingPubKey = Poseidon(nullifyingKey) and computes the
+/// partial commitment to link the nullifying key to the stored commitment.
 template CheckMerkleProofs(nInputs, depth) {
     signal input root;
     signal input nullifiers[nInputs];
@@ -237,21 +261,32 @@ template CheckMerkleProofs(nInputs, depth) {
     signal input siblingsIn[nInputs][depth];
     signal input assetsIn[nInputs];
     signal input amountsIn[nInputs];
-    signal input partialCommitmentsIn[nInputs];
+    signal input spendabilityHashesIn[nInputs];
+    signal input nullifyingKeysIn[nInputs];
+    signal input randomIn[nInputs];
 
     component isDummy[nInputs];
+    component pubKeyHasher[nInputs];
+    component partialHasher[nInputs];
     component commitmentHashers[nInputs];
     component merkleVerifiers[nInputs];
-    signal rootComputed[nInputs];
 
     for (var i = 0; i < nInputs; i++) {
         isDummy[i] = IsZero();
         isDummy[i].in <== nullifiers[i];
 
+        pubKeyHasher[i] = Poseidon(1);
+        pubKeyHasher[i].inputs[0] <== nullifyingKeysIn[i];
+
+        partialHasher[i] = PartialCommitmentHasher();
+        partialHasher[i].spendabilityHash <== spendabilityHashesIn[i];
+        partialHasher[i].nullifyingPubKey <== pubKeyHasher[i].out;
+        partialHasher[i].random <== randomIn[i];
+
         commitmentHashers[i] = CommitmentHasher();
         commitmentHashers[i].asset <== assetsIn[i];
         commitmentHashers[i].amount <== amountsIn[i];
-        commitmentHashers[i].partialCommitment <== partialCommitmentsIn[i];
+        commitmentHashers[i].partialCommitment <== partialHasher[i].partialCommitment;
 
         merkleVerifiers[i] = MerkleTreeInclusion(depth);
         merkleVerifiers[i].leaf <== commitmentHashers[i].commitment;

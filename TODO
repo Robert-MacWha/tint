@@ -3,3 +3,5 @@
 - Figure out spendability discoverability. If I send a note to a recipient, I urrently need to know their spendability rules & link it to the note. Maybe it would be better to have per-account spendability rules, so that you could send to an account without caring about its spendability. Seems logical.
 
 - Update tint operate fn to accept aggregation hash instead of aggregation hash index
+
+- Move circom tests into rust, so the same codebase is used

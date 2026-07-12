@@ -38,7 +38,6 @@ web-time = "1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 criterion = "0.8.2"
-tracing-subscriber = { version = "0.3", features = ["registry"] }
 
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

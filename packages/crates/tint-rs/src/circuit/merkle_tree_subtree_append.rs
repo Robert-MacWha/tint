@@ -13,7 +13,7 @@ use ark_relations::gr1cs::{Namespace, SynthesisError};
 use crate::{
     circuit::{
         FrVar, merkle_tree_inclusion::InclusionProofVar, merkle_tree_root::merkle_root,
-        poseidon::PoseidonHasherGadget, try_array_from_fn, variable,
+        poseidon::poseidon_hash_gadget, try_array_from_fn, variable,
     },
     indexer::merkle_tree::SubtreeAppendProof,
 };
@@ -21,10 +21,14 @@ use crate::{
 /// Proof for appending up to `SUBTREE_SIZE` leaves into a Merkle tree of
 /// depth `D` and arity `K`.
 pub struct SubtreeAppendProofVar<
-    const SUBTREE_DEPTH: usize,
+    // Number of levels from the root to the subtree being appended.
     const SUBTREE_PATH_LEN: usize,
-    const K: usize,
+    // Depth of the subtree being appended.
+    const SUBTREE_DEPTH: usize,
+    // Number of leaves in the subtree being appended.
     const SUBTREE_SIZE: usize,
+    // Arity of the Merkle tree.
+    const K: usize,
 > {
     pub existing_leaves: [FrVar; SUBTREE_SIZE],
     pub new_leaves: [FrVar; SUBTREE_SIZE],
@@ -33,38 +37,47 @@ pub struct SubtreeAppendProofVar<
 }
 
 impl<
-    const SUBTREE_DEPTH: usize,
     const SUBTREE_PATH_LEN: usize,
-    const K: usize,
+    const SUBTREE_DEPTH: usize,
     const SUBTREE_SIZE: usize,
-> SubtreeAppendProofVar<SUBTREE_DEPTH, SUBTREE_PATH_LEN, K, SUBTREE_SIZE>
+    const K: usize,
+> SubtreeAppendProofVar<SUBTREE_PATH_LEN, SUBTREE_DEPTH, SUBTREE_SIZE, K>
 {
-    /// Verifies that the new leaves match the expected end aggregation hash.
-    pub fn verify_new_leaves(
+    /// Verifies that the new leaves can be appended into the Merkle tree after
+    /// `old_root_length` leaves, and returns the new root.
+    pub fn verify(
         &self,
-        start_aggregation_hash: &FrVar,
-        end_aggregation_hash: &FrVar,
-        hasher: PoseidonHasherGadget<2>,
+        old_root: &FrVar,
+        old_root_length: &FrVar,
+        start_chain_hash: &FrVar,
+        end_chain_hash: &FrVar,
+    ) -> Result<FrVar, SynthesisError> {
+        self.verify_chain_hash(start_chain_hash, end_chain_hash)?;
+        self.verify_inclusion(old_root, old_root_length)
+    }
+
+    /// Verifies that the new leaves match the expected chain hash.
+    fn verify_chain_hash(
+        &self,
+        start_chain_hash: &FrVar,
+        end_chain_hash: &FrVar,
     ) -> Result<(), SynthesisError> {
-        let mut aggregation_hash = start_aggregation_hash.clone();
+        let mut chain_hash: FrVar = start_chain_hash.clone();
         for new_leaf in &self.new_leaves {
-            let next_aggregation_hash =
-                hasher.hash(&[aggregation_hash.clone(), new_leaf.clone()])?;
-            aggregation_hash = new_leaf
-                .is_zero()?
-                .select(&aggregation_hash, &next_aggregation_hash)?;
+            let next_chain_hash: FrVar =
+                poseidon_hash_gadget(&[chain_hash.clone(), new_leaf.clone()])?;
+            chain_hash = new_leaf.is_zero()?.select(&chain_hash, &next_chain_hash)?;
         }
 
-        aggregation_hash.enforce_equal(end_aggregation_hash)
+        chain_hash.enforce_equal(end_chain_hash)
     }
 
     /// Verifies the append proof that `new_leaves` can be inserted into the tree
     /// after `old_root_length` leaves.
-    pub fn verify_inclusion(
+    fn verify_inclusion(
         &self,
         old_root: &FrVar,
         old_root_length: &FrVar,
-        hasher: &PoseidonHasherGadget<K>,
     ) -> Result<FrVar, SynthesisError> {
         let (filled, current_path) = Self::locate(old_root_length)?;
         let (_, next_path) =
@@ -75,29 +88,26 @@ impl<
 
         //? Verify the insertion for the current subtree
         let current_root_before =
-            merkle_root::<SUBTREE_DEPTH, K, SUBTREE_SIZE>(&self.existing_leaves, hasher)?;
+            merkle_root::<SUBTREE_DEPTH, K, SUBTREE_SIZE>(&self.existing_leaves)?;
         let current_root_after =
-            merkle_root::<SUBTREE_DEPTH, K, SUBTREE_SIZE>(&new_current_leaves, hasher)?;
+            merkle_root::<SUBTREE_DEPTH, K, SUBTREE_SIZE>(&new_current_leaves)?;
         let intermediate_root = Self::update_subtree(
             old_root,
             &current_path,
             &self.current_siblings,
             current_root_before,
             current_root_after,
-            hasher,
         )?;
 
         //? Verify the insertion for the next subtree, if any
-        let next_root_before = Self::empty_root(hasher)?;
-        let next_root_after =
-            merkle_root::<SUBTREE_DEPTH, K, SUBTREE_SIZE>(&new_next_leaves, hasher)?;
+        let next_root_before = Self::empty_root()?;
+        let next_root_after = merkle_root::<SUBTREE_DEPTH, K, SUBTREE_SIZE>(&new_next_leaves)?;
         Self::update_subtree(
             &intermediate_root,
             &next_path,
             &self.next_siblings,
             next_root_before,
             next_root_after,
-            hasher,
         )
     }
 
@@ -109,11 +119,9 @@ impl<
         siblings: &[[FrVar; K]; SUBTREE_PATH_LEN],
         before: FrVar,
         after: FrVar,
-        hasher: &PoseidonHasherGadget<K>,
     ) -> Result<FrVar, SynthesisError> {
-        InclusionProofVar::new(before, path.clone(), siblings.clone())
-            .verify_membership(root, hasher)?;
-        InclusionProofVar::new(after, path.clone(), siblings.clone()).root(hasher)
+        InclusionProofVar::new(before, path.clone(), siblings.clone()).verify_membership(root)?;
+        InclusionProofVar::new(after, path.clone(), siblings.clone()).root()
     }
 
     /// Splits a leaf count into the fill level of its subtree (the low
@@ -184,24 +192,25 @@ impl<
     }
 
     /// Computes the root of an empty tree.
-    fn empty_root(hasher: &PoseidonHasherGadget<K>) -> Result<FrVar, SynthesisError> {
+    fn empty_root() -> Result<FrVar, SynthesisError> {
         let mut root = FrVar::zero();
         for _ in 0..SUBTREE_DEPTH {
-            root = hasher.hash(&std::array::from_fn(|_| root.clone()))?;
+            let siblings: [FrVar; K] = std::array::repeat(root.clone());
+            root = poseidon_hash_gadget(&siblings)?;
         }
         Ok(root)
     }
 }
 
 impl<
-    const SUBTREE_DEPTH: usize,
     const SUBTREE_PATH_LEN: usize,
-    const K: usize,
+    const SUBTREE_DEPTH: usize,
     const SUBTREE_SIZE: usize,
-> AllocVar<SubtreeAppendProof<K, SUBTREE_SIZE, SUBTREE_PATH_LEN>, Fr>
-    for SubtreeAppendProofVar<SUBTREE_DEPTH, SUBTREE_PATH_LEN, K, SUBTREE_SIZE>
+    const K: usize,
+> AllocVar<SubtreeAppendProof<SUBTREE_PATH_LEN, SUBTREE_SIZE, K>, Fr>
+    for SubtreeAppendProofVar<SUBTREE_PATH_LEN, SUBTREE_DEPTH, SUBTREE_SIZE, K>
 {
-    fn new_variable<T: Borrow<SubtreeAppendProof<K, SUBTREE_SIZE, SUBTREE_PATH_LEN>>>(
+    fn new_variable<T: Borrow<SubtreeAppendProof<SUBTREE_PATH_LEN, SUBTREE_SIZE, K>>>(
         cs: impl Into<Namespace<Fr>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
@@ -218,13 +227,13 @@ impl<
         let value = value.borrow();
 
         let existing_leaves =
-            try_array_from_fn(|i| variable(cs.clone(), value.existing_leaves[i], mode))?;
-        let new_leaves = try_array_from_fn(|i| variable(cs.clone(), value.new_leaves[i], mode))?;
+            try_array_from_fn(|i| variable(cs.clone(), &value.existing_leaves[i], mode))?;
+        let new_leaves = try_array_from_fn(|i| variable(cs.clone(), &value.new_leaves[i], mode))?;
         let current_siblings = try_array_from_fn(|i| {
-            try_array_from_fn(|j| variable(cs.clone(), value.current_siblings[i][j], mode))
+            try_array_from_fn(|j| variable(cs.clone(), &value.current_siblings[i][j], mode))
         })?;
         let next_siblings = try_array_from_fn(|i| {
-            try_array_from_fn(|j| variable(cs.clone(), value.next_siblings[i][j], mode))
+            try_array_from_fn(|j| variable(cs.clone(), &value.next_siblings[i][j], mode))
         })?;
 
         Ok(Self {
@@ -238,21 +247,16 @@ impl<
 
 #[cfg(test)]
 mod tests {
+    use ark_r1cs_std::GR1CSVar;
     use std::array::repeat;
 
-    use ark_r1cs_std::GR1CSVar;
-    use ark_relations::gr1cs::ConstraintSystem;
-
     use super::*;
-    use crate::indexer::merkle_tree::IncrementalMerkleTree;
 
     /// Expect that merging existing and new leaves will tightly pack the new
     /// leaves into the currents subtree and overflow into the next subtree.
     #[test]
     fn test_merge() {
-        let cs = ConstraintSystem::<Fr>::new_ref();
-
-        let proof = SubtreeAppendProofVar::<2, 2, 2, 4> {
+        let proof = SubtreeAppendProofVar::<2, 2, 4, 2> {
             existing_leaves: [
                 FrVar::constant(Fr::from(1u64)),
                 FrVar::constant(Fr::from(2u64)),
@@ -303,6 +307,4 @@ mod tests {
             ]
         );
     }
-
-    // TODO: More tests
 }

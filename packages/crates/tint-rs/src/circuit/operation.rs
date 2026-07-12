@@ -7,40 +7,83 @@ use ark_r1cs_std::{
 use ark_relations::gr1cs::{Namespace, SynthesisError};
 
 use crate::{
-    circuit::{FrVar, try_array_from_fn, variable},
-    note::{commitment::Commitment, withdrawal::Withdrawal},
+    circuit::{
+        FrVar,
+        commitment::{CommitmentVar, SpendableCommitmentVar},
+        try_array_from_fn, variable,
+    },
+    note::withdrawal::Withdrawal,
     operation::Operation,
 };
 
 pub struct OperationVar<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize> {
     pub inputs: [CommitmentVar; N_INPUTS],
-    pub output_commitments: [CommitmentVar; N_OUTPUTS],
-    pub output_withdrawals: [WithdrawalVar; N_WITHDRAWALS],
+    pub output_commitments: [SpendableCommitmentVar; N_OUTPUTS],
+    pub withdrawals: [WithdrawalVar; N_WITHDRAWALS],
 }
 
-pub struct CommitmentVar {
-    pub asset: FrVar,
-    pub amount: FrVar,
-    pub partial_commitment: PartialCommitmentVar,
-}
-
+#[derive(Clone)]
 pub struct WithdrawalVar {
     pub asset: FrVar,
     pub amount: FrVar,
 }
 
-pub struct PartialCommitmentVar {
-    pub spendability_hash: FrVar,
-    pub nullifier_pub_key: FrVar,
-    pub random: FrVar,
+pub struct OperationResult<
+    const N_INPUTS: usize,
+    const N_OUTPUTS: usize,
+    const N_WITHDRAWALS: usize,
+> {
+    pub nullifiers: [FrVar; N_INPUTS],
+    pub output_commitment_hashes: [FrVar; N_OUTPUTS],
+    pub withdrawals: [WithdrawalVar; N_WITHDRAWALS],
 }
 
-impl<const I: usize, const O: usize, const W: usize> OperationVar<I, O, W> {
-    /// Verifies that there is no asset creation or destruction in the operation.
+impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
+    OperationVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>
+{
+    /// Verifies that the operation is balanced and returns the resulting outputs.
+    ///
+    /// A balanced operation means for each asset type the sum of inputs equals
+    /// the sum of outputs.
     #[tracing::instrument(target = "r1cs", skip_all)]
-    pub fn verify(&self) -> Result<(), SynthesisError> {
+    pub fn verify(
+        &self,
+        input_commitment_hashes: &[FrVar; N_INPUTS],
+    ) -> Result<OperationResult<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>, SynthesisError> {
+        self.verify_input_commitments(input_commitment_hashes)?;
         self.enforce_u128()?;
-        self.check_balance()
+        self.verify_balance()?;
+
+        Ok(OperationResult {
+            nullifiers: self.nullifiers()?,
+            output_commitment_hashes: self.output_commitment_hashes()?,
+            withdrawals: self.withdrawals.clone(),
+        })
+    }
+
+    #[tracing::instrument(target = "r1cs", skip_all)]
+
+    /// Verifies that the inputs match the provided input commitment hashes
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    fn verify_input_commitments(
+        &self,
+        input_commitment_hashes: &[FrVar; N_INPUTS],
+    ) -> Result<(), SynthesisError> {
+        for i in 0..N_INPUTS {
+            let computed_hash: FrVar = self.inputs[i].commitment_hash()?;
+            computed_hash.enforce_equal(&input_commitment_hashes[i])?;
+        }
+        Ok(())
+    }
+
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    fn nullifiers(&self) -> Result<[FrVar; N_INPUTS], SynthesisError> {
+        try_array_from_fn(|i| self.inputs[i].nullifier())
+    }
+
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    fn output_commitment_hashes(&self) -> Result<[FrVar; N_OUTPUTS], SynthesisError> {
+        try_array_from_fn(|i| self.output_commitments[i].commitment_hash())
     }
 
     /// Checks that all amounts in the operation fit in u128.
@@ -52,18 +95,18 @@ impl<const I: usize, const O: usize, const W: usize> OperationVar<I, O, W> {
         for output in &self.output_commitments {
             enforce_u128(&output.amount)?;
         }
-        for output in &self.output_withdrawals {
+        for output in &self.withdrawals {
             enforce_u128(&output.amount)?;
         }
         Ok(())
     }
 
-    /// Checks that the sum of inputs equals the sum of outputs for each asset type.
+    /// Verifies that the sum of inputs equals the sum of outputs for each asset type.
     #[tracing::instrument(target = "r1cs", skip_all)]
-    fn check_balance(&self) -> Result<(), SynthesisError> {
+    fn verify_balance(&self) -> Result<(), SynthesisError> {
         let inputs = self.inputs.iter().map(|i| &i.asset);
         let commitments = self.output_commitments.iter().map(|o| &o.asset);
-        let withdrawals = self.output_withdrawals.iter().map(|o| &o.asset);
+        let withdrawals = self.withdrawals.iter().map(|o| &o.asset);
 
         for asset in inputs.chain(commitments).chain(withdrawals) {
             self.input_sum_for_asset(asset)?
@@ -73,7 +116,7 @@ impl<const I: usize, const O: usize, const W: usize> OperationVar<I, O, W> {
         Ok(())
     }
 
-    /// Calculates the sum of inputs for a given asset type.
+    /// Calculates the sum of inputs for a given asset.
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn input_sum_for_asset(&self, asset: &FrVar) -> Result<FrVar, SynthesisError> {
         let mut sum = FrVar::zero();
@@ -85,7 +128,7 @@ impl<const I: usize, const O: usize, const W: usize> OperationVar<I, O, W> {
         Ok(sum)
     }
 
-    /// Calculates the sum of outputs for a given asset type.
+    /// Calculates the sum of outputs for a given asset.
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn output_sum_for_asset(&self, asset: &FrVar) -> Result<FrVar, SynthesisError> {
         let mut sum = FrVar::zero();
@@ -93,10 +136,7 @@ impl<const I: usize, const O: usize, const W: usize> OperationVar<I, O, W> {
             .output_commitments
             .iter()
             .map(|o| (&o.asset, &o.amount));
-        let withdrawals = self
-            .output_withdrawals
-            .iter()
-            .map(|o| (&o.asset, &o.amount));
+        let withdrawals = self.withdrawals.iter().map(|o| (&o.asset, &o.amount));
 
         let outputs = commitments.chain(withdrawals);
         for (out_asset, out_amount) in outputs {
@@ -104,6 +144,15 @@ impl<const I: usize, const O: usize, const W: usize> OperationVar<I, O, W> {
             sum += is_equal.select(out_amount, &FrVar::zero())?;
         }
         Ok(sum)
+    }
+}
+
+impl WithdrawalVar {
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    pub fn enforce_equal(&self, other: &WithdrawalVar) -> Result<(), SynthesisError> {
+        self.asset.enforce_equal(&other.asset)?;
+        self.amount.enforce_equal(&other.amount)?;
+        Ok(())
     }
 }
 
@@ -119,48 +168,16 @@ impl<const I: usize, const O: usize, const W: usize> AllocVar<Operation<I, O, W>
         let value = f()?;
         let value = value.borrow();
 
-        let inputs = try_array_from_fn(|i| {
-            CommitmentVar::new_variable(cs.clone(), || Ok(&value.inputs[i]), mode)
-        })?;
-        let output_commitments = try_array_from_fn(|i| {
-            CommitmentVar::new_variable(cs.clone(), || Ok(&value.output_commitments[i]), mode)
-        })?;
-        let output_withdrawals = try_array_from_fn(|i| {
-            WithdrawalVar::new_variable(cs.clone(), || Ok(&value.output_withdrawals[i]), mode)
-        })?;
+        let inputs = try_array_from_fn(|i| variable(cs.clone(), &value.inputs[i], mode))?;
+        let output_commitments =
+            try_array_from_fn(|i| variable(cs.clone(), &value.output_commitments[i], mode))?;
+        let output_withdrawals =
+            try_array_from_fn(|i| variable(cs.clone(), &value.output_withdrawals[i], mode))?;
 
         Ok(Self {
             inputs,
             output_commitments,
-            output_withdrawals,
-        })
-    }
-}
-
-impl AllocVar<Commitment, Fr> for CommitmentVar {
-    fn new_variable<T: Borrow<Commitment>>(
-        cs: impl Into<Namespace<Fr>>,
-        f: impl FnOnce() -> Result<T, SynthesisError>,
-        mode: ark_r1cs_std::prelude::AllocationMode,
-    ) -> Result<Self, SynthesisError> {
-        let cs = cs.into();
-        let value = f()?;
-        let value = value.borrow();
-
-        let asset = variable(cs.clone(), value.asset_fr(), mode)?;
-        let amount = variable(cs.clone(), value.amount_fr(), mode)?;
-        let spendability_hash = variable(cs.clone(), value.spendability_hash(), mode)?;
-        let nullifier_pub_key = variable(cs.clone(), value.nullifying_pub_key(), mode)?;
-        let random = variable(cs.clone(), value.random, mode)?;
-
-        Ok(Self {
-            asset,
-            amount,
-            partial_commitment: PartialCommitmentVar {
-                spendability_hash,
-                nullifier_pub_key,
-                random,
-            },
+            withdrawals: output_withdrawals,
         })
     }
 }
@@ -175,8 +192,8 @@ impl AllocVar<Withdrawal, Fr> for WithdrawalVar {
         let value = f()?;
         let value = value.borrow();
 
-        let asset = variable(cs.clone(), value.asset_fr(), mode)?;
-        let amount = variable(cs.clone(), value.amount_fr(), mode)?;
+        let asset = variable(cs.clone(), &value.asset_fr(), mode)?;
+        let amount = variable(cs.clone(), &value.amount_fr(), mode)?;
 
         Ok(Self { asset, amount })
     }
@@ -221,7 +238,7 @@ mod tests {
         let op = Operation::<3, 3, 3>::default();
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
-        var.verify().unwrap();
+        var.verify_balance().unwrap();
         assert!(cs.is_satisfied().unwrap());
     }
 
@@ -239,7 +256,7 @@ mod tests {
         op.output_withdrawals[0].amount = 5;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
-        var.verify().unwrap();
+        var.verify_balance().unwrap();
         assert!(cs.is_satisfied().unwrap());
     }
 
@@ -255,7 +272,7 @@ mod tests {
         op.output_commitments[1].amount = 10;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
-        var.verify().unwrap();
+        var.verify_balance().unwrap();
         assert!(!cs.is_satisfied().unwrap());
     }
 
@@ -277,7 +294,14 @@ mod tests {
     #[test]
     fn input_sum_for_asset() {
         let cs = ConstraintSystem::<Fr>::new_ref();
-        let op = default_operation();
+        let mut op = Operation::<3, 3, 3>::default();
+
+        op.inputs[0].asset = DEAD_BEEF.into();
+        op.inputs[0].amount = 10;
+        op.inputs[1].asset = DEAD_BEEF.into();
+        op.inputs[1].amount = 10;
+        op.inputs[2].asset = C0FFEE.into();
+        op.inputs[2].amount = 10;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
 
@@ -296,16 +320,17 @@ mod tests {
     #[test]
     fn output_sum_for_asset() {
         let cs = ConstraintSystem::<Fr>::new_ref();
-        let mut op = default_operation();
+        let mut op = Operation::<3, 3, 3>::default();
 
         op.output_commitments[0].asset = DEAD_BEEF.into();
         op.output_commitments[0].amount = 15;
         op.output_commitments[1].asset = C0FFEE.into();
         op.output_commitments[1].amount = 10;
-        op.output_withdrawals[2].asset = DEAD_BEEF.into();
-        op.output_withdrawals[2].amount = 5;
-        op.output_withdrawals[3].asset = C0FFEE.into();
-        op.output_withdrawals[3].amount = 10;
+
+        op.output_withdrawals[0].asset = DEAD_BEEF.into();
+        op.output_withdrawals[0].amount = 5;
+        op.output_withdrawals[2].asset = C0FFEE.into();
+        op.output_withdrawals[2].amount = 10;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
         let sum = var

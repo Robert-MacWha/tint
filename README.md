@@ -5,3 +5,4 @@ Tint is an EVM-focused utxo-based proof-of-concept privacy protocol built with c
 - [x] Flexible output options, enabling multiple unshields per operation.
 - [x] Flexible note ownership, enabling single-ownership, multisigs, timelocks, p2p swaps, and more.
 - [ ] 4337 paymaster support, enabling gasless transactions and paying fees with private assets.
+

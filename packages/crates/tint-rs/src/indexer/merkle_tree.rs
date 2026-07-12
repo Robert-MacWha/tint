@@ -1,11 +1,10 @@
 use ark_bn254::Fr;
 use ark_ff::Zero;
 
-use crate::circuit::poseidon::PoseidonHasher;
+use crate::circuit::poseidon::poseidon_hash;
 
 /// Fixed-depth incremental Merkle tree.
 pub struct IncrementalMerkleTree<const D: usize, const K: usize> {
-    hasher: PoseidonHasher<K>,
     levels: Vec<Vec<Fr>>,
     zeros: Vec<Fr>,
 }
@@ -21,7 +20,7 @@ pub enum MerkleTreeError {
 pub type Path<const PATH_LEN: usize> = [u8; PATH_LEN];
 
 /// Inclusion proof for a Merkle tree of depth `D` and arity `K`.
-pub struct InclusionProof<const K: usize, const PATH_LEN: usize> {
+pub struct InclusionProof<const PATH_LEN: usize, const K: usize> {
     pub path: Path<PATH_LEN>,
     pub siblings: [[Fr; K]; PATH_LEN],
     pub leaf: Fr,
@@ -30,9 +29,12 @@ pub struct InclusionProof<const K: usize, const PATH_LEN: usize> {
 /// Proof for appending up to `SUBTREE_SIZE` leaves into a Merkle tree of
 /// depth `D` and arity `K`.
 pub struct SubtreeAppendProof<
-    const K: usize,
+    // Number of levels from the root to the subtree being appended.
     const SUBTREE_PATH_LEN: usize,
+    // Number of leaves in the subtree being appended.
     const SUBTREE_SIZE: usize,
+    // Arity of the Merkle tree.
+    const K: usize,
 > {
     /// The leaves in the subtree before this append, padded with zeros to `SUBTREE_SIZE`.
     pub existing_leaves: [Fr; SUBTREE_SIZE],
@@ -44,31 +46,30 @@ pub struct SubtreeAppendProof<
     pub next_siblings: [[Fr; K]; SUBTREE_PATH_LEN],
 }
 
-impl<const K: usize, const PATH_LEN: usize> InclusionProof<K, PATH_LEN> {
+impl<const PATH_LEN: usize, const K: usize> InclusionProof<PATH_LEN, K> {
     /// Computes the Merkle root implied by this proof.
-    pub fn root(&self, hasher: &PoseidonHasher<K>) -> Fr {
+    pub fn root(&self) -> Fr {
         let mut current = self.leaf;
         for (&digit, sibling_group) in self.path.iter().rev().zip(self.siblings.iter().rev()) {
             let mut input = *sibling_group;
             input[digit as usize] = current;
-            current = hasher.hash(input);
+            current = poseidon_hash(&input);
         }
         current
     }
 }
 
 impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
-    pub fn new(hasher: PoseidonHasher<K>) -> Self {
-        let zeros = Self::compute_zeros(&hasher);
+    pub fn new() -> Self {
+        let zeros = Self::compute_zeros();
         Self {
-            hasher,
             levels: vec![Vec::new(); D + 1],
             zeros,
         }
     }
 
-    pub fn from_leaves(leaves: &[Fr], hasher: PoseidonHasher<K>) -> Self {
-        let mut tree = Self::new(hasher);
+    pub fn from_leaves(leaves: &[Fr]) -> Self {
+        let mut tree = Self::new();
         tree.append(leaves);
         tree
     }
@@ -105,7 +106,7 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
     pub fn inclusion<const PATH_LEN: usize>(
         &self,
         path: Path<PATH_LEN>,
-    ) -> InclusionProof<K, PATH_LEN> {
+    ) -> InclusionProof<PATH_LEN, K> {
         let level = const {
             assert!(PATH_LEN <= D, "PATH_LEN must be <= D");
             D - PATH_LEN
@@ -143,7 +144,7 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
     pub fn append_subtree<const SUBTREE_PATH_LEN: usize, const SUBTREE_SIZE: usize>(
         &mut self,
         new_leaves: &[Fr],
-    ) -> Result<SubtreeAppendProof<K, SUBTREE_PATH_LEN, SUBTREE_SIZE>, MerkleTreeError> {
+    ) -> Result<SubtreeAppendProof<SUBTREE_PATH_LEN, SUBTREE_SIZE, K>, MerkleTreeError> {
         const {
             assert!(
                 SUBTREE_SIZE == K.pow((D - SUBTREE_PATH_LEN) as u32),
@@ -196,7 +197,7 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
                     *slot = value;
                 }
             }
-            let parent_hash = self.hasher.hash(chunk);
+            let parent_hash = poseidon_hash(&chunk);
 
             let parent_index = index / K;
             if parent_index >= self.levels[level + 1].len() {
@@ -209,12 +210,12 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
     }
 
     /// The hash of an entirely-empty subtree at each level, `zeros[0] = 0`.
-    fn compute_zeros(hasher: &PoseidonHasher<K>) -> Vec<Fr> {
+    fn compute_zeros() -> Vec<Fr> {
         let mut zeros = Vec::with_capacity(D + 1);
         zeros.push(Fr::zero());
         for _ in 0..D {
             let prev = *zeros.last().unwrap();
-            zeros.push(hasher.hash([prev; K]));
+            zeros.push(poseidon_hash(&[prev; K]));
         }
         zeros
     }
@@ -249,13 +250,11 @@ mod tests {
         const D: usize = 3;
         const K: usize = 2;
 
-        let hasher = PoseidonHasher::<K>::new().unwrap();
-        let tree = IncrementalMerkleTree::<D, K>::new(hasher);
+        let tree = IncrementalMerkleTree::<D, K>::new();
 
-        let expect_hasher = PoseidonHasher::<K>::new().unwrap();
         let mut expected = Fr::zero();
         for _ in 0..D {
-            expected = expect_hasher.hash([expected; K]);
+            expected = poseidon_hash(&[expected; K]);
         }
 
         assert_eq!(tree.root(), expected);
@@ -266,12 +265,10 @@ mod tests {
         const D: usize = 1;
         const K: usize = 2;
 
-        let hasher = PoseidonHasher::<K>::new().unwrap();
         let leaves = [Fr::from(11u64), Fr::from(22u64)];
-        let tree = IncrementalMerkleTree::<D, K>::from_leaves(&leaves, hasher);
+        let tree = IncrementalMerkleTree::<D, K>::from_leaves(&leaves);
 
-        let verify_hasher = PoseidonHasher::<K>::new().unwrap();
-        assert_eq!(tree.root(), verify_hasher.hash(leaves));
+        assert_eq!(tree.root(), poseidon_hash(&leaves));
     }
 
     #[test]
@@ -279,9 +276,8 @@ mod tests {
         const D: usize = 3;
         const K: usize = 2;
 
-        let hasher = PoseidonHasher::<K>::new().unwrap();
         let leaves: Vec<Fr> = (0..(1 << D)).map(|i| Fr::from(i as u64 + 1)).collect();
-        let tree = IncrementalMerkleTree::<D, K>::from_leaves(&leaves, hasher);
+        let tree = IncrementalMerkleTree::<D, K>::from_leaves(&leaves);
 
         let target = leaves[5];
         let path = tree.path(target).expect("leaf should be found");
@@ -289,8 +285,7 @@ mod tests {
 
         assert_eq!(proof.leaf, target);
 
-        let verify_hasher = PoseidonHasher::<K>::new().unwrap();
-        assert_eq!(proof.root(&verify_hasher), tree.root());
+        assert_eq!(proof.root(), tree.root());
     }
 
     #[test]
@@ -300,22 +295,18 @@ mod tests {
         const PATH_LEN: usize = 2;
         const SUBTREE_INDEX: usize = 1;
 
-        let hasher = PoseidonHasher::<K>::new().unwrap();
         let leaves: Vec<Fr> = (0..(1 << D)).map(|i| Fr::from(i as u64 + 1)).collect();
-        let tree = IncrementalMerkleTree::<D, K>::from_leaves(&leaves, hasher);
+        let tree = IncrementalMerkleTree::<D, K>::from_leaves(&leaves);
 
         let path: Path<PATH_LEN> = IncrementalMerkleTree::<D, K>::path_for_index(SUBTREE_INDEX);
         let proof = tree.inclusion(path);
 
-        let verify_hasher = PoseidonHasher::<K>::new().unwrap();
-        assert_eq!(proof.root(&verify_hasher), tree.root());
+        assert_eq!(proof.root(), tree.root());
 
         // The subtree at `level = D - PATH_LEN` covers a contiguous slice of
         // `K^PATH_LEN` leaves; its root should independently match `proof.leaf`.
         let subtree_leaves = &leaves[SUBTREE_INDEX * K..(SUBTREE_INDEX + 1) * K];
-        let subtree_hasher = PoseidonHasher::<K>::new().unwrap();
-        let subtree_tree =
-            IncrementalMerkleTree::<1, K>::from_leaves(subtree_leaves, subtree_hasher);
+        let subtree_tree = IncrementalMerkleTree::<1, K>::from_leaves(subtree_leaves);
 
         assert_eq!(proof.leaf, subtree_tree.root());
     }
@@ -327,11 +318,9 @@ mod tests {
 
         let leaves: Vec<Fr> = (0..(1 << D)).map(|i| Fr::from(i as u64 + 1)).collect();
 
-        let bulk_hasher = PoseidonHasher::<K>::new().unwrap();
-        let bulk_tree = IncrementalMerkleTree::<D, K>::from_leaves(&leaves, bulk_hasher);
+        let bulk_tree = IncrementalMerkleTree::<D, K>::from_leaves(&leaves);
 
-        let incremental_hasher = PoseidonHasher::<K>::new().unwrap();
-        let mut incremental_tree = IncrementalMerkleTree::<D, K>::new(incremental_hasher);
+        let mut incremental_tree = IncrementalMerkleTree::<D, K>::new();
         for leaf in &leaves {
             incremental_tree.append(std::slice::from_ref(leaf));
         }
@@ -344,9 +333,8 @@ mod tests {
         const D: usize = 3;
         const K: usize = 2;
 
-        let hasher = PoseidonHasher::<K>::new().unwrap();
         let leaves: Vec<Fr> = (0..(1 << D)).map(|i| Fr::from(i as u64 + 1)).collect();
-        let mut tree = IncrementalMerkleTree::<D, K>::from_leaves(&leaves, hasher);
+        let mut tree = IncrementalMerkleTree::<D, K>::from_leaves(&leaves);
         let root_before = tree.root();
 
         let updated_leaf = Fr::from(999u64);
@@ -360,7 +348,6 @@ mod tests {
         let proof = tree.inclusion(path);
         assert_eq!(proof.leaf, updated_leaf);
 
-        let verify_hasher = PoseidonHasher::<K>::new().unwrap();
-        assert_eq!(proof.root(&verify_hasher), tree.root());
+        assert_eq!(proof.root(), tree.root());
     }
 }

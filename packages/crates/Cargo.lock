@@ -2672,7 +2672,6 @@ dependencies = [
  "ruint",
  "thiserror 2.0.18",
  "tracing",
- "tracing-subscriber",
  "wasm-bindgen-test",
  "web-time",
 ]

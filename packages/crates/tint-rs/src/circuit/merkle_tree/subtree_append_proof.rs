@@ -36,6 +36,11 @@ pub struct SubtreeAppendProofVar<
     pub next_siblings: [[FrVar; K]; SUBTREE_PATH_LEN],
 }
 
+pub struct SubtreeAppendProofResult {
+    pub new_root: FrVar,
+    pub end_aggregation_hash: FrVar,
+}
+
 impl<
     const SUBTREE_PATH_LEN: usize,
     const SUBTREE_DEPTH: usize,
@@ -44,24 +49,27 @@ impl<
 > SubtreeAppendProofVar<SUBTREE_PATH_LEN, SUBTREE_DEPTH, SUBTREE_SIZE, K>
 {
     /// Verifies that the new leaves can be appended into the Merkle tree after
-    /// `old_root_length` leaves, and returns the new root.
+    /// `old_root_length` leaves, and returns the new root and the new aggregation hash.
     pub fn verify(
         &self,
         old_root: &FrVar,
         old_root_length: &FrVar,
         start_aggregation_hash: &FrVar,
-        end_aggregation_hash: &FrVar,
-    ) -> Result<FrVar, SynthesisError> {
-        self.verify_aggregation_hash(start_aggregation_hash, end_aggregation_hash)?;
-        self.verify_inclusion(old_root, old_root_length)
+    ) -> Result<SubtreeAppendProofResult, SynthesisError> {
+        let end_aggregation_hash = self.verify_aggregation_hash(start_aggregation_hash)?;
+        let new_root = self.verify_inclusion(old_root, old_root_length)?;
+        Ok(SubtreeAppendProofResult {
+            new_root,
+            end_aggregation_hash,
+        })
     }
 
-    /// Verifies that the new leaves match the expected aggregation hash.
+    /// Verifies that the new leaves can be appended into the Merkle tree after
+    /// `old_root_length` leaves, and returns the new aggregation hash.
     fn verify_aggregation_hash(
         &self,
         start_aggregation_hash: &FrVar,
-        end_aggregation_hash: &FrVar,
-    ) -> Result<(), SynthesisError> {
+    ) -> Result<FrVar, SynthesisError> {
         let mut aggregation_hash: FrVar = start_aggregation_hash.clone();
         for new_leaf in &self.new_leaves {
             let next_aggregation_hash: FrVar =
@@ -71,7 +79,7 @@ impl<
                 .select(&aggregation_hash, &next_aggregation_hash)?;
         }
 
-        aggregation_hash.enforce_equal(end_aggregation_hash)
+        Ok(aggregation_hash)
     }
 
     /// Verifies the append proof that `new_leaves` can be inserted into the tree

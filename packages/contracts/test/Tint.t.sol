@@ -6,7 +6,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Tint} from "../src/Tint.sol";
 import {RootRegistry} from "../src/RootRegistry.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
-import {N_INPUTS, N_OUTPUTS} from "../src/lib/Constants.sol";
+import {N_INPUTS, N_OUTPUTS, N_PUB, GENESIS_ROOT} from "../src/lib/Constants.sol";
 
 contract MockToken is ERC20 {
     constructor() ERC20("Mock", "MCK") {}
@@ -27,7 +27,7 @@ contract MockVerifier {
         uint256[2] calldata,
         uint256[2][2] calldata,
         uint256[2] calldata,
-        uint256[24] memory
+        uint256[N_PUB] memory
     ) external view returns (bool) {
         return shouldPass;
     }
@@ -48,7 +48,7 @@ contract TintTests is Test {
         token.approve(address(tint), type(uint256).max);
         // Deposit one concrete commitment so leavesAggregationIndex=0 is valid in all operate tests.
         // Post-setUp: totalStaged=1, totalConsumed=0, roots[0]=1, currentRootIndex=1
-        tint.deposit(address(token), 1, SEED);
+        tint.deposit(address(token), 1, SEED, "");
     }
 
     // ------- helpers -------
@@ -75,8 +75,8 @@ contract TintTests is Test {
         uint256 callerBefore = token.balanceOf(address(this));
 
         vm.expectEmit(true, true, true, true);
-        emit Tint.Deposited(address(token), 100, bytes32(uint256(1)));
-        tint.deposit(address(token), 100, bytes32(uint256(1)));
+        emit Tint.Deposited(address(token), 100, bytes32(uint256(1)), "");
+        tint.deposit(address(token), 100, bytes32(uint256(1)), "");
 
         assertEq(token.balanceOf(address(this)), callerBefore - 100);
         assertEq(token.balanceOf(address(tint)), tintBefore + 100);
@@ -84,18 +84,18 @@ contract TintTests is Test {
 
     function test_deposit_zeroAmount_reverts() public {
         vm.expectRevert(Tint.ZeroAmount.selector);
-        tint.deposit(address(token), 0, SEED);
+        tint.deposit(address(token), 0, SEED, "");
     }
 
     function test_deposit_zeroCommitment_reverts() public {
         vm.expectRevert(Tint.ZeroCommitment.selector);
-        tint.deposit(address(token), 1, bytes32(0));
+        tint.deposit(address(token), 1, bytes32(0), "");
     }
 
     function test_deposit_noAllowance_reverts() public {
         token.approve(address(tint), 0);
         vm.expectRevert();
-        tint.deposit(address(token), 1, bytes32(uint256(42)));
+        tint.deposit(address(token), 1, bytes32(uint256(42)), "");
     }
 
     function test_deposit_insufficientBalance_reverts() public {
@@ -103,7 +103,7 @@ contract TintTests is Test {
         fresh.mint(address(this), 1);
         fresh.approve(address(tint), type(uint256).max);
         vm.expectRevert();
-        tint.deposit(address(fresh), 2, bytes32(uint256(42)));
+        tint.deposit(address(fresh), 2, bytes32(uint256(42)), "");
     }
 
     // ------- operate() — validation -------
@@ -112,15 +112,15 @@ contract TintTests is Test {
         verifier.setPass(false);
         bytes32[N_INPUTS] memory nullifiers;
         vm.expectRevert(Tint.InvalidProof.selector);
-        tint.operate(_op(bytes32(0), nullifiers));
+        tint.operate(_op(GENESIS_ROOT, nullifiers));
     }
 
     function test_operate_spentNullifier_reverts() public {
         bytes32[N_INPUTS] memory nullifiers;
         nullifiers[0] = bytes32("nullifier");
-        tint.operate(_op(bytes32(0), nullifiers));
+        tint.operate(_op(GENESIS_ROOT, nullifiers));
 
-        tint.deposit(address(token), 1, bytes32(uint256(99)));
+        tint.deposit(address(token), 1, bytes32(uint256(99)), "");
         IPrivacyPool.Operation[] memory ops = new IPrivacyPool.Operation[](1);
         ops[0].oldRoot = bytes32(uint256(1));
         ops[0].newRoot = bytes32(uint256(2));
@@ -138,7 +138,7 @@ contract TintTests is Test {
 
     function test_operate_unshieldZeroRecipient_reverts() public {
         bytes32[N_INPUTS] memory nullifiers;
-        IPrivacyPool.Operation[] memory ops = _op(bytes32(0), nullifiers);
+        IPrivacyPool.Operation[] memory ops = _op(GENESIS_ROOT, nullifiers);
         ops[0].unshieldAmounts[0] = 1;
         ops[0].unshieldAssets[0] = address(token);
         // unshieldRecipients[0] stays address(0)
@@ -159,7 +159,7 @@ contract TintTests is Test {
         nullifiers[0] = nullifier;
         vm.expectEmit(true, true, true, true);
         emit Tint.Nullified(nullifier);
-        tint.operate(_op(bytes32(0), nullifiers));
+        tint.operate(_op(GENESIS_ROOT, nullifiers));
         assertTrue(tint.nullifierHashes(nullifier));
     }
 
@@ -167,7 +167,7 @@ contract TintTests is Test {
         bytes32[N_INPUTS] memory nullifiers;
         for (uint256 i; i < N_INPUTS; ++i)
             nullifiers[i] = bytes32(uint256(i + 1));
-        tint.operate(_op(bytes32(0), nullifiers));
+        tint.operate(_op(GENESIS_ROOT, nullifiers));
         for (uint256 i; i < N_INPUTS; ++i) {
             assertTrue(tint.nullifierHashes(bytes32(uint256(i + 1))));
         }
@@ -175,11 +175,11 @@ contract TintTests is Test {
 
     function test_operate_stagesOutputCommitments() public {
         bytes32[N_INPUTS] memory nullifiers;
-        IPrivacyPool.Operation[] memory ops = _op(bytes32(0), nullifiers);
+        IPrivacyPool.Operation[] memory ops = _op(GENESIS_ROOT, nullifiers);
         ops[0].commitmentsOut[0] = bytes32(uint256(42));
         uint128 stagedBefore = tint.totalStaged();
         vm.expectEmit(true, true, true, true);
-        emit Tint.Committed(bytes32(uint256(42)));
+        emit Tint.Committed(bytes32(uint256(42)), address(0), "", "");
         tint.operate(ops);
         assertEq(tint.totalStaged(), stagedBefore + 1);
     }
@@ -187,14 +187,14 @@ contract TintTests is Test {
     function test_operate_skipsZeroCommitments() public {
         bytes32[N_INPUTS] memory nullifiers;
         uint128 stagedBefore = tint.totalStaged();
-        tint.operate(_op(bytes32(0), nullifiers)); // all commitmentsOut=0
+        tint.operate(_op(GENESIS_ROOT, nullifiers)); // all commitmentsOut=0
         assertEq(tint.totalStaged(), stagedBefore);
     }
 
     function test_operate_unshield() public {
         // Contract holds 1 token from setUp's deposit
         bytes32[N_INPUTS] memory nullifiers;
-        IPrivacyPool.Operation[] memory ops = _op(bytes32(0), nullifiers);
+        IPrivacyPool.Operation[] memory ops = _op(GENESIS_ROOT, nullifiers);
         ops[0].unshieldAmounts[0] = 1;
         ops[0].unshieldAssets[0] = address(token);
         ops[0].unshieldRecipients[0] = address(this);
@@ -208,7 +208,7 @@ contract TintTests is Test {
 
     function test_operate_unshieldZeroAmountSkipped() public {
         bytes32[N_INPUTS] memory nullifiers;
-        IPrivacyPool.Operation[] memory ops = _op(bytes32(0), nullifiers);
+        IPrivacyPool.Operation[] memory ops = _op(GENESIS_ROOT, nullifiers);
         ops[0].unshieldAmounts[0] = 0;
         ops[0].unshieldAssets[0] = address(token);
         uint256 tintBefore = token.balanceOf(address(tint));
@@ -221,9 +221,9 @@ contract TintTests is Test {
     function test_revert_on_nullifier_reuse() public {
         bytes32[N_INPUTS] memory nullifiers;
         nullifiers[0] = bytes32("nullifier");
-        tint.operate(_op(bytes32(0), nullifiers));
+        tint.operate(_op(GENESIS_ROOT, nullifiers));
 
-        tint.deposit(address(token), 1, bytes32(uint256(99)));
+        tint.deposit(address(token), 1, bytes32(uint256(99)), "");
         IPrivacyPool.Operation[] memory ops = new IPrivacyPool.Operation[](1);
         ops[0].oldRoot = bytes32(uint256(1));
         ops[0].newRoot = bytes32(uint256(2));
@@ -245,11 +245,11 @@ contract TintTests is Test {
     }
 
     function test_operate_batch_twoOps() public {
-        tint.deposit(address(token), 1, bytes32(uint256(2))); // totalStaged=2
+        tint.deposit(address(token), 1, bytes32(uint256(2)), ""); // totalStaged=2
         IPrivacyPool.Operation[] memory ops = new IPrivacyPool.Operation[](2);
 
         // Op0: 0→1 at idx=0
-        ops[0].oldRoot = bytes32(0);
+        ops[0].oldRoot = GENESIS_ROOT;
         ops[0].newRoot = bytes32(uint256(1));
         ops[0].leavesAggregationIndex = 0;
         for (uint256 i; i < N_OUTPUTS; ++i) ops[0].spendabilityData[i] = "";
@@ -265,11 +265,11 @@ contract TintTests is Test {
     }
 
     function test_operate_batch_secondOpFails_reverts() public {
-        tint.deposit(address(token), 1, bytes32(uint256(2)));
+        tint.deposit(address(token), 1, bytes32(uint256(2)), "");
         IPrivacyPool.Operation[] memory ops = new IPrivacyPool.Operation[](2);
 
         // Op0: valid, spends nullifier n1
-        ops[0].oldRoot = bytes32(0);
+        ops[0].oldRoot = GENESIS_ROOT;
         ops[0].newRoot = bytes32(uint256(1));
         ops[0].leavesAggregationIndex = 0;
         ops[0].nullifiers[0] = bytes32("n1");
@@ -288,21 +288,21 @@ contract TintTests is Test {
     }
 
     function test_depositThenOperate() public {
-        tint.deposit(address(token), 1, bytes32(uint256(2))); // idx=1 now valid
+        tint.deposit(address(token), 1, bytes32(uint256(2)), ""); // idx=1 now valid
         bytes32[N_INPUTS] memory nullifiers;
-        IPrivacyPool.Operation[] memory ops = _op(bytes32(0), nullifiers);
+        IPrivacyPool.Operation[] memory ops = _op(GENESIS_ROOT, nullifiers);
         ops[0].leavesAggregationIndex = 1;
         tint.operate(ops);
         assertEq(tint.totalConsumed(), 2); // advanced to idx+1=2
     }
 
     function test_rootChain() public {
-        tint.deposit(address(token), 1, bytes32(uint256(2)));
+        tint.deposit(address(token), 1, bytes32(uint256(2)), "");
         bytes32[N_INPUTS] memory nullifiers;
         bytes32 rootA = bytes32(uint256(1));
         bytes32 rootB = bytes32(uint256(2));
 
-        tint.operate(_op(bytes32(0), nullifiers)); // 0→A, currentRootIndex=2
+        tint.operate(_op(GENESIS_ROOT, nullifiers)); // 0→A, currentRootIndex=2
         assertEq(tint.roots(rootA), 2);
 
         IPrivacyPool.Operation[] memory ops = _op(rootA, nullifiers);

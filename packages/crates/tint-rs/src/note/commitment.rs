@@ -92,6 +92,12 @@ impl BaseCommitment<NullifierKey> {
     }
 }
 
+impl NullifierKey {
+    pub fn pub_key(&self) -> NullifierPubKey {
+        NullifierPubKey(self.nullifying_pub_key())
+    }
+}
+
 impl KeyMaterial for NullifierKey {
     fn nullifying_pub_key(&self) -> Fr {
         poseidon_hash(&[self.0.clone()])

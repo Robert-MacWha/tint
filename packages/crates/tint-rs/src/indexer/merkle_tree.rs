@@ -20,6 +20,7 @@ pub enum MerkleTreeError {
 pub type Path<const PATH_LEN: usize> = [u8; PATH_LEN];
 
 /// Inclusion proof for a Merkle tree of depth `D` and arity `K`.
+#[derive(Clone)]
 pub struct InclusionProof<const PATH_LEN: usize, const K: usize> {
     pub path: Path<PATH_LEN>,
     pub siblings: [[Fr; K]; PATH_LEN],
@@ -28,6 +29,7 @@ pub struct InclusionProof<const PATH_LEN: usize, const K: usize> {
 
 /// Proof for appending up to `SUBTREE_SIZE` leaves into a Merkle tree of
 /// depth `D` and arity `K`.
+#[derive(Clone)]
 pub struct SubtreeAppendProof<
     // Number of levels from the root to the subtree being appended.
     const SUBTREE_PATH_LEN: usize,
@@ -76,6 +78,11 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
 
     pub fn root(&self) -> Fr {
         self.levels[D].first().copied().unwrap_or(self.zeros[D])
+    }
+
+    /// Number of leaves currently in the tree.
+    pub fn len(&self) -> usize {
+        self.levels[0].len()
     }
 
     /// Returns the path from the root to the given leaf if it exists in the tree.
@@ -238,6 +245,29 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
             index = index * K + digit as usize;
         }
         index
+    }
+}
+
+impl<const PATH_LEN: usize, const K: usize> Default for InclusionProof<PATH_LEN, K> {
+    fn default() -> Self {
+        InclusionProof {
+            path: [0u8; PATH_LEN],
+            siblings: [[Fr::zero(); K]; PATH_LEN],
+            leaf: Fr::zero(),
+        }
+    }
+}
+
+impl<const SUBTREE_PATH_LEN: usize, const SUBTREE_SIZE: usize, const K: usize> Default
+    for SubtreeAppendProof<SUBTREE_PATH_LEN, SUBTREE_SIZE, K>
+{
+    fn default() -> Self {
+        SubtreeAppendProof {
+            existing_leaves: [Fr::zero(); SUBTREE_SIZE],
+            new_leaves: [Fr::zero(); SUBTREE_SIZE],
+            current_siblings: [[Fr::zero(); K]; SUBTREE_PATH_LEN],
+            next_siblings: [[Fr::zero(); K]; SUBTREE_PATH_LEN],
+        }
     }
 }
 

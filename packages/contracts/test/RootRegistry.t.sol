@@ -5,6 +5,8 @@ import {Test} from "forge-std/Test.sol";
 import {RootRegistry} from "../src/RootRegistry.sol";
 
 contract RootRegistryHarness is RootRegistry {
+    constructor() RootRegistry(bytes32(0)) {}
+
     function validateOldRoot(bytes32 root) external view {
         _validateOldRoot(root);
     }
@@ -64,7 +66,7 @@ contract RootRegistryTests is Test {
         reg.updateRoot(bytes32(0), ROOT_A); // currentRootIndex=2
         reg.updateRoot(bytes32(0), ROOT_B); // roots[0]=1, newIdx=2, 2 not > 2 → no update
         assertEq(reg.currentRootIndex(), 2); // unchanged
-        assertEq(reg.roots(ROOT_B), 0);      // not registered
+        assertEq(reg.roots(ROOT_B), 0); // not registered
     }
 
     function test_updateRoot_doesNotRegisterWhenNotAdvancing() public {
@@ -75,7 +77,7 @@ contract RootRegistryTests is Test {
 
     function test_updateRoot_chain() public {
         reg.updateRoot(bytes32(0), ROOT_A); // 0→A: currentRootIndex=2, roots[A]=2
-        reg.updateRoot(ROOT_A, ROOT_B);     // A→B: roots[A]=2, newIdx=3 > 2
+        reg.updateRoot(ROOT_A, ROOT_B); // A→B: roots[A]=2, newIdx=3 > 2
         assertEq(reg.currentRootIndex(), 3);
         assertEq(reg.roots(ROOT_B), 3);
     }

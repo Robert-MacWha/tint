@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Tint} from "../src/Tint.sol";
-import {AGGREGATION_RING_SIZE} from "../src/lib/Constants.sol";
+import {AGGREGATION_RING_SIZE, N_PUB} from "../src/lib/Constants.sol";
 
 contract MockToken is ERC20 {
     constructor() ERC20("Mock", "MCK") {
@@ -17,7 +17,7 @@ contract MockVerifier {
         uint256[2] calldata,
         uint256[2][2] calldata,
         uint256[2] calldata,
-        uint256[24] memory
+        uint256[N_PUB] memory
     ) external pure returns (bool) {
         return true;
     }
@@ -55,7 +55,8 @@ contract TintGasReportTest is Test {
             tint.deposit(
                 address(token),
                 1,
-                bytes32(uint256(keccak256(abi.encode(i))))
+                bytes32(uint256(keccak256(abi.encode(i)))),
+                ""
             );
         }
     }

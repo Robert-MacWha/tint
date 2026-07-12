@@ -10,8 +10,11 @@ parallel = ["ark-ff/parallel", "ark-groth16/parallel"]
 
 [dependencies]
 alloy-primitives = "1.6.0"
-alloy-sol-macro = "1.6.0"
+alloy-provider = "1.6.0"
+alloy-rpc-types-eth = "1.6.0"
+alloy-sol-macro = { version = "1.6.0", features = ["json"] }
 alloy-sol-types = "1.6.0"
+alloy-transport-http = "1.6.0"
 ark-bn254 = "0.6.0"
 ark-crypto-primitives = { version = "0.6.0", features = [
     "crh",
@@ -23,16 +26,21 @@ ark-groth16 = { version = "0.6.0" }
 ark-snark = "0.6.0"
 ark-r1cs-std = "0.6.0"
 ark-relations = "0.6.0"
-# ark-relations = "0.6.0"
 async-trait = "0.1.89"
-# circom-witness-rs = "0.2.3"
 ruint = { version = "1.19.0", features = ["ark-ff-06"] }
 thiserror = "2.0.18"
 tracing = "0.1.44"
 light-poseidon = "0.4.0"
+x25519-dalek = { version = "2.0.1", features = ["static_secrets"] }
+chacha20poly1305 = "0.10.1"
+hkdf = "0.12.4"
+sha2 = "0.10.9"
+rand_core = { version = "0.6.4", features = ["getrandom"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+ark-std = "0.6.0"
 
 [dev-dependencies]
-ark-std = "0.6.0"
+alloy-signer-local = "1.6.0"
 wasm-bindgen-test = "0.3"
 web-time = "1"
 

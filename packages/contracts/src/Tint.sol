@@ -8,7 +8,7 @@ import {
 
 import {IVerifier} from "./interfaces/IVerifier.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
-import {N_INPUTS, N_OUTPUTS, N_PUB} from "./lib/Constants.sol";
+import {N_INPUTS, N_OUTPUTS, N_PUB, GENESIS_ROOT} from "./lib/Constants.sol";
 import {ProofLib} from "./lib/ProofLib.sol";
 import {AggregationRing} from "./AggregationRing.sol";
 import {RootRegistry} from "./RootRegistry.sol";
@@ -25,12 +25,14 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
         address indexed asset,
         uint128 amount,
         bytes32 partialCommitment,
+        bytes encryptedNote
     );
     event Nullified(bytes32 indexed nullifier);
     event Committed(
         bytes32 indexed commitment,
         address indexed spendabilityAddress,
-        bytes spendabilityData
+        bytes32 spendabilityData,
+        bytes encryptedNote
     );
     event Withdrawn(
         address indexed asset,
@@ -39,11 +41,12 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
     );
 
     error ZeroAmount();
+    error ZeroCommitment();
     error InvalidProof();
     error NullifierAlreadySpent(bytes32 nullifier);
     error UnshieldRecipientZero(uint256 index);
 
-    constructor(address _verifier) {
+    constructor(address _verifier) RootRegistry(GENESIS_ROOT) {
         VERIFIER = IVerifier(_verifier);
     }
 
@@ -58,17 +61,19 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
         address asset,
         uint128 amount,
         bytes32 partialCommitment,
+        bytes calldata encryptedNote
     ) external {
         if (amount == 0) revert ZeroAmount();
+        if (partialCommitment == 0) revert ZeroCommitment();
 
-        bytes32 commitment = ProofLib.toCommitment(asset, amount, partialCommitment);
-        _commit(commitment);
-        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
-        emit Deposited(
+        bytes32 commitment = ProofLib.toCommitment(
             asset,
             amount,
             partialCommitment
         );
+        _commit(commitment);
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
+        emit Deposited(asset, amount, partialCommitment, encryptedNote);
     }
 
     /// @notice Pre-validates an operation, writing a flag to tstore to indicate that the operation is valid.
@@ -80,9 +85,11 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
         // so we can use this with paymasters.
     }
 
-    function operate(IPrivacyPool.Operation calldata operation) public {
-        verifyOperation(operation);
-        _executeOperation(operation);
+    function operate(IPrivacyPool.Operation[] calldata operations) public {
+        for (uint256 i; i < operations.length; ++i) {
+            verifyOperation(operations[i]);
+            _executeOperation(operations[i]);
+        }
     }
 
     /// @notice Verifies that the provided operation is valid or reverts if not.
@@ -91,23 +98,23 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
     function verifyOperation(IPrivacyPool.Operation calldata op) public view {
         _validateOldRoot(op.oldRoot);
 
-        bytes32 leavesAggregationHash = _getHash(op.leavesAggregationIndex);
+        bytes32 endAggregationHash = _getHash(op.leavesAggregationIndex);
 
         bytes32 boundParamsHash = ProofLib.toBoundParamsHash(
-            op.spendabilityAddresses,
-            op.spendabilityData,
             op.unshieldRecipients
         );
 
         uint256[N_PUB] memory pubSignals = ProofLib.toPublicSignals(
             op.oldRoot,
+            op.oldRootLength,
+            op.startAggregationHash,
+            boundParamsHash,
             op.newRoot,
-            leavesAggregationHash,
+            endAggregationHash,
             op.nullifiers,
             op.commitmentsOut,
             op.unshieldAmounts,
-            op.unshieldAssets,
-            boundParamsHash
+            op.unshieldAssets
         );
         if (
             !VERIFIER.verifyProof(
@@ -124,6 +131,12 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
             bytes32 hash = op.nullifiers[i];
             if (hash == 0) continue; // dummy input slot
             if (nullifierHashes[hash]) revert NullifierAlreadySpent(hash);
+        }
+
+        for (uint256 i; i < N_OUTPUTS; ++i) {
+            if (op.unshieldAmounts[i] == 0) continue;
+            if (op.unshieldRecipients[i] == address(0))
+                revert UnshieldRecipientZero(i);
         }
     }
 
@@ -146,7 +159,8 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
             emit Committed(
                 commitment,
                 op.spendabilityAddresses[i],
-                op.spendabilityData[i]
+                op.spendabilityData[i],
+                op.encryptedNotes[i]
             );
         }
 

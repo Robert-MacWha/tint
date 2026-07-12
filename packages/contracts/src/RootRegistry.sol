@@ -12,8 +12,8 @@ contract RootRegistry {
 
     error InvalidOldRoot();
 
-    constructor() {
-        roots[bytes32(0)] = 1; // genesis root at one-based index 1
+    constructor(bytes32 genesisRoot) {
+        roots[genesisRoot] = 1; // genesis root at one-based index 1
         currentRootIndex = 1;
     }
 

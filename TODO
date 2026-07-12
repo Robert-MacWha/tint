@@ -1,7 +1,2 @@
-- Add an encryption key & derive it and the nullifying key from the same seed. This way that one master key can be shared to all users and they can all see the data (IE for a multisig)
-
-- Figure out spendability discoverability. If I send a note to a recipient, I urrently need to know their spendability rules & link it to the note. Maybe it would be better to have per-account spendability rules, so that you could send to an account without caring about its spendability. Seems logical.
-
-- Update tint operate fn to accept aggregation hash instead of aggregation hash index
-
-- Move circom tests into rust, so the same codebase is used
+- Load plan ~/.claude/plans/good-points-i-think-moonlit-haven.md with claude for verifier
+- Review claude's many changes and fix

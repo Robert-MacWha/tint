@@ -63,7 +63,9 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
 
     #[tracing::instrument(target = "r1cs", skip_all)]
 
-    /// Verifies that the inputs match the provided input commitment hashes
+    /// Verifies that the inputs match the provided input commitment hashes.
+    ///
+    /// Skipped for unused (zero-amount) input slots.
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn verify_input_commitments(
         &self,
@@ -71,19 +73,31 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     ) -> Result<(), SynthesisError> {
         for i in 0..N_INPUTS {
             let computed_hash: FrVar = self.inputs[i].hash()?;
-            computed_hash.enforce_equal(&input_commitment_hashes[i])?;
+            let used = !self.inputs[i].amount.is_zero()?;
+            let expected = used.select(&input_commitment_hashes[i], &computed_hash)?;
+            computed_hash.enforce_equal(&expected)?;
         }
         Ok(())
     }
 
+    /// Computes the nullifier for each input, or `0` for unused (zero-amount) slots.
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn nullifiers(&self) -> Result<[FrVar; N_INPUTS], SynthesisError> {
-        try_array_from_fn(|i| self.inputs[i].nullifier())
+        try_array_from_fn(|i| {
+            let nullifier = self.inputs[i].nullifier()?;
+            let used = !self.inputs[i].amount.is_zero()?;
+            used.select(&nullifier, &FrVar::zero())
+        })
     }
 
+    /// Computes the commitment hash for each output, or `0` for unused (zero-amount) slots.
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn output_commitment_hashes(&self) -> Result<[FrVar; N_OUTPUTS], SynthesisError> {
-        try_array_from_fn(|i| self.output_commitments[i].hash())
+        try_array_from_fn(|i| {
+            let hash = self.output_commitments[i].hash()?;
+            let used = !self.output_commitments[i].amount.is_zero()?;
+            used.select(&hash, &FrVar::zero())
+        })
     }
 
     /// Checks that all amounts in the operation fit in u128.
@@ -212,7 +226,7 @@ fn enforce_u128(v: &FrVar) -> Result<(), SynthesisError> {
 #[cfg(test)]
 mod tests {
     use alloy_primitives::{Address, address};
-    use ark_r1cs_std::fields::fp::FpVar;
+    use ark_r1cs_std::{GR1CSVar, fields::fp::FpVar};
     use ark_relations::gr1cs::ConstraintSystem;
 
     use super::*;
@@ -346,5 +360,73 @@ mod tests {
         let expected_sum = FpVar::new_witness(cs.clone(), || Ok(Fr::from(20))).unwrap();
         sum.enforce_equal(&expected_sum).unwrap();
         assert!(cs.is_satisfied().unwrap());
+    }
+
+    /// Expect that unused (zero-amount) input slots reveal a nullifier of 0,
+    /// while a used slot reveals its real nullifier.
+    #[test]
+    fn nullifiers_zero_for_unused_inputs() {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+        let mut op = Operation::<3, 3, 3>::default();
+        op.inputs[0].asset = DEAD_BEEF.into();
+        op.inputs[0].amount = 10;
+
+        let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
+        let nullifiers = var.nullifiers().unwrap();
+
+        assert_eq!(nullifiers[0].value().unwrap(), op.inputs[0].nullifier());
+        assert_eq!(nullifiers[1].value().unwrap(), Fr::from(0));
+        assert_eq!(nullifiers[2].value().unwrap(), Fr::from(0));
+        assert!(cs.is_satisfied().unwrap());
+    }
+
+    /// Expect that unused (zero-amount) output slots reveal a commitment hash
+    /// of 0, while a used slot reveals its real hash.
+    #[test]
+    fn output_commitment_hashes_zero_for_unused_outputs() {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+        let mut op = Operation::<3, 3, 3>::default();
+        op.output_commitments[0].asset = DEAD_BEEF.into();
+        op.output_commitments[0].amount = 10;
+
+        let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
+        let hashes = var.output_commitment_hashes().unwrap();
+
+        assert_eq!(hashes[0].value().unwrap(), op.output_commitments[0].hash());
+        assert_eq!(hashes[1].value().unwrap(), Fr::from(0));
+        assert_eq!(hashes[2].value().unwrap(), Fr::from(0));
+        assert!(cs.is_satisfied().unwrap());
+    }
+
+    /// Expect that unused (zero-amount) input slots don't need their provided
+    /// leaf to match the computed commitment hash.
+    #[test]
+    fn verify_input_commitments_ignores_unused_slots() {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+        let op = Operation::<3, 3, 3>::default();
+
+        let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
+        let mismatched_leaves: [FrVar; 3] =
+            std::array::from_fn(|_| FpVar::new_witness(cs.clone(), || Ok(Fr::from(1234))).unwrap());
+
+        var.verify_input_commitments(&mismatched_leaves).unwrap();
+        assert!(cs.is_satisfied().unwrap());
+    }
+
+    /// Expect that used input slots still require their provided leaf to
+    /// match the computed commitment hash.
+    #[test]
+    fn verify_input_commitments_enforces_used_slots() {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+        let mut op = Operation::<3, 3, 3>::default();
+        op.inputs[0].asset = DEAD_BEEF.into();
+        op.inputs[0].amount = 10;
+
+        let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
+        let wrong_leaves: [FrVar; 3] =
+            std::array::from_fn(|_| FpVar::new_witness(cs.clone(), || Ok(Fr::from(1234))).unwrap());
+
+        var.verify_input_commitments(&wrong_leaves).unwrap();
+        assert!(!cs.is_satisfied().unwrap());
     }
 }

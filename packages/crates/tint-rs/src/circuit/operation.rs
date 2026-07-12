@@ -17,8 +17,8 @@ use crate::{
 };
 
 pub struct OperationVar<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize> {
-    pub inputs: [CommitmentVar; N_INPUTS],
-    pub output_commitments: [SpendableCommitmentVar; N_OUTPUTS],
+    pub inputs: [SpendableCommitmentVar; N_INPUTS],
+    pub output_commitments: [CommitmentVar; N_OUTPUTS],
     pub withdrawals: [WithdrawalVar; N_WITHDRAWALS],
 }
 
@@ -70,7 +70,7 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
         input_commitment_hashes: &[FrVar; N_INPUTS],
     ) -> Result<(), SynthesisError> {
         for i in 0..N_INPUTS {
-            let computed_hash: FrVar = self.inputs[i].commitment_hash()?;
+            let computed_hash: FrVar = self.inputs[i].hash()?;
             computed_hash.enforce_equal(&input_commitment_hashes[i])?;
         }
         Ok(())
@@ -83,7 +83,7 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
 
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn output_commitment_hashes(&self) -> Result<[FrVar; N_OUTPUTS], SynthesisError> {
-        try_array_from_fn(|i| self.output_commitments[i].commitment_hash())
+        try_array_from_fn(|i| self.output_commitments[i].hash())
     }
 
     /// Checks that all amounts in the operation fit in u128.

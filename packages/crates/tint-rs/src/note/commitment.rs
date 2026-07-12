@@ -1,5 +1,6 @@
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, B256, keccak256};
 use ark_bn254::Fr;
+use ark_ff::PrimeField;
 
 use crate::{circuit::poseidon::poseidon_hash, note::asset::AssetId};
 
@@ -15,7 +16,6 @@ pub struct BaseCommitment<K: KeyMaterial> {
     pub spendability_data: B256,
     pub key: K,
     pub random: Fr,
-    pub leaf_index: u64,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
@@ -24,8 +24,8 @@ pub struct NullifierKey(pub Fr);
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct NullifierPubKey(pub Fr);
 
-pub type Commitment = BaseCommitment<NullifierKey>;
-pub type SpendableCommitment = BaseCommitment<NullifierPubKey>;
+pub type Commitment = BaseCommitment<NullifierPubKey>;
+pub type SpendableCommitment = BaseCommitment<NullifierKey>;
 
 impl<K: KeyMaterial> BaseCommitment<K> {
     pub fn new(
@@ -35,7 +35,6 @@ impl<K: KeyMaterial> BaseCommitment<K> {
         spendability_data: B256,
         key: K,
         random: Fr,
-        leaf_index: u64,
     ) -> Self {
         BaseCommitment {
             asset,
@@ -44,7 +43,6 @@ impl<K: KeyMaterial> BaseCommitment<K> {
             spendability_data,
             key,
             random,
-            leaf_index,
         }
     }
 
@@ -77,14 +75,20 @@ impl<K: KeyMaterial> BaseCommitment<K> {
     }
 
     pub fn spendability_hash(&self) -> Fr {
-        // keccak256(spendability_address ++ spendability_data) into field element
-        Fr::from(0u128)
+        let hash = keccak256(
+            [
+                self.spendability_address.as_slice(),
+                self.spendability_data.as_slice(),
+            ]
+            .concat(),
+        );
+        Fr::from_le_bytes_mod_order(&hash.0)
     }
 }
 
 impl BaseCommitment<NullifierKey> {
     pub fn nullifier(&self) -> Fr {
-        poseidon_hash(&[self.key.0, Fr::from(self.leaf_index)])
+        poseidon_hash(&[self.key.0, self.hash()])
     }
 }
 

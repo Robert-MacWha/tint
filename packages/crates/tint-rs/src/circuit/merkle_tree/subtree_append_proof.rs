@@ -12,7 +12,7 @@ use ark_relations::gr1cs::{Namespace, SynthesisError};
 
 use crate::{
     circuit::{
-        FrVar, merkle_tree_inclusion::InclusionProofVar, merkle_tree_root::merkle_root,
+        FrVar, merkle_tree::InclusionProofVar, merkle_tree::root_proof,
         poseidon::poseidon_hash_gadget, try_array_from_fn, variable,
     },
     indexer::merkle_tree::SubtreeAppendProof,
@@ -88,9 +88,8 @@ impl<
 
         //? Verify the insertion for the current subtree
         let current_root_before =
-            merkle_root::<SUBTREE_DEPTH, K, SUBTREE_SIZE>(&self.existing_leaves)?;
-        let current_root_after =
-            merkle_root::<SUBTREE_DEPTH, K, SUBTREE_SIZE>(&new_current_leaves)?;
+            root_proof::<SUBTREE_DEPTH, K, SUBTREE_SIZE>(&self.existing_leaves)?;
+        let current_root_after = root_proof::<SUBTREE_DEPTH, K, SUBTREE_SIZE>(&new_current_leaves)?;
         let intermediate_root = Self::update_subtree(
             old_root,
             &current_path,
@@ -101,7 +100,7 @@ impl<
 
         //? Verify the insertion for the next subtree, if any
         let next_root_before = Self::empty_root()?;
-        let next_root_after = merkle_root::<SUBTREE_DEPTH, K, SUBTREE_SIZE>(&new_next_leaves)?;
+        let next_root_after = root_proof::<SUBTREE_DEPTH, K, SUBTREE_SIZE>(&new_next_leaves)?;
         Self::update_subtree(
             &intermediate_root,
             &next_path,

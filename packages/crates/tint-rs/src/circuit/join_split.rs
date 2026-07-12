@@ -6,10 +6,10 @@ use ark_relations::gr1cs::{Namespace, SynthesisError};
 
 use crate::{
     circuit::{
-        FrVar,
-        merkle_tree_inclusion::InclusionProofVar,
-        merkle_tree_subtree_append::SubtreeAppendProofVar,
+        FrVar, commitment,
+        merkle_tree::{InclusionProofVar, SubtreeAppendProofVar},
         operation::{OperationVar, WithdrawalVar},
+        try_array_from_fn, variable,
     },
     indexer::merkle_tree::{InclusionProof, SubtreeAppendProof},
     operation::Operation,
@@ -93,6 +93,17 @@ impl AllocVar<JoinSplit, Fr> for JoinSplitVar {
         let cs = cs.into();
         let value = f()?;
         let value = value.borrow();
-        todo!()
+
+        let subtree_append = variable(cs.clone(), &value.subtree_append, mode)?;
+        let commitment_inclusion_proofs = try_array_from_fn(|i| {
+            variable(cs.clone(), &value.commitment_inclusion_proofs[i], mode)
+        })?;
+        let operation = variable(cs.clone(), &value.operation, mode)?;
+
+        Ok(Self {
+            subtree_append,
+            commitment_inclusion_proofs,
+            operation,
+        })
     }
 }

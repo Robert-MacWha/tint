@@ -3,7 +3,7 @@ use ark_relations::gr1cs::SynthesisError;
 use crate::circuit::{FrVar, poseidon::poseidon_hash_gadget};
 
 /// Computes the root of a Merkle tree given the leaves.
-pub fn merkle_root<const D: usize, const K: usize, const LEAVES: usize>(
+pub fn root_proof<const D: usize, const K: usize, const LEAVES: usize>(
     leaves: &[FrVar; LEAVES],
 ) -> Result<FrVar, SynthesisError> {
     const {
@@ -44,7 +44,7 @@ mod tests {
         let native_leaves: [Fr; 6] = std::array::from_fn(|_| Fr::rand(&mut rng));
         let leaves = std::array::from_fn(|i| witness(cs.clone(), &native_leaves[i]).unwrap());
 
-        let root = merkle_root::<2, 2, 4>(&leaves).unwrap().value().unwrap();
+        let root = root_proof::<2, 2, 4>(&leaves).unwrap().value().unwrap();
 
         let computed_root = poseidon_hash(&[
             poseidon_hash(&[native_leaves[0], native_leaves[1]]),

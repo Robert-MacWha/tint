@@ -23,21 +23,21 @@ pub struct BaseCommitmentVar<K: KeyMaterialVar> {
 pub struct NullifierKeyVar(pub FrVar);
 pub struct NullifierPubKeyVar(pub FrVar);
 
-pub type CommitmentVar = BaseCommitmentVar<NullifierKeyVar>;
-pub type SpendableCommitmentVar = BaseCommitmentVar<NullifierPubKeyVar>;
+pub type CommitmentVar = BaseCommitmentVar<NullifierPubKeyVar>;
+pub type SpendableCommitmentVar = BaseCommitmentVar<NullifierKeyVar>;
 
 impl<K: KeyMaterialVar> BaseCommitmentVar<K> {
     #[tracing::instrument(target = "r1cs", skip_all)]
-    pub fn commitment_hash(&self) -> Result<FrVar, SynthesisError> {
+    pub fn hash(&self) -> Result<FrVar, SynthesisError> {
         poseidon_hash_gadget(&[
             self.asset.clone(),
             self.amount.clone(),
-            self.partial_commitment_hash()?,
+            self.partial_hash()?,
         ])
     }
 
     #[tracing::instrument(target = "r1cs", skip_all)]
-    fn partial_commitment_hash(&self) -> Result<FrVar, SynthesisError> {
+    fn partial_hash(&self) -> Result<FrVar, SynthesisError> {
         poseidon_hash_gadget(&[
             self.spendability_hash.clone(),
             self.key.nullifying_pub_key()?,
@@ -49,7 +49,7 @@ impl<K: KeyMaterialVar> BaseCommitmentVar<K> {
 impl BaseCommitmentVar<NullifierKeyVar> {
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn nullifier(&self) -> Result<FrVar, SynthesisError> {
-        poseidon_hash_gadget(&[self.key.0.clone()])
+        poseidon_hash_gadget(&[self.key.0.clone(), self.hash()?])
     }
 }
 
@@ -125,5 +125,57 @@ impl AllocVar<NullifierPubKey, Fr> for NullifierPubKeyVar {
 
         let var = variable(cs, &value.0, mode)?;
         Ok(NullifierPubKeyVar(var))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ark_r1cs_std::GR1CSVar;
+    use ark_relations::gr1cs::ConstraintSystem;
+
+    use crate::{
+        circuit::witness,
+        note::commitment::{Commitment, SpendableCommitment},
+    };
+
+    use super::*;
+
+    #[test]
+    fn commitment_hash() {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+
+        let commitment = Commitment::default();
+        let commitment_var: CommitmentVar = witness(cs.clone(), &commitment).unwrap();
+
+        let commitment_hash = commitment.hash();
+        let commitment_hash_var = commitment_var.hash().unwrap().value().unwrap();
+
+        assert_eq!(commitment_hash, commitment_hash_var);
+    }
+
+    #[test]
+    fn partial_hash() {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+
+        let commitment = Commitment::default();
+        let commitment_var: CommitmentVar = witness(cs.clone(), &commitment).unwrap();
+
+        let partial_commitment_hash = commitment.partial_hash();
+        let partial_commitment_hash_var = commitment_var.partial_hash().unwrap().value().unwrap();
+
+        assert_eq!(partial_commitment_hash, partial_commitment_hash_var);
+    }
+
+    #[test]
+    fn test_nullifier() {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+
+        let commitment = SpendableCommitment::default();
+        let commitment_var: SpendableCommitmentVar = witness(cs.clone(), &commitment).unwrap();
+
+        let nullifier = commitment.nullifier();
+        let nullifier_var = commitment_var.nullifier().unwrap().value().unwrap();
+
+        assert_eq!(nullifier, nullifier_var);
     }
 }

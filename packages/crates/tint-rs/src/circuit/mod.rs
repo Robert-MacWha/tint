@@ -3,9 +3,7 @@ use ark_r1cs_std::alloc::AllocVar;
 
 pub mod commitment;
 pub mod join_split;
-pub mod merkle_tree_inclusion;
-pub mod merkle_tree_root;
-pub mod merkle_tree_subtree_append;
+pub mod merkle_tree;
 pub mod operation;
 pub mod poseidon;
 

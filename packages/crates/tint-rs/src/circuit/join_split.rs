@@ -6,7 +6,7 @@ use ark_relations::gr1cs::{Namespace, SynthesisError};
 
 use crate::{
     circuit::{
-        FrVar, commitment,
+        FrVar,
         merkle_tree::{InclusionProofVar, SubtreeAppendProofVar},
         operation::{OperationVar, WithdrawalVar},
         try_array_from_fn, variable,
@@ -47,21 +47,19 @@ pub struct JoinSplitResult {
 
 impl JoinSplitVar {
     /// Verifies the JoinSplit operation.
-    ///
-    /// 1. That the staging commitment append proof is valid.
     pub fn verify(
         &self,
         old_root: &FrVar,
         old_root_length: &FrVar,
-        start_chain_hash: &FrVar,
-        end_chain_hash: &FrVar,
+        start_aggregation_hash: &FrVar,
+        end_aggregation_hash: &FrVar,
     ) -> Result<JoinSplitResult, SynthesisError> {
         // Verify the staged leaf append proof and return the new root of the Merkle tree.
         let new_root = self.subtree_append.verify(
             old_root,
             old_root_length,
-            start_chain_hash,
-            end_chain_hash,
+            start_aggregation_hash,
+            end_aggregation_hash,
         )?;
 
         // Verify the inclusion proofs for the input commitments.

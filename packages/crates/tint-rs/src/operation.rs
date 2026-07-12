@@ -1,7 +1,7 @@
 use std::array::repeat;
 
 use crate::note::{
-    commitment::{BaseCommitment, Commitment, SpendableCommitment},
+    commitment::{Commitment, SpendableCommitment},
     withdrawal::Withdrawal,
 };
 

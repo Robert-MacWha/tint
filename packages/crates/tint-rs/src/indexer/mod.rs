@@ -1,9 +1,3 @@
-use std::sync::Arc;
-
-use alloy_primitives::{B256, keccak256};
-
-use merkle_tree::IncrementalMerkleTree;
-
 pub mod merkle_tree;
 pub mod syncer;
 pub mod verifier;

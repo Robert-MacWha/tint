@@ -21,6 +21,7 @@ fn variable<T, F: Field, TVar: AllocVar<T, F>>(
 
 /// Helper to create a new witness variable in the constraint system with the given
 /// value.
+#[allow(dead_code)]
 fn witness<T, F: Field, TVar: AllocVar<T, F>>(
     cs: impl Into<ark_relations::gr1cs::Namespace<F>>,
     value: &T,
@@ -30,6 +31,7 @@ fn witness<T, F: Field, TVar: AllocVar<T, F>>(
 
 /// Helper to create a new constant variable in the constraint system with the given
 /// value.
+#[allow(dead_code)]
 fn constant<T, F: Field, TVar: AllocVar<T, F>>(
     cs: impl Into<ark_relations::gr1cs::Namespace<F>>,
     value: &T,

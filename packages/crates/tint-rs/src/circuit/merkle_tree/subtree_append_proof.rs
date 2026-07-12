@@ -49,27 +49,29 @@ impl<
         &self,
         old_root: &FrVar,
         old_root_length: &FrVar,
-        start_chain_hash: &FrVar,
-        end_chain_hash: &FrVar,
+        start_aggregation_hash: &FrVar,
+        end_aggregation_hash: &FrVar,
     ) -> Result<FrVar, SynthesisError> {
-        self.verify_chain_hash(start_chain_hash, end_chain_hash)?;
+        self.verify_aggregation_hash(start_aggregation_hash, end_aggregation_hash)?;
         self.verify_inclusion(old_root, old_root_length)
     }
 
-    /// Verifies that the new leaves match the expected chain hash.
-    fn verify_chain_hash(
+    /// Verifies that the new leaves match the expected aggregation hash.
+    fn verify_aggregation_hash(
         &self,
-        start_chain_hash: &FrVar,
-        end_chain_hash: &FrVar,
+        start_aggregation_hash: &FrVar,
+        end_aggregation_hash: &FrVar,
     ) -> Result<(), SynthesisError> {
-        let mut chain_hash: FrVar = start_chain_hash.clone();
+        let mut aggregation_hash: FrVar = start_aggregation_hash.clone();
         for new_leaf in &self.new_leaves {
-            let next_chain_hash: FrVar =
-                poseidon_hash_gadget(&[chain_hash.clone(), new_leaf.clone()])?;
-            chain_hash = new_leaf.is_zero()?.select(&chain_hash, &next_chain_hash)?;
+            let next_aggregation_hash: FrVar =
+                poseidon_hash_gadget(&[aggregation_hash.clone(), new_leaf.clone()])?;
+            aggregation_hash = new_leaf
+                .is_zero()?
+                .select(&aggregation_hash, &next_aggregation_hash)?;
         }
 
-        chain_hash.enforce_equal(end_chain_hash)
+        aggregation_hash.enforce_equal(end_aggregation_hash)
     }
 
     /// Verifies the append proof that `new_leaves` can be inserted into the tree

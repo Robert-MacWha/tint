@@ -1,8 +1,9 @@
-use std::{borrow::Borrow, cmp::Ordering};
+use std::borrow::Borrow;
 
 use ark_bn254::Fr;
 use ark_r1cs_std::{
     alloc::{AllocVar, AllocationMode},
+    cmp::CmpGadget,
     eq::EqGadget,
     fields::FieldVar,
     prelude::Boolean,
@@ -142,14 +143,24 @@ impl<
     /// (the remaining `SUBTREE_PATH_LEN` digits), matching
     /// `IncrementalMerkleTree::path_for_index`'s digit order.
     #[tracing::instrument(target = "r1cs", skip_all)]
-    fn locate(length: &FrVar) -> Result<(FrVar, [UInt8<Fr>; SUBTREE_PATH_LEN]), SynthesisError> {
-        const { assert!(K.is_power_of_two(), "arity must be a power of two") };
+    fn locate(
+        length: &FrVar,
+    ) -> Result<(UInt8<Fr>, [UInt8<Fr>; SUBTREE_PATH_LEN]), SynthesisError> {
+        const {
+            assert!(K.is_power_of_two(), "arity must be a power of two");
+            assert!(
+                K.trailing_zeros() as usize * SUBTREE_DEPTH <= 8,
+                "SUBTREE_SIZE must fit in a u8 for `filled` to be representable as a UInt8"
+            );
+        }
         let bits_per_digit = K.trailing_zeros() as usize;
         let low_bits = bits_per_digit * SUBTREE_DEPTH;
         let total_bits = bits_per_digit * (SUBTREE_DEPTH + SUBTREE_PATH_LEN);
 
         let (bits, _) = length.to_bits_le_with_top_bits_zero(total_bits)?;
-        let filled = Boolean::le_bits_to_fp(&bits[..low_bits])?;
+        let mut filled_bits = [Boolean::FALSE; 8];
+        filled_bits[..low_bits].clone_from_slice(&bits[..low_bits]);
+        let filled = UInt8::from_bits_le(&filled_bits);
 
         let path = try_array_from_fn(|i| {
             let m = SUBTREE_PATH_LEN - 1 - i;
@@ -166,12 +177,11 @@ impl<
     /// Merges the existing leaves with the new leaves, masking in only the
     /// new leaves that fit into the current subtree.
     #[tracing::instrument(target = "r1cs", skip_all)]
-    fn merge_current(&self, filled: &FrVar) -> Result<[FrVar; SUBTREE_SIZE], SynthesisError> {
+    fn merge_current(&self, filled: &UInt8<Fr>) -> Result<[FrVar; SUBTREE_SIZE], SynthesisError> {
         let fill_eq = Self::fill_indicators(filled)?;
 
         try_array_from_fn(|pos| {
-            let is_existing =
-                FrVar::constant(Fr::from(pos as u64)).is_cmp(filled, Ordering::Less, false)?;
+            let is_existing = UInt8::constant(pos as u8).is_lt(filled)?;
             let new_leaf = self.shifted_new_leaf(&fill_eq, pos)?;
             is_existing.select(&self.existing_leaves[pos], &new_leaf)
         })
@@ -180,7 +190,7 @@ impl<
     /// Merges the new leaves into the next subtree, masking in only the new
     /// leaves that overflowed from the current subtree.
     #[tracing::instrument(target = "r1cs", skip_all)]
-    fn merge_next(&self, filled: &FrVar) -> Result<[FrVar; SUBTREE_SIZE], SynthesisError> {
+    fn merge_next(&self, filled: &UInt8<Fr>) -> Result<[FrVar; SUBTREE_SIZE], SynthesisError> {
         let fill_eq = Self::fill_indicators(filled)?;
         try_array_from_fn(|pos| self.shifted_new_leaf(&fill_eq, SUBTREE_SIZE + pos))
     }
@@ -205,8 +215,8 @@ impl<
     /// One-hot indicator over the only values `filled` can take:
     /// `fill_eq[d]` is true if `filled == d`.
     #[tracing::instrument(target = "r1cs", skip_all)]
-    fn fill_indicators(filled: &FrVar) -> Result<[Boolean<Fr>; SUBTREE_SIZE], SynthesisError> {
-        try_array_from_fn(|d| filled.is_eq(&FrVar::constant(Fr::from(d as u64))))
+    fn fill_indicators(filled: &UInt8<Fr>) -> Result<[Boolean<Fr>; SUBTREE_SIZE], SynthesisError> {
+        try_array_from_fn(|d| filled.is_eq(&UInt8::constant(d as u8)))
     }
 
     /// Computes the root of an empty tree.
@@ -292,7 +302,7 @@ mod tests {
             next_siblings: repeat(repeat(FrVar::zero())),
         };
 
-        let filled = FrVar::constant(Fr::from(2u64));
+        let filled = UInt8::constant(2u8);
         let merged_current = proof
             .merge_current(&filled)
             .unwrap()

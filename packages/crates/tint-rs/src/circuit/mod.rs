@@ -6,6 +6,7 @@ pub mod join_split;
 pub mod merkle_tree;
 pub mod operation;
 pub mod poseidon;
+pub mod poseidon2;
 
 pub type FrVar = ark_r1cs_std::fields::fp::FpVar<ark_bn254::Fr>;
 

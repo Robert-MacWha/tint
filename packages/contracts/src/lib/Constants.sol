@@ -17,5 +17,6 @@ uint256 constant BN254_FR_MODULUS = 21888242871839275222246405745257275088548364
 /// @dev Root of an empty Merkle tree of depth 8, arity 8 (matching the
 /// circuit's TREE_DEPTH/K) — the real Poseidon "zeros" chain, not bytes32(0).
 /// Pinned by `indexer::genesis_root::matches_solidity_genesis_root` in the
-/// Rust crate; must be kept in sync if TREE_DEPTH/K ever change.
-bytes32 constant GENESIS_ROOT = 0x05a46634d86c1e17e4ebed248b1e484199c6489967896de76d90fa216c209fdb;
+/// Rust crate; must be kept in sync if TREE_DEPTH/K or the Merkle node hash
+/// function ever change.
+bytes32 constant GENESIS_ROOT = 0x2dbd30e0c2cc00efed70e3ffff71cc81d7ea473f78dff9da61e4c9adf9c1a2ed;

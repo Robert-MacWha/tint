@@ -1,6 +1,6 @@
 use ark_relations::gr1cs::SynthesisError;
 
-use crate::circuit::{FrVar, poseidon::poseidon_hash_gadget};
+use crate::circuit::{FrVar, poseidon2::hash_children_gadget};
 
 /// Computes the root of a Merkle tree given the leaves.
 #[tracing::instrument(target = "r1cs", skip_all)]
@@ -16,7 +16,7 @@ pub fn root_proof<const D: usize, const K: usize, const LEAVES: usize>(
         let mut next_hashes = Vec::with_capacity(current_hashes.len() / K);
         for chunk in current_hashes.chunks(K) {
             let input: [FrVar; K] = std::array::from_fn(|i| chunk[i].clone());
-            let hash = poseidon_hash_gadget(&input)?;
+            let hash = hash_children_gadget(&input)?;
             next_hashes.push(hash);
         }
         current_hashes = next_hashes;

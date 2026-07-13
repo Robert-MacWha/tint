@@ -68,7 +68,12 @@ thread_local! {
 }
 
 fn active_num_constraints() -> usize {
-    ACTIVE_CS.with(|cs| cs.borrow().as_ref().map(|cs| cs.num_constraints()).unwrap_or(0))
+    ACTIVE_CS.with(|cs| {
+        cs.borrow()
+            .as_ref()
+            .map(|cs| cs.num_constraints())
+            .unwrap_or(0)
+    })
 }
 
 /// A `tracing_subscriber::Layer` that attributes constraints to whichever
@@ -159,9 +164,7 @@ fn profile_constraints(
 }
 
 fn print_breakdown(entries: &[(String, Stats)]) {
-    println!(
-        "constraint breakdown (from tracing spans, sorted by exclusive cost):"
-    );
+    println!("constraint breakdown (from tracing spans, sorted by exclusive cost):");
     println!(
         "  {:<55} {:>6} {:>10} {:>10}",
         "span", "calls", "inclusive", "exclusive"

@@ -1,7 +1,7 @@
 use ark_bn254::Fr;
 use ark_ff::Zero;
 
-use crate::circuit::poseidon::poseidon_hash;
+use crate::circuit::poseidon2::hash_children;
 
 /// Fixed-depth incremental Merkle tree.
 pub struct IncrementalMerkleTree<const D: usize, const K: usize> {
@@ -55,7 +55,7 @@ impl<const PATH_LEN: usize, const K: usize> InclusionProof<PATH_LEN, K> {
         for (&digit, sibling_group) in self.path.iter().rev().zip(self.siblings.iter().rev()) {
             let mut input = *sibling_group;
             input[digit as usize] = current;
-            current = poseidon_hash(&input);
+            current = hash_children(&input);
         }
         current
     }
@@ -204,7 +204,7 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
                     *slot = value;
                 }
             }
-            let parent_hash = poseidon_hash(&chunk);
+            let parent_hash = hash_children(&chunk);
 
             let parent_index = index / K;
             if parent_index >= self.levels[level + 1].len() {
@@ -222,7 +222,7 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
         zeros.push(Fr::zero());
         for _ in 0..D {
             let prev = *zeros.last().unwrap();
-            zeros.push(poseidon_hash(&[prev; K]));
+            zeros.push(hash_children(&[prev; K]));
         }
         zeros
     }
@@ -284,7 +284,7 @@ mod tests {
 
         let mut expected = Fr::zero();
         for _ in 0..D {
-            expected = poseidon_hash(&[expected; K]);
+            expected = hash_children(&[expected; K]);
         }
 
         assert_eq!(tree.root(), expected);
@@ -298,7 +298,7 @@ mod tests {
         let leaves = [Fr::from(11u64), Fr::from(22u64)];
         let tree = IncrementalMerkleTree::<D, K>::from_leaves(&leaves);
 
-        assert_eq!(tree.root(), poseidon_hash(&leaves));
+        assert_eq!(tree.root(), hash_children(&leaves));
     }
 
     #[test]

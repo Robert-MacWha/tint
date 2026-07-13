@@ -1,2 +1,37 @@
-- Load plan ~/.claude/plans/good-points-i-think-moonlit-haven.md with claude for verifier
-- Review claude's many changes and fix
+- Switch to poseidon2 and fix redundant nullifier calculation.
+- Switch to `create_proof_with_reduction_and_matrices`
+
+```
+let cs = ConstraintSystem::<Fr>::new_ref();
+cs.set_optimization_goal(OptimizationGoal::Constraints);
+cs.set_mode(SynthesisMode::Prove { construct_matrices: true, generate_lc_assignments: false });
+setup_circuit.generate_constraints(cs.clone())?;
+cs.finalize();
+
+let matrices = cs.to_matrices().unwrap()[R1CS_PREDICATE_LABEL].clone(); // Vec<Matrix<Fr>> = [A,B,C]
+let num_inputs = cs.num_instance_variables();
+let num_constraints = cs.num_constraints();
+// CanonicalSerialize `matrices`, `num_inputs`, `num_constraints` to disk
+```
+
+```
+let cs = ConstraintSystem::<Fr>::new_ref();
+cs.set_optimization_goal(OptimizationGoal::Constraints);
+cs.set_mode(SynthesisMode::Prove { construct_matrices: false, generate_lc_assignments: false });
+circuit.generate_constraints(cs.clone())?;   // ~124ms, fills assignments; NO finalize
+
+// cheap safety net against circuit nondeterminism (see gotchas)
+assert_eq!(cs.num_instance_variables(), num_inputs);
+assert_eq!(cs.num_constraints(), num_constraints);
+
+let prover = cs.borrow().unwrap();
+let full_assignment = [
+    prover.instance_assignment().unwrap(),    // index 0 is the constant "one"
+    prover.witness_assignment().unwrap(),
+].concat();
+drop(prover);
+
+let proof = Groth16::<Bn254, LibsnarkReduction>::create_proof_with_reduction_and_matrices(
+    &pk, r, s, &matrices, num_inputs, num_constraints, &full_assignment,
+)?;
+```

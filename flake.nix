@@ -37,6 +37,7 @@
       devShells.${system}.default = pkgs.mkShell {
         buildInputs = [
           pkgs.just
+          pkgs.pnpm
           pkgs.foundry
 
           rustToolchain

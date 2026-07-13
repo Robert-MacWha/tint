@@ -4437,6 +4437,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "taceo-poseidon2"
+version = "0.2.1"
+dependencies = [
+ "ark-bn254",
+ "ark-ff 0.6.0",
+ "ark-std 0.6.0",
+ "num-bigint",
+ "num-traits",
+]
+
+[[package]]
 name = "tap"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4576,6 +4587,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "taceo-poseidon2",
  "thiserror 2.0.18",
  "tokio",
  "tracing",

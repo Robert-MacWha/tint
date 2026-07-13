@@ -393,7 +393,7 @@ mod genesis_root {
         let tree = IncrementalMerkleTree::<TREE_DEPTH, K>::new();
         assert_eq!(
             fr_to_b256(tree.root()),
-            "0x05a46634d86c1e17e4ebed248b1e484199c6489967896de76d90fa216c209fdb"
+            "0x2dbd30e0c2cc00efed70e3ffff71cc81d7ea473f78dff9da61e4c9adf9c1a2ed"
                 .parse::<B256>()
                 .unwrap()
         );

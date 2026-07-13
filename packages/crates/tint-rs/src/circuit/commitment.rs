@@ -41,9 +41,11 @@ impl BaseCommitmentVar {
 }
 
 impl SpendableCommitmentVar {
+    /// Computes the nullifier for this commitment, given its already-computed
+    /// base commitment hash (to avoid recomputing it).
     #[tracing::instrument(target = "r1cs", skip_all)]
-    pub fn nullifier(&self) -> Result<FrVar, SynthesisError> {
-        poseidon_hash_gadget(&[self.nullifier.clone(), self.base.hash()?])
+    pub fn nullifier(&self, base_hash: &FrVar) -> Result<FrVar, SynthesisError> {
+        poseidon_hash_gadget(&[self.nullifier.clone(), base_hash.clone()])
     }
 }
 
@@ -136,7 +138,8 @@ mod tests {
         let commitment_var: SpendableCommitmentVar = witness(cs.clone(), &commitment).unwrap();
 
         let nullifier = commitment.nullifier();
-        let nullifier_var = commitment_var.nullifier().unwrap();
+        let base_hash = commitment_var.base.hash().unwrap();
+        let nullifier_var = commitment_var.nullifier(&base_hash).unwrap();
 
         assert_eq!(nullifier, nullifier_var.value().unwrap());
     }

@@ -47,7 +47,7 @@ pub fn poseidon_hash_gadget<const N: usize>(input: &[FrVar; N]) -> Result<FrVar,
 }
 
 /// A native field element (`Fr`) or its in-circuit counterpart (`FrVar`).
-trait PoseidonElem: Sized + Add<Self, Output = Self> {
+pub(crate) trait PoseidonElem: Sized + Add<Self, Output = Self> {
     fn add_constant(&mut self, constant: Fr);
     fn pow_alpha(&self, alpha: u64) -> Result<Self, SynthesisError>;
     fn mul_constant(&self, constant: Fr) -> Self;

@@ -48,41 +48,43 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
         &self,
         input_commitment_hashes: &[FrVar; N_INPUTS],
     ) -> Result<OperationResult<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>, SynthesisError> {
-        self.verify_input_commitments(input_commitment_hashes)?;
+        let input_base_hashes = self.verify_input_commitments(input_commitment_hashes)?;
         self.enforce_u128()?;
         self.verify_balance()?;
 
         Ok(OperationResult {
-            nullifiers: self.nullifiers()?,
+            nullifiers: self.nullifiers(&input_base_hashes)?,
             output_commitment_hashes: self.output_commitment_hashes()?,
             withdrawals: self.withdrawals.clone(),
         })
     }
 
-    #[tracing::instrument(target = "r1cs", skip_all)]
-
-    /// Verifies that the inputs match the provided input commitment hashes.
+    /// Verifies that the inputs match the provided input commitment hashes,
+    /// returning each input's computed base commitment hash for reuse.
     ///
     /// Skipped for unused (zero-amount) input slots.
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn verify_input_commitments(
         &self,
         input_commitment_hashes: &[FrVar; N_INPUTS],
-    ) -> Result<(), SynthesisError> {
-        for i in 0..N_INPUTS {
+    ) -> Result<[FrVar; N_INPUTS], SynthesisError> {
+        try_array_from_fn(|i| {
             let computed_hash: FrVar = self.inputs[i].base.hash()?;
             let used = !self.inputs[i].base.amount.is_zero()?;
             let expected = used.select(&input_commitment_hashes[i], &computed_hash)?;
             computed_hash.enforce_equal(&expected)?;
-        }
-        Ok(())
+            Ok(computed_hash)
+        })
     }
 
     /// Computes the nullifier for each input, or `0` for unused (zero-amount) slots.
     #[tracing::instrument(target = "r1cs", skip_all)]
-    fn nullifiers(&self) -> Result<[FrVar; N_INPUTS], SynthesisError> {
+    fn nullifiers(
+        &self,
+        input_base_hashes: &[FrVar; N_INPUTS],
+    ) -> Result<[FrVar; N_INPUTS], SynthesisError> {
         try_array_from_fn(|i| {
-            let nullifier = self.inputs[i].nullifier()?;
+            let nullifier = self.inputs[i].nullifier(&input_base_hashes[i])?;
             let used = !self.inputs[i].base.amount.is_zero()?;
             used.select(&nullifier, &FrVar::zero())
         })
@@ -368,7 +370,9 @@ mod tests {
         op.inputs[0].base.amount = 10;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
-        let nullifiers = var.nullifiers().unwrap();
+        let input_base_hashes: [FrVar; 3] =
+            std::array::from_fn(|i| var.inputs[i].base.hash().unwrap());
+        let nullifiers = var.nullifiers(&input_base_hashes).unwrap();
 
         assert_eq!(nullifiers[0].value().unwrap(), op.inputs[0].nullifier());
         assert_eq!(nullifiers[1].value().unwrap(), Fr::from(0));
@@ -405,7 +409,7 @@ mod tests {
         let mismatched_leaves: [FrVar; 3] =
             std::array::from_fn(|_| FpVar::new_witness(cs.clone(), || Ok(Fr::from(1234))).unwrap());
 
-        var.verify_input_commitments(&mismatched_leaves).unwrap();
+        let _ = var.verify_input_commitments(&mismatched_leaves).unwrap();
         assert!(cs.is_satisfied().unwrap());
     }
 
@@ -422,7 +426,7 @@ mod tests {
         let wrong_leaves: [FrVar; 3] =
             std::array::from_fn(|_| FpVar::new_witness(cs.clone(), || Ok(Fr::from(1234))).unwrap());
 
-        var.verify_input_commitments(&wrong_leaves).unwrap();
+        let _ = var.verify_input_commitments(&wrong_leaves).unwrap();
         assert!(!cs.is_satisfied().unwrap());
     }
 }

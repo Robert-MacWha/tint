@@ -20,6 +20,23 @@ pub fn poseidon_hash<const N: usize>(input: &[Fr; N]) -> Fr {
 }
 
 pub fn poseidon_hash_gadget<const N: usize>(input: &[FrVar; N]) -> Result<FrVar, SynthesisError> {
+    //? Can't just use `#[tracing::instrument]` because you can't include const generics in the span name.
+    let span = match N {
+        2 => tracing::span!(target: "r1cs", tracing::Level::INFO, "poseidon_hash_2"),
+        3 => tracing::span!(target: "r1cs", tracing::Level::INFO, "poseidon_hash_3"),
+        4 => tracing::span!(target: "r1cs", tracing::Level::INFO, "poseidon_hash_4"),
+        5 => tracing::span!(target: "r1cs", tracing::Level::INFO, "poseidon_hash_5"),
+        6 => tracing::span!(target: "r1cs", tracing::Level::INFO, "poseidon_hash_6"),
+        7 => tracing::span!(target: "r1cs", tracing::Level::INFO, "poseidon_hash_7"),
+        8 => tracing::span!(target: "r1cs", tracing::Level::INFO, "poseidon_hash_8"),
+        9 => tracing::span!(target: "r1cs", tracing::Level::INFO, "poseidon_hash_9"),
+        10 => tracing::span!(target: "r1cs", tracing::Level::INFO, "poseidon_hash_10"),
+        11 => tracing::span!(target: "r1cs", tracing::Level::INFO, "poseidon_hash_11"),
+        12 => tracing::span!(target: "r1cs", tracing::Level::INFO, "poseidon_hash_12"),
+        _ => tracing::span!(target: "r1cs", tracing::Level::INFO, "poseidon_hash_n", N),
+    };
+    let _enter = span.enter();
+
     let params = poseidon_params::<N>();
     let mut state = Vec::with_capacity(N + 1);
     state.push(FrVar::zero());

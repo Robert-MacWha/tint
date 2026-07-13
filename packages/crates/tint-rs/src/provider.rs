@@ -404,6 +404,7 @@ mod tests {
     /// Expect that a deposit, once synced, can be proven and spent into a
     /// transfer to a different recipient via a real Groth16 proof.
     #[test]
+    #[ignore = "run with `cargo test --release -- --ignored`"]
     fn deposit_then_transfer() {
         let mut rng = StdRng::seed_from_u64(7);
         let (pk, vk) = setup(&mut rng).unwrap();

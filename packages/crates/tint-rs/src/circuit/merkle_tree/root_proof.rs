@@ -3,6 +3,7 @@ use ark_relations::gr1cs::SynthesisError;
 use crate::circuit::{FrVar, poseidon::poseidon_hash_gadget};
 
 /// Computes the root of a Merkle tree given the leaves.
+#[tracing::instrument(target = "r1cs", skip_all)]
 pub fn root_proof<const D: usize, const K: usize, const LEAVES: usize>(
     leaves: &[FrVar; LEAVES],
 ) -> Result<FrVar, SynthesisError> {

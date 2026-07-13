@@ -32,12 +32,14 @@ impl<const D: usize, const K: usize> InclusionProofVar<D, K> {
     }
 
     /// Verifies the inclusion proof in circuit.
+    #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn verify_membership(&self, root: &FrVar) -> Result<(), SynthesisError> {
         let computed_root = self.root()?;
         computed_root.enforce_equal(root)
     }
 
     /// Compute the root implied by this inclusion proof.
+    #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn root(&self) -> Result<FrVar, SynthesisError> {
         let mut current_hash = self.leaf.clone();
 
@@ -52,6 +54,7 @@ impl<const D: usize, const K: usize> InclusionProofVar<D, K> {
     }
 
     /// Decodes a single digit into a one-hot selector of length `K`.
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn one_hot_selector(digit: &UInt8<Fr>) -> Result<[Boolean<Fr>; K], SynthesisError> {
         const { assert!(K.is_power_of_two(), "arity must be a power of two") };
 

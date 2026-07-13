@@ -50,6 +50,7 @@ impl<
 {
     /// Verifies that the new leaves can be appended into the Merkle tree after
     /// `old_root_length` leaves, and returns the new root and the new aggregation hash.
+    #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn verify(
         &self,
         old_root: &FrVar,
@@ -66,6 +67,7 @@ impl<
 
     /// Verifies that the new leaves can be appended into the Merkle tree after
     /// `old_root_length` leaves, and returns the new aggregation hash.
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn verify_aggregation_hash(
         &self,
         start_aggregation_hash: &FrVar,
@@ -84,6 +86,7 @@ impl<
 
     /// Verifies the append proof that `new_leaves` can be inserted into the tree
     /// after `old_root_length` leaves.
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn verify_inclusion(
         &self,
         old_root: &FrVar,
@@ -122,6 +125,7 @@ impl<
 
     /// Checks that the subtree at `path` currently has a value of `before` and
     /// returns the new root after updating it to `after`.
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn update_subtree(
         root: &FrVar,
         path: &[UInt8<Fr>; SUBTREE_PATH_LEN],
@@ -137,6 +141,7 @@ impl<
     /// `SUBTREE_DEPTH` base-`K` digits) and that subtree's path to the root
     /// (the remaining `SUBTREE_PATH_LEN` digits), matching
     /// `IncrementalMerkleTree::path_for_index`'s digit order.
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn locate(length: &FrVar) -> Result<(FrVar, [UInt8<Fr>; SUBTREE_PATH_LEN]), SynthesisError> {
         const { assert!(K.is_power_of_two(), "arity must be a power of two") };
         let bits_per_digit = K.trailing_zeros() as usize;
@@ -160,6 +165,7 @@ impl<
 
     /// Merges the existing leaves with the new leaves, masking in only the
     /// new leaves that fit into the current subtree.
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn merge_current(&self, filled: &FrVar) -> Result<[FrVar; SUBTREE_SIZE], SynthesisError> {
         let fill_eq = Self::fill_indicators(filled)?;
 
@@ -173,6 +179,7 @@ impl<
 
     /// Merges the new leaves into the next subtree, masking in only the new
     /// leaves that overflowed from the current subtree.
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn merge_next(&self, filled: &FrVar) -> Result<[FrVar; SUBTREE_SIZE], SynthesisError> {
         let fill_eq = Self::fill_indicators(filled)?;
         try_array_from_fn(|pos| self.shifted_new_leaf(&fill_eq, SUBTREE_SIZE + pos))
@@ -180,6 +187,7 @@ impl<
 
     /// `new_leaves[target - d]` masked in for whichever `d` matches `filled`
     /// (contributes zero if `target - d` is out of range).
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn shifted_new_leaf(
         &self,
         fill_eq: &[Boolean<Fr>; SUBTREE_SIZE],
@@ -196,11 +204,13 @@ impl<
 
     /// One-hot indicator over the only values `filled` can take:
     /// `fill_eq[d]` is true if `filled == d`.
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn fill_indicators(filled: &FrVar) -> Result<[Boolean<Fr>; SUBTREE_SIZE], SynthesisError> {
         try_array_from_fn(|d| filled.is_eq(&FrVar::constant(Fr::from(d as u64))))
     }
 
     /// Computes the root of an empty tree.
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn empty_root() -> Result<FrVar, SynthesisError> {
         let mut root = FrVar::zero();
         for _ in 0..SUBTREE_DEPTH {

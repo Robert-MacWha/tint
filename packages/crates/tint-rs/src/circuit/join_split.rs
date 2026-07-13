@@ -148,6 +148,7 @@ impl ConstraintSynthesizer<Fr> for JoinSplit {
 
 impl JoinSplitVar {
     /// Verifies the JoinSplit operation.
+    #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn verify(
         &self,
         old_root: &FrVar,

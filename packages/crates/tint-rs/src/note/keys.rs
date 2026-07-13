@@ -4,7 +4,7 @@ use hkdf::Hkdf;
 use sha2::Sha256;
 use x25519_dalek::{PublicKey, StaticSecret};
 
-use crate::circuit::poseidon::poseidon_hash;
+use crate::circuit::poseidon2::poseidon2_hash;
 
 const NULLIFIER_KEY_INFO: &[u8] = b"tint/nullifier-key/v1";
 const ENCRYPTION_KEY_INFO: &[u8] = b"tint/encryption-key/v1";
@@ -61,7 +61,7 @@ impl NullifierKey {
 
 impl Nullifier for NullifierKey {
     fn nullifying_pub_key(&self) -> Fr {
-        poseidon_hash(&[self.0.clone()])
+        poseidon2_hash(&[self.0])
     }
 }
 

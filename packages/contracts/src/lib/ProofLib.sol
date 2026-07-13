@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {PoseidonT4} from "poseidon-solidity/PoseidonT4.sol";
+import {LibPoseidon2Yul} from "poseidon2-evm/src/bn254/yul/LibPoseidon2Yul.sol";
 import {
     N_INPUTS,
     N_OUTPUTS,
@@ -25,12 +25,10 @@ library ProofLib {
     ) internal pure returns (bytes32) {
         return
             bytes32(
-                PoseidonT4.hash(
-                    [
-                        assetToFr(asset),
-                        uint256(amount),
-                        uint256(partialCommitment)
-                    ]
+                LibPoseidon2Yul.hash_3(
+                    assetToFr(asset),
+                    uint256(amount),
+                    uint256(partialCommitment)
                 )
             );
     }

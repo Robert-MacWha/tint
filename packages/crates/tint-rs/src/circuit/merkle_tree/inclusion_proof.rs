@@ -10,7 +10,7 @@ use ark_r1cs_std::{
 use ark_relations::gr1cs::{Namespace, SynthesisError};
 
 use crate::{
-    circuit::{FrVar, poseidon2::hash_children_gadget, try_array_from_fn, variable},
+    circuit::{FrVar, poseidon2::poseidon2_compress_gadget, try_array_from_fn, variable},
     indexer::merkle_tree::InclusionProof,
 };
 
@@ -47,7 +47,7 @@ impl<const D: usize, const K: usize> InclusionProofVar<D, K> {
             let selector = Self::one_hot_selector(digit)?;
             let input: [FrVar; K] =
                 try_array_from_fn(|i| selector[i].select(&current_hash, &sibling_hashes[i]))?;
-            current_hash = hash_children_gadget(&input)?;
+            current_hash = poseidon2_compress_gadget(&input)?;
         }
 
         Ok(current_hash)

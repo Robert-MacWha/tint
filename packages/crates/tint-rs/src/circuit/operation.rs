@@ -48,12 +48,12 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
         &self,
         input_commitment_hashes: &[FrVar; N_INPUTS],
     ) -> Result<OperationResult<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>, SynthesisError> {
-        let input_base_hashes = self.verify_input_commitments(input_commitment_hashes)?;
+        self.verify_input_commitments(input_commitment_hashes)?;
         self.enforce_u128()?;
         self.verify_balance()?;
 
         Ok(OperationResult {
-            nullifiers: self.nullifiers(&input_base_hashes)?,
+            nullifiers: self.nullifiers(input_commitment_hashes)?,
             output_commitment_hashes: self.output_commitment_hashes()?,
             withdrawals: self.withdrawals.clone(),
         })
@@ -67,14 +67,14 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     fn verify_input_commitments(
         &self,
         input_commitment_hashes: &[FrVar; N_INPUTS],
-    ) -> Result<[FrVar; N_INPUTS], SynthesisError> {
-        try_array_from_fn(|i| {
+    ) -> Result<(), SynthesisError> {
+        for i in 0..N_INPUTS {
             let computed_hash: FrVar = self.inputs[i].base.hash()?;
             let used = !self.inputs[i].base.amount.is_zero()?;
             let expected = used.select(&input_commitment_hashes[i], &computed_hash)?;
             computed_hash.enforce_equal(&expected)?;
-            Ok(computed_hash)
-        })
+        }
+        Ok(())
     }
 
     /// Computes the nullifier for each input, or `0` for unused (zero-amount) slots.

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {PoseidonT3} from "poseidon-solidity/PoseidonT3.sol";
+import {LibPoseidon2Yul} from "poseidon2-evm/src/bn254/yul/LibPoseidon2Yul.sol";
 import {AggregationRing} from "../src/AggregationRing.sol";
 import {AGGREGATION_RING_SIZE} from "../src/lib/Constants.sol";
 
@@ -35,7 +35,7 @@ contract AggregationRingTests is Test {
 
     function test_commit_singleHash() public {
         ring.commit(C1);
-        bytes32 expected = bytes32(PoseidonT3.hash([uint256(0), uint256(C1)]));
+        bytes32 expected = bytes32(LibPoseidon2Yul.hash_2(uint256(0), uint256(C1)));
         assertEq(ring.aggregationHashRing(0), expected);
     }
 
@@ -43,7 +43,7 @@ contract AggregationRingTests is Test {
         ring.commit(C1);
         bytes32 h0 = ring.aggregationHashRing(0);
         ring.commit(C2);
-        bytes32 expected = bytes32(PoseidonT3.hash([uint256(h0), uint256(C2)]));
+        bytes32 expected = bytes32(LibPoseidon2Yul.hash_2(uint256(h0), uint256(C2)));
         assertEq(ring.aggregationHashRing(1), expected);
     }
 
@@ -52,7 +52,7 @@ contract AggregationRingTests is Test {
         ring.commit(C2);
         bytes32 h1 = ring.aggregationHashRing(1);
         ring.commit(C3);
-        bytes32 expected = bytes32(PoseidonT3.hash([uint256(h1), uint256(C3)]));
+        bytes32 expected = bytes32(LibPoseidon2Yul.hash_2(uint256(h1), uint256(C3)));
         assertEq(ring.aggregationHashRing(2), expected);
     }
 
@@ -94,7 +94,7 @@ contract AggregationRingTests is Test {
         ring.commit(newCommitment);
 
         bytes32 expected = bytes32(
-            PoseidonT3.hash([uint256(prevHash), uint256(newCommitment)])
+            LibPoseidon2Yul.hash_2(uint256(prevHash), uint256(newCommitment))
         );
         assertEq(ring.aggregationHashRing(0), expected);
         assertFalse(ring.aggregationHashRing(0) == hashAtSlot0Before); // slot was overwritten
@@ -114,7 +114,7 @@ contract AggregationRingTests is Test {
 
         bytes32 prevHash = ring.aggregationHashRing(AGGREGATION_RING_SIZE - 1);
         bytes32 expected = bytes32(
-            PoseidonT3.hash([uint256(prevHash), uint256(newC)])
+            LibPoseidon2Yul.hash_2(uint256(prevHash), uint256(newC))
         );
         assertEq(ring.aggregationHashRing(0), expected);
     }

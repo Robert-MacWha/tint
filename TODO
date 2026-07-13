@@ -35,3 +35,117 @@ let proof = Groth16::<Bn254, LibsnarkReduction>::create_proof_with_reduction_and
     &pk, r, s, &matrices, num_inputs, num_constraints, &full_assignment,
 )?;
 ```
+
+## Poseidon1
+```
+Start:   Groth16::Prover
+··Start:   Constraint synthesis
+··End:     Constraint synthesis ....................................................186.237ms
+··Start:   Inlining LCs
+····Start:   Finalize GR1CS
+······Start:   Inline/Outline LCs
+······End:     Inline/Outline LCs ..................................................2.685s
+······Start:   Instance Outlining
+······End:     Instance Outlining ..................................................241ns
+····End:     Finalize GR1CS ........................................................2.685s
+··End:     Inlining LCs ............................................................2.685s
+··Start:   R1CS to QAP witness map
+··End:     R1CS to QAP witness map .................................................180.381ms
+··Start:   Compute C
+··End:     Compute C ...............................................................254.013ms
+··Start:   Compute A
+··End:     Compute A ...............................................................86.031ms
+··Start:   Compute B in G1
+··End:     Compute B in G1 .........................................................60.104ms
+··Start:   Compute B in G2
+··End:     Compute B in G2 .........................................................190.046ms
+··Start:   Finish C
+··End:     Finish C ................................................................1.873µs
+End:     Groth16::Prover ...........................................................3.643s
+```
+
+# Poseidon2 for merkle tree
+```
+Start:   Groth16::Prover
+··Start:   Constraint synthesis
+··End:     Constraint synthesis ....................................................70.859ms
+··Start:   Inlining LCs
+····Start:   Finalize GR1CS
+······Start:   Inline/Outline LCs
+······End:     Inline/Outline LCs ..................................................466.798ms
+······Start:   Instance Outlining
+······End:     Instance Outlining ..................................................140ns
+····End:     Finalize GR1CS ........................................................466.837ms
+··End:     Inlining LCs ............................................................466.848ms
+··Start:   R1CS to QAP witness map
+··End:     R1CS to QAP witness map .................................................135.151ms
+··Start:   Compute C
+··End:     Compute C ...............................................................317.707ms
+··Start:   Compute A
+··End:     Compute A ...............................................................132.606ms
+··Start:   Compute B in G1
+··End:     Compute B in G1 .........................................................86.519ms
+··Start:   Compute B in G2
+··End:     Compute B in G2 .........................................................240.688ms
+··Start:   Finish C
+··End:     Finish C ................................................................2.565µs
+End:     Groth16::Prover ...........................................................1.450s
+```
+
+# Poseidon2 everywhere
+```
+Start:   Groth16::Prover
+··Start:   Constraint synthesis
+··End:     Constraint synthesis ....................................................50.790ms
+··Start:   Inlining LCs
+····Start:   Finalize GR1CS
+······Start:   Inline/Outline LCs
+······End:     Inline/Outline LCs ..................................................335.601ms
+······Start:   Instance Outlining
+······End:     Instance Outlining ..................................................140ns
+····End:     Finalize GR1CS ........................................................335.631ms
+··End:     Inlining LCs ............................................................335.639ms
+··Start:   R1CS to QAP witness map
+··End:     R1CS to QAP witness map .................................................91.816ms
+··Start:   Compute C
+··End:     Compute C ...............................................................205.893ms
+··Start:   Compute A
+··End:     Compute A ...............................................................93.807ms
+··Start:   Compute B in G1
+··End:     Compute B in G1 .........................................................66.895ms
+··Start:   Compute B in G2
+··End:     Compute B in G2 .........................................................172.943ms
+··Start:   Finish C
+··End:     Finish C ................................................................2.685µs
+End:     Groth16::Prover ...........................................................1.018s
+groth16 prove: 1.025653586s
+```
+
+# Poseidon2 + parallel
+```
+Start:   Groth16::Prover
+··Start:   Constraint synthesis
+··End:     Constraint synthesis ....................................................51.766ms
+··Start:   Inlining LCs
+····Start:   Finalize GR1CS
+······Start:   Inline/Outline LCs
+······End:     Inline/Outline LCs ..................................................341.798ms
+······Start:   Instance Outlining
+······End:     Instance Outlining ..................................................161ns
+····End:     Finalize GR1CS ........................................................341.837ms
+··End:     Inlining LCs ............................................................341.845ms
+··Start:   R1CS to QAP witness map
+··End:     R1CS to QAP witness map .................................................99.400ms
+··Start:   Compute C
+··End:     Compute C ...............................................................167.341ms
+··Start:   Compute A
+··End:     Compute A ...............................................................77.419ms
+··Start:   Compute B in G1
+··End:     Compute B in G1 .........................................................54.828ms
+··Start:   Compute B in G2
+··End:     Compute B in G2 .........................................................163.749ms
+··Start:   Finish C
+··End:     Finish C ................................................................2.595µs
+End:     Groth16::Prover ...........................................................956.705ms
+groth16 prove: 962.104657ms
+```

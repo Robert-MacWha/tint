@@ -3,7 +3,11 @@ use ark_r1cs_std::alloc::AllocVar;
 use ark_relations::gr1cs::SynthesisError;
 
 use crate::{
-    circuit::{FrVar, poseidon::poseidon_hash_gadget, variable},
+    circuit::{
+        FrVar,
+        poseidon2::{poseidon2_compress_gadget, poseidon2_hash_gadget},
+        variable,
+    },
     note::commitment::{BaseCommitment, Commitment, SpendableCommitment},
 };
 
@@ -23,16 +27,13 @@ pub struct SpendableCommitmentVar {
 impl BaseCommitmentVar {
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn hash(&self) -> Result<FrVar, SynthesisError> {
-        poseidon_hash_gadget(&[
-            self.asset.clone(),
-            self.amount.clone(),
-            self.partial_hash()?,
-        ])
+        let partial_hash = self.partial_hash()?;
+        poseidon2_hash_gadget(&[self.asset.clone(), self.amount.clone(), partial_hash])
     }
 
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn partial_hash(&self) -> Result<FrVar, SynthesisError> {
-        poseidon_hash_gadget(&[
+        poseidon2_compress_gadget(&[
             self.spendability_hash.clone(),
             self.nullifying_pub_key.clone(),
             self.random.clone(),
@@ -45,7 +46,7 @@ impl SpendableCommitmentVar {
     /// base commitment hash (to avoid recomputing it).
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn nullifier(&self, base_hash: &FrVar) -> Result<FrVar, SynthesisError> {
-        poseidon_hash_gadget(&[self.nullifier.clone(), base_hash.clone()])
+        poseidon2_compress_gadget(&[self.nullifier.clone(), base_hash.clone()])
     }
 }
 

@@ -3,7 +3,7 @@ use ark_bn254::Fr;
 use ark_ff::PrimeField;
 
 use crate::{
-    circuit::poseidon::poseidon_hash,
+    circuit::poseidon2::{poseidon2_compress, poseidon2_hash},
     note::{
         asset::AssetId,
         keys::{NullifierKey, NullifierPubKey},
@@ -19,11 +19,11 @@ pub trait Commitment {
     fn nullifier_pub_key(&self) -> NullifierPubKey;
 
     fn hash(&self) -> Fr {
-        poseidon_hash(&[self.asset_fr(), self.amount_fr(), self.partial_hash()])
+        poseidon2_hash(&[self.asset_fr(), self.amount_fr(), self.partial_hash()])
     }
 
     fn partial_hash(&self) -> Fr {
-        poseidon_hash(&[
+        poseidon2_compress(&[
             self.spendability_hash(),
             self.nullifier_pub_key().0,
             self.random_fr(),
@@ -89,7 +89,7 @@ impl SpendableCommitment {
     }
 
     pub fn nullifier(&self) -> Fr {
-        poseidon_hash(&[self.nullifier_key.0, self.base.hash()])
+        poseidon2_compress(&[self.nullifier_key.0, self.base.hash()])
     }
 }
 
@@ -166,6 +166,6 @@ mod tests {
             SpendableCommitment::new(base_commitment.clone(), NullifierKey(Fr::from(6)));
 
         assert_eq!(base_commitment.hash(), spendable_commitment.hash());
-        assert_snapshot!(base_commitment.hash().to_string(), @"16228905461894564175281833576405869093428749553700125759390153678832603702885");
+        assert_snapshot!(base_commitment.hash().to_string(), @"6057411664745692474243281521123860173023646113502407248790681349086148603830");
     }
 }

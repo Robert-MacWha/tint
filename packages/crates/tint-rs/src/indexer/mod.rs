@@ -11,7 +11,7 @@ use ark_ff::{BigInteger, PrimeField};
 use crate::{
     circuit::{
         join_split::{K, SUBTREE_PATH_LENGTH, SUBTREE_SIZE, TREE_DEPTH},
-        poseidon::poseidon_hash,
+        poseidon2::poseidon2_hash,
     },
     database::Database,
     indexer::{
@@ -172,7 +172,7 @@ impl Indexer {
 
         let mut hash = self.committed_aggregation_hash;
         for commitment in &drained {
-            hash = poseidon_hash(&[hash, *commitment]);
+            hash = poseidon2_hash(&[hash, *commitment]);
         }
         self.committed_aggregation_hash = hash;
 
@@ -186,7 +186,7 @@ impl Indexer {
                 let asset_fr = Fr::from(AssetId::from(d.asset));
                 let amount_fr = Fr::from(d.amount);
                 let partial_fr = b256_to_fr(d.partialCommitment);
-                let commitment = poseidon_hash(&[asset_fr, amount_fr, partial_fr]);
+                let commitment = poseidon2_hash(&[asset_fr, amount_fr, partial_fr]);
 
                 self.stage(commitment);
                 self.try_own(&d.encryptedNote);
@@ -203,7 +203,7 @@ impl Indexer {
     }
 
     fn stage(&mut self, commitment: Fr) {
-        self.aggregation_hash = poseidon_hash(&[self.aggregation_hash, commitment]);
+        self.aggregation_hash = poseidon2_hash(&[self.aggregation_hash, commitment]);
         self.total_staged += 1;
         self.pending_commitments.push(commitment);
     }
@@ -316,7 +316,7 @@ mod tests {
 
         assert_eq!(
             indexer.aggregation_hash(),
-            poseidon_hash(&[Fr::from(0u64), commitment.hash()])
+            poseidon2_hash(&[Fr::from(0u64), commitment.hash()])
         );
         let spendable = indexer.spendable_notes();
         assert_eq!(spendable.len(), 1);
@@ -355,7 +355,7 @@ mod tests {
         indexer.stage(a);
         indexer.stage(b);
 
-        let expected_after_stage = poseidon_hash(&[poseidon_hash(&[Fr::from(0u64), a]), b]);
+        let expected_after_stage = poseidon2_hash(&[poseidon2_hash(&[Fr::from(0u64), a]), b]);
         assert_eq!(indexer.aggregation_hash(), expected_after_stage);
         assert_eq!(indexer.committed_aggregation_hash(), Fr::from(0u64));
 
@@ -367,7 +367,7 @@ mod tests {
         assert_eq!(indexer.aggregation_hash(), expected_after_stage);
 
         indexer.stage(c);
-        let expected_after_second_stage = poseidon_hash(&[expected_after_stage, c]);
+        let expected_after_second_stage = poseidon2_hash(&[expected_after_stage, c]);
         assert_eq!(indexer.aggregation_hash(), expected_after_second_stage);
         // Not yet committed -- the checkpoint stays behind.
         assert_eq!(indexer.committed_aggregation_hash(), expected_after_stage);

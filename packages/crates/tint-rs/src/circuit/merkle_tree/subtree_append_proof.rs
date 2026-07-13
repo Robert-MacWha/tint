@@ -13,9 +13,11 @@ use ark_relations::gr1cs::{Namespace, SynthesisError};
 
 use crate::{
     circuit::{
-        FrVar, merkle_tree::InclusionProofVar, merkle_tree::root_proof,
-        poseidon::poseidon_hash_gadget, poseidon2::hash_children_gadget, try_array_from_fn,
-        variable,
+        FrVar,
+        merkle_tree::InclusionProofVar,
+        merkle_tree::root_proof,
+        poseidon2::{poseidon2_compress_gadget, poseidon2_hash_gadget},
+        try_array_from_fn, variable,
     },
     indexer::merkle_tree::SubtreeAppendProof,
 };
@@ -77,7 +79,7 @@ impl<
         let mut aggregation_hash: FrVar = start_aggregation_hash.clone();
         for new_leaf in &self.new_leaves {
             let next_aggregation_hash: FrVar =
-                poseidon_hash_gadget(&[aggregation_hash.clone(), new_leaf.clone()])?;
+                poseidon2_hash_gadget(&[aggregation_hash.clone(), new_leaf.clone()])?;
             aggregation_hash = new_leaf
                 .is_zero()?
                 .select(&aggregation_hash, &next_aggregation_hash)?;
@@ -226,7 +228,7 @@ impl<
         let mut root = FrVar::zero();
         for _ in 0..SUBTREE_DEPTH {
             let siblings: [FrVar; K] = std::array::repeat(root.clone());
-            root = hash_children_gadget(&siblings)?;
+            root = poseidon2_compress_gadget(&siblings)?;
         }
         Ok(root)
     }

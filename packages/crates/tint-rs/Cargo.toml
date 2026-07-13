@@ -5,9 +5,8 @@ edition = "2024"
 
 [features]
 default = []
-parallel = ["ark-ff/parallel", "ark-groth16/parallel"]
+parallel = ["ark-groth16/parallel"]
 print-trace = ["ark-std/print-trace"]
-# build-witness = ["circom-witness-rs/build-witness"]
 
 [dependencies]
 alloy-primitives = "1.6.0"
@@ -31,7 +30,6 @@ async-trait = "0.1.89"
 ruint = { version = "1.19.0", features = ["ark-ff-06"] }
 thiserror = "2.0.18"
 tracing = "0.1.44"
-light-poseidon = "0.4.0"
 x25519-dalek = { version = "2.0.1", features = ["static_secrets"] }
 chacha20poly1305 = "0.10.1"
 hkdf = "0.12.4"
@@ -42,6 +40,9 @@ ark-std = "0.6.0"
 postcard = { version = "1.1.3", features = ["use-std"] }
 serde = "1.0.228"
 taceo-poseidon2 = { path = "../../../../eddsa-babyjubjub/poseidon2", features = [
+    "t2",
+    "t3",
+    "t4",
     "t8",
 ] }
 

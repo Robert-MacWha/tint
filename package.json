@@ -5,7 +5,6 @@
   "license": "MIT",
   "dependencies": {
     "@zk-kit/imt.sol": "2.0.0-beta.12",
-    "poseidon-solidity": "^0.0.5",
     "poseidon2-evm": "^2.0.0"
   },
   "devDependencies": {

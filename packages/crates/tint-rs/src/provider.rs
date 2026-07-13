@@ -1,20 +1,24 @@
 use std::array::repeat;
 
 use alloy_primitives::{Address, B256, Bytes, keccak256};
+use alloy_sol_types::SolCall;
 use ark_bn254::{Bn254, Fr};
-use ark_ff::{PrimeField, UniformRand};
-use ark_groth16::{Groth16, ProvingKey, VerifyingKey};
+use ark_ff::PrimeField;
+use ark_groth16::{Groth16, Proof, ProvingKey, VerifyingKey};
 use ark_snark::SNARK;
+use ark_std::rand::Rng;
 use rand_core::{CryptoRng, RngCore};
 
 use crate::{
     abis::tint::{IPrivacyPool, ProofLib, Tint},
-    circuit::join_split::{JoinSplit, K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
+    circuit::join_split::{
+        JoinSplit, JoinSplitResult, K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, TREE_DEPTH,
+    },
     indexer::{Indexer, fr_to_b256, merkle_tree::InclusionProof},
     note::{
         asset::AssetId,
-        commitment::{Commitment, SpendableCommitment},
-        encryption::{self, NotePayload},
+        commitment::{BaseCommitment, Commitment, SpendableCommitment},
+        note_payload::NotePayload,
         receiver::Receiver,
         withdrawal::Withdrawal,
     },
@@ -24,8 +28,7 @@ use crate::{
 /// The RNG seed used for the dev-only trusted setup below
 pub const DEV_SETUP_SEED: u64 = 1;
 
-/// Dev-only trusted setup: produces a throwaway proving/verifying key pair
-/// for the JoinSplitCircuit.
+/// Produces a dev proving/verifying key pair for the JoinSplitCircuit.
 pub fn setup<R: RngCore + CryptoRng>(
     rng: &mut R,
 ) -> Result<(ProvingKey<Bn254>, VerifyingKey<Bn254>), ark_relations::gr1cs::SynthesisError> {
@@ -43,20 +46,32 @@ pub enum ProviderError {
     MerkleTree(#[from] crate::indexer::merkle_tree::MerkleTreeError),
     #[error("circuit error: {0}")]
     Synthesis(#[from] ark_relations::gr1cs::SynthesisError),
+    #[error("encryption error: {0}")]
+    Encryption(#[from] crate::note::encryption::EncryptionError),
+    #[error(
+        "generated proof failed local verification -- likely an unbalanced operation or a \
+         public-input encoding bug, not something worth submitting on-chain"
+    )]
+    InvalidProof,
 }
 
-/// Builds shield/transfer/unshield calls against a `Tint` deployment,
-/// generating Groth16 proofs from local [`Indexer`] state.
+/// Builds shield/transfer/unshield calls against a Tint deployment.
 pub struct Provider {
     pub indexer: Indexer,
     proving_key: ProvingKey<Bn254>,
+    verifying_key: VerifyingKey<Bn254>,
 }
 
 impl Provider {
-    pub fn new(indexer: Indexer, proving_key: ProvingKey<Bn254>) -> Self {
+    pub fn new(
+        indexer: Indexer,
+        proving_key: ProvingKey<Bn254>,
+        verifying_key: VerifyingKey<Bn254>,
+    ) -> Self {
         Self {
             indexer,
             proving_key,
+            verifying_key,
         }
     }
 
@@ -67,85 +82,142 @@ impl Provider {
         asset: AssetId,
         amount: u128,
         rng: &mut R,
-    ) -> Tint::depositCall {
-        let random = Fr::rand(rng);
+    ) -> Result<Tint::depositCall, ProviderError> {
+        let random = B256::new(rng.r#gen());
         let commitment = receiver.commitment(asset, amount, random);
-        let payload = NotePayload::from_commitment(&commitment);
-        let encrypted_note = encryption::encrypt(&receiver.encryption_pub_key, &payload, rng);
+        let encrypted_note = NotePayload::from_commitment(&commitment).encrypt(
+            &self.indexer.encryption_pub_key(),
+            &self.indexer.encryption_pub_key(),
+            rng,
+        )?;
 
-        Tint::depositCall {
-            asset: asset.0,
+        Ok(Tint::depositCall {
+            asset: asset.into(),
             amount,
             partialCommitment: fr_to_b256(commitment.partial_hash()),
             encryptedNote: Bytes::from(encrypted_note),
-        }
+        })
     }
 
     /// Builds a proven `operate` call spending `inputs` into `outputs`
     /// (new shielded notes) and `withdrawals` (unshields).
-    ///
-    /// Unused slots are padded with zeros.
     pub fn operate<const I: usize, const O: usize, const W: usize, R: RngCore + CryptoRng>(
         &mut self,
-        inputs: &[SpendableCommitment; I],
-        outputs: &[Commitment; O],
-        withdrawals: &[Withdrawal; W],
+        inputs: [SpendableCommitment; I],
+        outputs: [(Receiver, AssetId, u128); O],
+        withdrawals: [(Address, AssetId, u128); W],
         rng: &mut R,
-    ) -> Result<IPrivacyPool::Operation, ProviderError> {
-        const {
-            assert!(I <= N_INPUTS, "too many inputs");
-            assert!(O <= N_OUTPUTS, "too many outputs");
-            assert!(W <= N_WITHDRAWALS, "too many withdrawals");
-        }
-
-        let old_root = self.indexer.root();
-        let old_root_length = self.indexer.leaves();
-        let start_aggregation_hash = self.indexer.aggregation_hash();
+    ) -> Result<Tint::operateCall, ProviderError> {
         let leaves_aggregation_index = self.indexer.aggregation_index();
+        let (circuit, unshield_recipients) =
+            self.build_circuit(&inputs, &outputs, &withdrawals, rng)?;
 
-        // Insert whatever's currently staged (from prior deposits/operations)
-        // into the tree; this operation's inputs are proven against the
-        // resulting (new) root. Ordering is important so previously unstaged
-        // commitments can be spent.
-        let subtree_append = self.indexer.commit()?;
-
-        let mut input_commitments = repeat(SpendableCommitment::default());
-        let mut commitment_inclusion_proofs = repeat(InclusionProof::default());
-        for (i, input) in inputs.iter().enumerate() {
-            let proof = self
-                .indexer
-                .prove(input.hash())
-                .ok_or(ProviderError::InputNotFound)?;
-
-            input_commitments[i] = input.clone();
-            commitment_inclusion_proofs[i] = proof;
-        }
-
-        let mut output_commitments = repeat(Commitment::default());
-        let mut encrypted_notes = repeat(Bytes::new());
         let mut spendability_addresses = repeat(Address::ZERO);
         let mut spendability_data = repeat(B256::ZERO);
-        for (i, output) in outputs.iter().enumerate() {
-            output_commitments[i] = output.clone();
-            encrypted_notes[i] = output.encrypted_note.clone();
-            spendability_addresses[i] = output.spendability_address;
-            spendability_data[i] = output.spendability_data;
+        let mut encrypted_notes = repeat(Bytes::new());
+        for (i, (receiver, _, _)) in outputs.iter().enumerate() {
+            let output = &circuit.operation.output_commitments[i];
+            spendability_addresses[i] = receiver.spendability_address;
+            spendability_data[i] = receiver.spendability_data;
+
+            encrypted_notes[i] = Bytes::from(NotePayload::from_commitment(output).encrypt(
+                &self.indexer.encryption_pub_key(),
+                &receiver.encryption_pub_key,
+                rng,
+            )?);
         }
 
-        let mut output_withdrawals: [Withdrawal; N_WITHDRAWALS] =
-            std::array::from_fn(|_| Withdrawal::default());
-        let mut unshield_recipients = [Address::ZERO; N_OUTPUTS];
-        for (i, withdrawal) in withdrawals.iter().enumerate() {
-            unshield_recipients[i] = withdrawal.to;
-            output_withdrawals[i] = withdrawal.clone();
+        let old_root = circuit.old_root;
+        let old_root_length = circuit.old_root_length;
+        let start_aggregation_hash = circuit.start_aggregation_hash;
+
+        let public_inputs = circuit.synthesize_public_inputs()?;
+        let outputs = circuit.synthesize_outputs()?;
+        let proof = Groth16::<Bn254>::prove(&self.proving_key, circuit, rng)?;
+
+        // Smoke-test the proof locally, to avoid submitting an invalid one
+        // on-chain (e.g. from an unbalanced operation).
+        if !Groth16::<Bn254>::verify(&self.verifying_key, &public_inputs, &proof)? {
+            return Err(ProviderError::InvalidProof);
         }
 
-        let operation = Operation::new(input_commitments, output_commitments, output_withdrawals);
+        let operation = self.construct_solidity_operation(
+            old_root,
+            old_root_length,
+            start_aggregation_hash,
+            leaves_aggregation_index,
+            unshield_recipients,
+            spendability_addresses,
+            spendability_data,
+            encrypted_notes,
+            outputs,
+            proof.into(),
+        );
 
-        let unshield_amounts_u128: [u128; N_OUTPUTS] =
-            std::array::from_fn(|i| operation.output_withdrawals[i].amount);
-        let unshield_assets_addr: [Address; N_OUTPUTS] =
-            std::array::from_fn(|i| operation.output_withdrawals[i].asset.0);
+        Ok(Tint::operateCall::new((operation,)))
+    }
+
+    /// Computes the public-input vector and on-chain `Operation` shape for
+    /// this operation without generating a Groth16 proof.
+    ///
+    /// Mutates `self.indexer` the same way `operate()` does.
+    pub fn public_inputs<const I: usize, const O: usize, const W: usize, R: RngCore + CryptoRng>(
+        &mut self,
+        inputs: [SpendableCommitment; I],
+        outputs: [(Receiver, AssetId, u128); O],
+        withdrawals: [(Address, AssetId, u128); W],
+        rng: &mut R,
+    ) -> Result<(IPrivacyPool::Operation, Vec<Fr>), ProviderError> {
+        let leaves_aggregation_index = self.indexer.aggregation_index();
+        let (circuit, unshield_recipients) =
+            self.build_circuit(&inputs, &outputs, &withdrawals, rng)?;
+
+        let old_root = circuit.old_root;
+        let old_root_length = circuit.old_root_length;
+        let start_aggregation_hash = circuit.start_aggregation_hash;
+
+        let public_inputs = circuit.synthesize_public_inputs()?;
+        let outputs = circuit.synthesize_outputs()?;
+
+        let operation = self.construct_solidity_operation(
+            old_root,
+            old_root_length,
+            start_aggregation_hash,
+            leaves_aggregation_index,
+            unshield_recipients,
+            repeat(Address::ZERO),
+            repeat(B256::ZERO),
+            repeat(Bytes::new()),
+            outputs,
+            Proof::default().into(),
+        );
+
+        Ok((operation, public_inputs))
+    }
+
+    /// Builds the `JoinSplit` circuit witnessing `inputs` spent into
+    /// `outputs` + `withdrawals`, shared by [`Self::operate`] and
+    /// [`Self::public_inputs`]. Drains the indexer's pending commitments in
+    /// the process (via `commit()`).
+    fn build_circuit<const I: usize, const O: usize, const W: usize, R: RngCore + CryptoRng>(
+        &mut self,
+        inputs: &[SpendableCommitment; I],
+        outputs: &[(Receiver, AssetId, u128); O],
+        withdrawals: &[(Address, AssetId, u128); W],
+        rng: &mut R,
+    ) -> Result<(JoinSplit, [Address; N_OUTPUTS]), ProviderError> {
+        let old_root = self.indexer.root();
+        let old_root_length = self.indexer.leaves();
+        let start_aggregation_hash = self.indexer.committed_aggregation_hash();
+
+        let subtree_append = self.indexer.commit()?;
+        let commitment_inclusion_proofs = self.construct_commitment_inclusion_proofs(inputs)?;
+        let operation = self.construct_operation(inputs, outputs, withdrawals, rng)?;
+
+        let mut unshield_recipients = repeat(Address::ZERO);
+        for (i, (receiver, _, _)) in withdrawals.iter().enumerate() {
+            unshield_recipients[i] = *receiver;
+        }
         let bound_params_hash = bound_params_hash(&unshield_recipients);
 
         let circuit = JoinSplit {
@@ -161,10 +233,81 @@ impl Provider {
             operation,
         };
 
-        let outputs = circuit.synthesize_outputs()?;
-        let proof = Groth16::<Bn254>::prove(&self.proving_key, circuit, rng)?;
+        Ok((circuit, unshield_recipients))
+    }
 
-        Ok(IPrivacyPool::Operation {
+    fn construct_operation<
+        const I: usize,
+        const O: usize,
+        const W: usize,
+        R: RngCore + CryptoRng,
+    >(
+        &self,
+        inputs: &[SpendableCommitment; I],
+        outputs: &[(Receiver, AssetId, u128); O],
+        withdrawals: &[(Address, AssetId, u128); W],
+        rng: &mut R,
+    ) -> Result<Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>, ProviderError> {
+        const {
+            assert!(I <= N_INPUTS, "too many inputs");
+            assert!(O <= N_OUTPUTS, "too many outputs");
+            assert!(W <= N_WITHDRAWALS, "too many withdrawals");
+        }
+
+        let mut input_commitments = repeat(SpendableCommitment::default());
+        for (i, input) in inputs.iter().enumerate() {
+            input_commitments[i] = input.clone();
+        }
+
+        let mut output_commitments = repeat(BaseCommitment::default());
+        for (i, (receiver, asset, amount)) in outputs.iter().enumerate() {
+            let random = B256::new(rng.r#gen());
+            let commitment = receiver.commitment(*asset, amount.clone(), random);
+            output_commitments[i] = commitment;
+        }
+
+        let mut output_withdrawals = repeat(Withdrawal::default());
+        for (i, (_, asset, amount)) in withdrawals.iter().enumerate() {
+            output_withdrawals[i] = Withdrawal::new(*asset, amount.clone());
+        }
+
+        Ok(Operation::new(
+            input_commitments,
+            output_commitments,
+            output_withdrawals,
+        ))
+    }
+
+    fn construct_commitment_inclusion_proofs<const I: usize>(
+        &self,
+        inputs: &[SpendableCommitment; I],
+    ) -> Result<[InclusionProof<{ TREE_DEPTH }, { K }>; N_INPUTS], ProviderError> {
+        let mut commitment_inclusion_proofs = repeat(InclusionProof::default());
+        for (i, input) in inputs.iter().enumerate() {
+            let proof = self
+                .indexer
+                .prove(input.hash())
+                .ok_or(ProviderError::InputNotFound)?;
+            commitment_inclusion_proofs[i] = proof;
+        }
+
+        Ok(commitment_inclusion_proofs)
+    }
+
+    fn construct_solidity_operation(
+        &self,
+        old_root: Fr,
+        old_root_length: u64,
+        start_aggregation_hash: Fr,
+        leaves_aggregation_index: u64,
+        unshield_recipients: [Address; N_OUTPUTS],
+        spendability_addresses: [Address; N_OUTPUTS],
+        spendability_data: [B256; N_OUTPUTS],
+        encrypted_notes: [Bytes; N_OUTPUTS],
+        outputs: JoinSplitResult,
+        proof: ProofLib::Proof,
+    ) -> IPrivacyPool::Operation {
+        IPrivacyPool::Operation {
             oldRoot: fr_to_b256(old_root),
             oldRootLength: old_root_length,
             startAggregationHash: fr_to_b256(start_aggregation_hash),
@@ -172,14 +315,14 @@ impl Provider {
             newRoot: fr_to_b256(outputs.new_root),
             nullifiers: outputs.nullifiers.map(fr_to_b256),
             commitmentsOut: outputs.output_commitment_hashes.map(fr_to_b256),
-            unshieldAmounts: unshield_amounts_u128,
-            unshieldAssets: unshield_assets_addr,
+            unshieldAmounts: outputs.withdrawal_amounts,
+            unshieldAssets: outputs.withdrawal_assets,
             unshieldRecipients: unshield_recipients,
             spendabilityAddresses: spendability_addresses,
             spendabilityData: spendability_data,
             encryptedNotes: encrypted_notes,
-            proof: ProofLib::Proof::from(proof),
-        })
+            proof,
+        }
     }
 }
 
@@ -245,14 +388,14 @@ mod tests {
             Arc::new(NoopVerifier),
             Arc::new(MemoryDatabase::default()),
             keys.nullifier_key,
-            keys.encryption_secret_key,
+            keys.encryption_key,
         )
     }
 
     fn receiver_for(keys: &Keys) -> Receiver {
         Receiver {
             nullifier_pub_key: keys.nullifier_key.pub_key(),
-            encryption_pub_key: keys.encryption_secret_key.public_key(),
+            encryption_pub_key: keys.encryption_key.public_key(),
             spendability_address: Address::ZERO,
             spendability_data: Default::default(),
         }
@@ -263,18 +406,20 @@ mod tests {
     #[test]
     fn deposit_then_transfer() {
         let mut rng = StdRng::seed_from_u64(7);
-        let (pk, _vk) = setup(&mut rng).unwrap();
+        let (pk, vk) = setup(&mut rng).unwrap();
 
         let sender_keys = Keys::from_seed(&[1u8; 32]);
         let recipient_keys = Keys::from_seed(&[2u8; 32]);
         let events = Arc::new(Mutex::new(Vec::new()));
 
         let sender_indexer = make_indexer(Keys::from_seed(&[1u8; 32]), events.clone());
-        let mut provider = Provider::new(sender_indexer, pk);
+        let mut provider = Provider::new(sender_indexer, pk, vk);
 
         let sender_receiver = receiver_for(&sender_keys);
         let asset = AssetId::from(Address::repeat_byte(0xaa));
-        let deposit_call = provider.deposit(&sender_receiver, asset, 100, &mut rng);
+        let deposit_call = provider
+            .deposit(&sender_receiver, asset, 100, &mut rng)
+            .unwrap();
 
         // Simulate the contract emitting `Deposited` for this call.
         events.lock().unwrap().push(Event::Deposit(Tint::Deposited {
@@ -292,22 +437,22 @@ mod tests {
         let spendable = provider.indexer.spendable_notes();
         assert_eq!(spendable.len(), 1);
         let input_note = spendable[0].clone();
-        assert_eq!(input_note.amount, 100);
+        assert_eq!(input_note.base.amount, 100);
 
         let recipient_receiver = receiver_for(&recipient_keys);
-        let operation = provider
+
+        let operate_call = provider
             .operate(
-                vec![input_note],
-                vec![(recipient_receiver, asset, 100)],
-                vec![],
+                [input_note],
+                [(recipient_receiver, asset, 100)],
+                [],
                 &mut rng,
             )
             .unwrap();
 
-        // The nullifier of the spent note should be revealed, and a new
-        // output commitment produced.
-        assert_ne!(operation.nullifiers[0], alloy_primitives::B256::ZERO);
-        assert_ne!(operation.commitmentsOut[0], alloy_primitives::B256::ZERO);
-        assert!(!operation.proof.pA[0].is_zero());
+        let call_op = operate_call.operation;
+        assert_ne!(call_op.nullifiers[0], alloy_primitives::B256::ZERO);
+        assert_ne!(call_op.commitmentsOut[0], alloy_primitives::B256::ZERO);
+        assert!(!call_op.proof.pA[0].is_zero());
     }
 }

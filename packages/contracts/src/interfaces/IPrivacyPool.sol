@@ -30,5 +30,5 @@ interface IPrivacyPool {
         bytes calldata encryptedNote
     ) external;
 
-    function operate(Operation[] calldata operations) external;
+    function operate(Operation calldata operation) external;
 }

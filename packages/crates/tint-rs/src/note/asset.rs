@@ -1,33 +1,31 @@
-use alloy_primitives::{Address, keccak256};
+use alloy_primitives::Address;
+use ark_bn254::Fr;
+use ark_ff::PrimeField;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct AssetId(pub Address);
-
-impl AssetId {
-    pub fn new(address: Address) -> Self {
-        AssetId(address)
-    }
-
-    pub fn hash(&self) -> u128 {
-        let bytes = self.0.as_slice();
-        let hash = keccak256(bytes);
-        u128::from_le_bytes(hash[..16].try_into().unwrap())
-    }
-
-    pub fn to_fr(&self) -> ark_bn254::Fr {
-        let hash = self.hash();
-        ark_bn254::Fr::from(hash)
-    }
-}
-
-impl Default for AssetId {
-    fn default() -> Self {
-        AssetId(Address::default())
-    }
-}
 
 impl From<Address> for AssetId {
     fn from(address: Address) -> Self {
-        AssetId::new(address)
+        AssetId(address)
+    }
+}
+
+impl From<AssetId> for Address {
+    fn from(asset: AssetId) -> Self {
+        asset.0
+    }
+}
+
+/// Matches `ProofLib.assetToFr` in `Tint.sol`: the raw 20 address bytes,
+/// byte-reversed and read as a big-endian integer (Solidity byte-reverses
+/// the address in a loop, then uses it as-is; this mirrors that literally
+/// instead of relying on the mathematically-equivalent little-endian
+/// interpretation of the unreversed bytes), reduced mod the field order.
+impl From<AssetId> for Fr {
+    fn from(asset: AssetId) -> Self {
+        let mut bytes = asset.0.into_array();
+        bytes.reverse();
+        Fr::from_be_bytes_mod_order(&bytes)
     }
 }

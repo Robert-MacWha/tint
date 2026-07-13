@@ -93,15 +93,16 @@ library ProofLib {
         return pub;
     }
 
-    /// @notice Matches `AssetId::to_fr` in tint-rs: the low 16 bytes of
-    /// `keccak256(address)`, interpreted as a little-endian `u128` (not the
-    /// natural big-endian byte order), cast to a field element.
+    /// @notice Matches `note::commitment::asset_to_fr` in tint-rs: the raw
+    /// 20 address bytes, interpreted as a little-endian integer (not the
+    /// natural big-endian byte order) and reduced mod the field order (a
+    /// no-op here, since 160 bits never exceeds the field size).
     function assetToFr(address asset) internal pure returns (uint256) {
-        bytes16 truncated = bytes16(keccak256(abi.encodePacked(asset)));
-        uint128 reversed;
-        for (uint256 i = 0; i < 16; i++) {
-            reversed = (reversed << 8) | uint128(uint8(truncated[15 - i]));
+        bytes20 addr = bytes20(asset);
+        uint256 reversed;
+        for (uint256 i = 0; i < 20; i++) {
+            reversed = (reversed << 8) | uint8(addr[19 - i]);
         }
-        return uint256(reversed);
+        return reversed;
     }
 }

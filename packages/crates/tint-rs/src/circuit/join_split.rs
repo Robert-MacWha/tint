@@ -1,6 +1,8 @@
 use std::borrow::Borrow;
 
+use alloy_primitives::Address;
 use ark_bn254::Fr;
+use ark_ff::{BigInteger, PrimeField};
 use ark_r1cs_std::{
     GR1CSVar,
     alloc::{AllocVar, AllocationMode},
@@ -26,6 +28,12 @@ use crate::{
 pub const N_INPUTS: usize = 5;
 pub const N_OUTPUTS: usize = 5;
 pub const N_WITHDRAWALS: usize = 5;
+
+/// Number of Groth16 public signals: old_root, old_root_length,
+/// start_aggregation_hash, bound_params_hash, new_root, end_aggregation_hash,
+/// nullifiers, output_commitment_hashes, (withdrawal_amount, withdrawal_asset)
+/// interleaved per withdrawal slot. Mirrors `Constants.sol`'s `N_PUB`.
+pub const N_PUB: usize = 4 + 2 + N_INPUTS + N_OUTPUTS + 2 * N_WITHDRAWALS;
 
 pub const TREE_DEPTH: usize = 8;
 pub const SUBTREE_DEPTH: usize = 2;
@@ -59,8 +67,8 @@ pub struct JoinSplitResult {
     pub end_aggregation_hash: Fr,
     pub nullifiers: [Fr; N_INPUTS],
     pub output_commitment_hashes: [Fr; N_OUTPUTS],
-    pub withdrawal_amounts: [Fr; N_WITHDRAWALS],
-    pub withdrawal_assets: [Fr; N_WITHDRAWALS],
+    pub withdrawal_amounts: [u128; N_WITHDRAWALS],
+    pub withdrawal_assets: [Address; N_WITHDRAWALS],
 }
 
 pub struct JoinSplitResultVar {
@@ -73,6 +81,20 @@ pub struct JoinSplitResultVar {
 }
 
 impl JoinSplit {
+    /// Synthesizes the JoinSplit circuit, returning the public inputs (in
+    /// the order matching `ProofLib.toPublicSignals` / `N_PUB`).
+    pub fn synthesize_public_inputs(&self) -> Result<Vec<Fr>, SynthesisError> {
+        let cs = ConstraintSystem::new_ref();
+        cs.set_optimization_goal(OptimizationGoal::Constraints);
+
+        let _ = self.synthesize(cs.clone())?;
+        cs.finalize();
+
+        // `instance_assignment()` leads with the implicit constant-1 term;
+        // callers (and `Groth16::verify`) only want the actual signals.
+        Ok(cs.instance_assignment()?[1..].to_vec())
+    }
+
     /// Synthesizes the JoinSplit circuit, returning the public outputs.
     pub fn synthesize_outputs(&self) -> Result<JoinSplitResult, SynthesisError> {
         let cs = ConstraintSystem::new_ref();
@@ -202,8 +224,13 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
         let nullifiers = try_array_from_fn(|i| value.nullifiers[i].value())?;
         let output_commitment_hashes =
             try_array_from_fn(|i| value.output_commitment_hashes[i].value())?;
-        let withdrawal_amounts = try_array_from_fn(|i| value.withdrawal_amounts[i].value())?;
-        let withdrawal_assets = try_array_from_fn(|i| value.withdrawal_assets[i].value())?;
+        let withdrawal_amounts: [Fr; N_WITHDRAWALS] =
+            try_array_from_fn(|i| value.withdrawal_amounts[i].value())?;
+        let withdrawal_assets: [Fr; N_WITHDRAWALS] =
+            try_array_from_fn(|i| value.withdrawal_assets[i].value())?;
+
+        let withdrawal_amounts = try_array_from_fn(|i| fr_to_u128(&withdrawal_amounts[i]))?;
+        let withdrawal_assets = try_array_from_fn(|i| fr_to_address(&withdrawal_assets[i]))?;
 
         Ok(Self {
             new_root,
@@ -216,14 +243,28 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
     }
 }
 
+fn fr_to_u128(fr: &Fr) -> Result<u128, SynthesisError> {
+    let bytes = fr.into_bigint().to_bytes_le();
+    let mut arr = [0u8; 16];
+    arr.copy_from_slice(&bytes[..16]);
+    Ok(u128::from_le_bytes(arr))
+}
+
+fn fr_to_address(fr: &Fr) -> Result<alloy_primitives::Address, SynthesisError> {
+    let bytes = fr.into_bigint().to_bytes_le();
+    let mut arr = [0u8; 20];
+    arr.copy_from_slice(&bytes[..20]);
+    Ok(alloy_primitives::Address::from(arr))
+}
+
 // #[cfg(test)]
 // mod tests {
-//     use alloy_primitives::Address;
+//     use alloy_primitives::{Address, B256};
 //     use ark_bn254::Bn254;
 //     use ark_ff::UniformRand;
 //     use ark_groth16::Groth16;
 //     use ark_snark::SNARK;
-//     use ark_std::rand::{SeedableRng, rngs::StdRng};
+//     use ark_std::rand::{Rng, SeedableRng, rngs::StdRng};
 
 //     use super::*;
 //     use crate::{
@@ -231,7 +272,7 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
 //         indexer::merkle_tree::IncrementalMerkleTree,
 //         note::{
 //             asset::AssetId,
-//             commitment::{Commitment, NullifierKey},
+//             commitment::{BaseCommitment, Commitment, NullifierKey},
 //         },
 //     };
 
@@ -246,12 +287,15 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
 //         let recipient_key = NullifierKey(Fr::rand(&mut rng));
 
 //         let input_commitment = crate::note::commitment::SpendableCommitment::new(
-//             AssetId::from(Address::repeat_byte(0xaa)),
-//             100,
-//             Address::ZERO,
-//             Default::default(),
-//             sender_key,
-//             Fr::rand(&mut rng),
+//             BaseCommitment::new(
+//                 Address::repeat_byte(0xaa),
+//                  100,
+//                   Address::ZERO,
+//                    B256::ZERO,
+//                     sender_key,
+//                      B256::new(rng.r#gen())
+//                     ),
+
 //         );
 
 //         let mut tree = IncrementalMerkleTree::<TREE_DEPTH, K>::new();

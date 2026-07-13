@@ -1,10 +1,9 @@
 use alloy_primitives::{Address, B256};
-use ark_bn254::Fr;
 
 use crate::note::{
     asset::AssetId,
-    commitment::{Commitment, NullifierPubKey},
-    keys::EncryptionPubKey,
+    commitment::BaseCommitment,
+    keys::{EncryptionPubKey, NullifierPubKey},
 };
 
 /// Everything a sender needs to construct a note payable to a recipient.
@@ -17,8 +16,8 @@ pub struct Receiver {
 }
 
 impl Receiver {
-    pub fn commitment(&self, asset: AssetId, amount: u128, random: Fr) -> Commitment {
-        Commitment::new(
+    pub fn commitment(&self, asset: AssetId, amount: u128, random: B256) -> BaseCommitment {
+        BaseCommitment::new(
             asset,
             amount,
             self.spendability_address,

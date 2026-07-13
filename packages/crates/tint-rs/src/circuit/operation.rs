@@ -9,7 +9,7 @@ use ark_relations::gr1cs::{Namespace, SynthesisError};
 use crate::{
     circuit::{
         FrVar,
-        commitment::{CommitmentVar, SpendableCommitmentVar},
+        commitment::{BaseCommitmentVar, SpendableCommitmentVar},
         try_array_from_fn, variable,
     },
     note::withdrawal::Withdrawal,
@@ -18,7 +18,7 @@ use crate::{
 
 pub struct OperationVar<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize> {
     pub inputs: [SpendableCommitmentVar; N_INPUTS],
-    pub output_commitments: [CommitmentVar; N_OUTPUTS],
+    pub output_commitments: [BaseCommitmentVar; N_OUTPUTS],
     pub withdrawals: [WithdrawalVar; N_WITHDRAWALS],
 }
 
@@ -72,8 +72,8 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
         input_commitment_hashes: &[FrVar; N_INPUTS],
     ) -> Result<(), SynthesisError> {
         for i in 0..N_INPUTS {
-            let computed_hash: FrVar = self.inputs[i].hash()?;
-            let used = !self.inputs[i].amount.is_zero()?;
+            let computed_hash: FrVar = self.inputs[i].base.hash()?;
+            let used = !self.inputs[i].base.amount.is_zero()?;
             let expected = used.select(&input_commitment_hashes[i], &computed_hash)?;
             computed_hash.enforce_equal(&expected)?;
         }
@@ -85,7 +85,7 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     fn nullifiers(&self) -> Result<[FrVar; N_INPUTS], SynthesisError> {
         try_array_from_fn(|i| {
             let nullifier = self.inputs[i].nullifier()?;
-            let used = !self.inputs[i].amount.is_zero()?;
+            let used = !self.inputs[i].base.amount.is_zero()?;
             used.select(&nullifier, &FrVar::zero())
         })
     }
@@ -104,7 +104,7 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn enforce_u128(&self) -> Result<(), SynthesisError> {
         for input in &self.inputs {
-            enforce_u128(&input.amount)?;
+            enforce_u128(&input.base.amount)?;
         }
         for output in &self.output_commitments {
             enforce_u128(&output.amount)?;
@@ -118,7 +118,7 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     /// Verifies that the sum of inputs equals the sum of outputs for each asset type.
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn verify_balance(&self) -> Result<(), SynthesisError> {
-        let inputs = self.inputs.iter().map(|i| &i.asset);
+        let inputs = self.inputs.iter().map(|i| &i.base.asset);
         let commitments = self.output_commitments.iter().map(|o| &o.asset);
         let withdrawals = self.withdrawals.iter().map(|o| &o.asset);
 
@@ -135,8 +135,8 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     fn input_sum_for_asset(&self, asset: &FrVar) -> Result<FrVar, SynthesisError> {
         let mut sum = FrVar::zero();
         for input in &self.inputs {
-            let is_equal = asset.is_eq(&input.asset)?;
-            let weighted = is_equal.select(&input.amount, &FrVar::zero())?;
+            let is_equal = asset.is_eq(&input.base.asset)?;
+            let weighted = is_equal.select(&input.base.amount, &FrVar::zero())?;
             sum += &weighted;
         }
         Ok(sum)
@@ -229,6 +229,8 @@ mod tests {
     use ark_r1cs_std::{GR1CSVar, fields::fp::FpVar};
     use ark_relations::gr1cs::ConstraintSystem;
 
+    use crate::note::commitment::Commitment;
+
     use super::*;
 
     const DEAD_BEEF: Address = address!("0x00000000000000000000000000000000deadbeef");
@@ -236,12 +238,12 @@ mod tests {
 
     fn default_operation() -> Operation<3, 3, 3> {
         let mut op = Operation::<3, 3, 3>::default();
-        op.inputs[0].asset = DEAD_BEEF.into();
-        op.inputs[0].amount = 10;
-        op.inputs[1].asset = DEAD_BEEF.into();
-        op.inputs[1].amount = 10;
-        op.inputs[2].asset = C0FFEE.into();
-        op.inputs[2].amount = 10;
+        op.inputs[0].base.asset = DEAD_BEEF.into();
+        op.inputs[0].base.amount = 10;
+        op.inputs[1].base.asset = DEAD_BEEF.into();
+        op.inputs[1].base.amount = 10;
+        op.inputs[2].base.asset = C0FFEE.into();
+        op.inputs[2].base.amount = 10;
         op
     }
 
@@ -310,21 +312,21 @@ mod tests {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let mut op = Operation::<3, 3, 3>::default();
 
-        op.inputs[0].asset = DEAD_BEEF.into();
-        op.inputs[0].amount = 10;
-        op.inputs[1].asset = DEAD_BEEF.into();
-        op.inputs[1].amount = 10;
-        op.inputs[2].asset = C0FFEE.into();
-        op.inputs[2].amount = 10;
+        op.inputs[0].base.asset = DEAD_BEEF.into();
+        op.inputs[0].base.amount = 10;
+        op.inputs[1].base.asset = DEAD_BEEF.into();
+        op.inputs[1].base.amount = 10;
+        op.inputs[2].base.asset = C0FFEE.into();
+        op.inputs[2].base.amount = 10;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
 
-        let sum = var.input_sum_for_asset(&var.inputs[0].asset).unwrap();
+        let sum = var.input_sum_for_asset(&var.inputs[0].base.asset).unwrap();
         let expected_sum = FpVar::new_witness(cs.clone(), || Ok(Fr::from(20))).unwrap();
         sum.enforce_equal(&expected_sum).unwrap();
         assert!(cs.is_satisfied().unwrap());
 
-        let sum = var.input_sum_for_asset(&var.inputs[2].asset).unwrap();
+        let sum = var.input_sum_for_asset(&var.inputs[2].base.asset).unwrap();
         let expected_sum = FpVar::new_witness(cs.clone(), || Ok(Fr::from(10))).unwrap();
         sum.enforce_equal(&expected_sum).unwrap();
         assert!(cs.is_satisfied().unwrap());
@@ -368,8 +370,8 @@ mod tests {
     fn nullifiers_zero_for_unused_inputs() {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let mut op = Operation::<3, 3, 3>::default();
-        op.inputs[0].asset = DEAD_BEEF.into();
-        op.inputs[0].amount = 10;
+        op.inputs[0].base.asset = DEAD_BEEF.into();
+        op.inputs[0].base.amount = 10;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
         let nullifiers = var.nullifiers().unwrap();
@@ -419,8 +421,8 @@ mod tests {
     fn verify_input_commitments_enforces_used_slots() {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let mut op = Operation::<3, 3, 3>::default();
-        op.inputs[0].asset = DEAD_BEEF.into();
-        op.inputs[0].amount = 10;
+        op.inputs[0].base.asset = DEAD_BEEF.into();
+        op.inputs[0].base.amount = 10;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
         let wrong_leaves: [FrVar; 3] =

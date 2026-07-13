@@ -76,20 +76,37 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
         emit Deposited(asset, amount, partialCommitment, encryptedNote);
     }
 
-    /// @notice Pre-validates an operation, writing a flag to tstore to indicate that the operation is valid.
-    ///
-    /// @dev allows validation to be skipped in the `operate` function if the operation has already been validated.
-    function preValidateOperation(IPrivacyPool.Operation calldata op) public {
-        verifyOperation(op);
-        // TODO: Store validation result in tstore in a way that's associated with the caller ERC-7562-style
-        // so we can use this with paymasters.
+    function operate(IPrivacyPool.Operation calldata operation) public {
+        verifyOperation(operation);
+        _executeOperation(operation);
     }
 
-    function operate(IPrivacyPool.Operation[] calldata operations) public {
-        for (uint256 i; i < operations.length; ++i) {
-            verifyOperation(operations[i]);
-            _executeOperation(operations[i]);
-        }
+    /// @notice Computes the Groth16 public-signal vector `op` must satisfy.
+    /// Exposed so a client can cross-check its locally-computed proof inputs
+    /// against the contract's, rather than debugging an opaque
+    /// `InvalidProof` revert.
+    function computePublicSignals(
+        IPrivacyPool.Operation calldata op
+    ) public view returns (uint256[N_PUB] memory) {
+        bytes32 endAggregationHash = _getHash(op.leavesAggregationIndex);
+
+        bytes32 boundParamsHash = ProofLib.toBoundParamsHash(
+            op.unshieldRecipients
+        );
+
+        return
+            ProofLib.toPublicSignals(
+                op.oldRoot,
+                op.oldRootLength,
+                op.startAggregationHash,
+                boundParamsHash,
+                op.newRoot,
+                endAggregationHash,
+                op.nullifiers,
+                op.commitmentsOut,
+                op.unshieldAmounts,
+                op.unshieldAssets
+            );
     }
 
     /// @notice Verifies that the provided operation is valid or reverts if not.
@@ -98,24 +115,7 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
     function verifyOperation(IPrivacyPool.Operation calldata op) public view {
         _validateOldRoot(op.oldRoot);
 
-        bytes32 endAggregationHash = _getHash(op.leavesAggregationIndex);
-
-        bytes32 boundParamsHash = ProofLib.toBoundParamsHash(
-            op.unshieldRecipients
-        );
-
-        uint256[N_PUB] memory pubSignals = ProofLib.toPublicSignals(
-            op.oldRoot,
-            op.oldRootLength,
-            op.startAggregationHash,
-            boundParamsHash,
-            op.newRoot,
-            endAggregationHash,
-            op.nullifiers,
-            op.commitmentsOut,
-            op.unshieldAmounts,
-            op.unshieldAssets
-        );
+        uint256[N_PUB] memory pubSignals = computePublicSignals(op);
         if (
             !VERIFIER.verifyProof(
                 op.proof.pA,

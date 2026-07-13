@@ -9,8 +9,10 @@ use tint_rs::{codegen, provider};
 
 fn main() {
     let mut rng = StdRng::seed_from_u64(provider::DEV_SETUP_SEED);
+    println!("Setting up dev circuit");
     let (_pk, vk) = provider::setup(&mut rng).expect("dev trusted setup failed");
 
+    println!("Generating Groth16Verifier.sol");
     let solidity = codegen::groth16_verifier_solidity(&vk);
 
     let out_path =

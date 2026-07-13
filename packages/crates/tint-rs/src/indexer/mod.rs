@@ -21,9 +21,9 @@ use crate::{
     },
     note::{
         asset::AssetId,
-        commitment::{NullifierKey, SpendableCommitment},
-        encryption,
-        keys::EncryptionSecretKey,
+        commitment::{BaseCommitment, SpendableCommitment},
+        keys::{EncryptionKey, EncryptionPubKey, NullifierKey},
+        note_payload::NotePayload,
     },
 };
 
@@ -45,10 +45,11 @@ pub struct Indexer {
     verifier: Arc<dyn Verifier + Send + Sync>,
     database: Arc<dyn Database + Send + Sync>,
     nullifier_key: NullifierKey,
-    encryption_secret_key: EncryptionSecretKey,
+    encryption_key: EncryptionKey,
 
     tree: IncrementalMerkleTree<TREE_DEPTH, K>,
     aggregation_hash: Fr,
+    committed_aggregation_hash: Fr,
     total_staged: u64,
     pending_commitments: Vec<Fr>,
     last_synced_block: u64,
@@ -62,16 +63,17 @@ impl Indexer {
         verifier: Arc<dyn Verifier + Send + Sync>,
         database: Arc<dyn Database + Send + Sync>,
         nullifier_key: NullifierKey,
-        encryption_secret_key: EncryptionSecretKey,
+        encryption_key: EncryptionKey,
     ) -> Self {
         Self {
             syncer,
             verifier,
             database,
             nullifier_key,
-            encryption_secret_key,
+            encryption_key,
             tree: IncrementalMerkleTree::new(),
             aggregation_hash: Fr::from(0u64),
+            committed_aggregation_hash: Fr::from(0u64),
             total_staged: 0,
             pending_commitments: Vec::new(),
             last_synced_block: 0,
@@ -92,8 +94,22 @@ impl Indexer {
         self.tree.root()
     }
 
+    /// This indexer's own encryption public key -- needed to encrypt notes
+    /// this wallet sends (see [`crate::note::commitment::BaseCommitment::encrypt`]).
+    pub fn encryption_pub_key(&self) -> EncryptionPubKey {
+        self.encryption_key.public_key()
+    }
+
     pub fn aggregation_hash(&self) -> Fr {
         self.aggregation_hash
+    }
+
+    /// The aggregation hash as of the last [`Self::commit`] — i.e. the ring
+    /// value *before* the batch that commit will next drain was staged. This
+    /// is what a `JoinSplit` proof's `start_aggregation_hash` must chain
+    /// forward from to match the on-chain ring.
+    pub fn committed_aggregation_hash(&self) -> Fr {
+        self.committed_aggregation_hash
     }
 
     /// Position `aggregation_hash()` sits at in the on-chain aggregation
@@ -154,11 +170,11 @@ impl Indexer {
         let count = SUBTREE_SIZE.min(self.pending_commitments.len());
         let drained: Vec<Fr> = self.pending_commitments.drain(..count).collect();
 
-        let mut hash = self.aggregation_hash;
+        let mut hash = self.committed_aggregation_hash;
         for commitment in &drained {
             hash = poseidon_hash(&[hash, *commitment]);
         }
-        self.aggregation_hash = hash;
+        self.committed_aggregation_hash = hash;
 
         self.tree
             .append_subtree::<SUBTREE_PATH_LENGTH, SUBTREE_SIZE>(&drained)
@@ -167,7 +183,7 @@ impl Indexer {
     fn apply_event(&mut self, event: Event) {
         match event {
             Event::Deposit(d) => {
-                let asset_fr = AssetId::from(d.asset).to_fr();
+                let asset_fr = Fr::from(AssetId::from(d.asset));
                 let amount_fr = Fr::from(d.amount);
                 let partial_fr = b256_to_fr(d.partialCommitment);
                 let commitment = poseidon_hash(&[asset_fr, amount_fr, partial_fr]);
@@ -193,10 +209,18 @@ impl Indexer {
     }
 
     fn try_own(&mut self, encrypted_note: &[u8]) {
-        let Some(payload) = encryption::decrypt(&self.encryption_secret_key, encrypted_note) else {
+        let Ok(payload) = NotePayload::from_encrypted(encrypted_note, &self.encryption_key) else {
             return;
         };
-        let commitment = payload.into_spendable_commitment(self.nullifier_key.clone());
+        let base = BaseCommitment::new(
+            payload.asset.into(),
+            payload.amount,
+            payload.spendability_address,
+            payload.spendability_data,
+            self.nullifier_key.pub_key(),
+            payload.random,
+        );
+        let commitment = SpendableCommitment::new(base, self.nullifier_key.clone());
         self.owned_notes.push(commitment);
     }
 }
@@ -212,7 +236,7 @@ mod tests {
     use crate::{
         abis::tint::Tint,
         database::memory::MemoryDatabase,
-        note::{commitment::Commitment, encryption::NotePayload, keys::Keys},
+        note::{commitment::Commitment, keys::Keys},
     };
 
     struct FakeSyncer {
@@ -249,24 +273,26 @@ mod tests {
     #[tokio::test]
     async fn sync_and_commit_owned_deposit() {
         let recipient = Keys::from_seed(&[9u8; 32]);
-        let commitment = Commitment::new(
+        let commitment = BaseCommitment::new(
             AssetId::from(Address::repeat_byte(0xab)),
             10,
             Address::ZERO,
             Default::default(),
             recipient.nullifier_key.pub_key(),
-            Fr::from(123u64),
+            B256::new([1; 32]),
         );
 
         let payload = NotePayload::from_commitment(&commitment);
-        let encrypted_note = encryption::encrypt(
-            &recipient.encryption_secret_key.public_key(),
-            &payload,
-            &mut OsRng,
-        );
+        let encrypted_note = payload
+            .encrypt(
+                &recipient.encryption_key.public_key(),
+                &recipient.encryption_key.public_key(),
+                &mut OsRng,
+            )
+            .unwrap();
 
         let deposit_event = Event::Deposit(Tint::Deposited {
-            asset: commitment.asset.0,
+            asset: commitment.asset.into(),
             amount: commitment.amount,
             partialCommitment: fr_to_b256(commitment.partial_hash()),
             encryptedNote: Bytes::from(encrypted_note),
@@ -283,7 +309,7 @@ mod tests {
             verifier,
             database,
             recipient.nullifier_key,
-            recipient.encryption_secret_key,
+            recipient.encryption_key,
         );
 
         indexer.sync().await.unwrap();
@@ -302,6 +328,55 @@ mod tests {
         let inclusion = indexer.prove(commitment.hash()).unwrap();
         assert_eq!(inclusion.leaf, commitment.hash());
         assert_eq!(inclusion.root(), indexer.root());
+    }
+
+    /// Expect that `committed_aggregation_hash` only advances via `commit()`,
+    /// walking exactly the drained batch once -- not double-hashed against
+    /// what `aggregation_hash` already folded in at stage time.
+    #[test]
+    fn committed_aggregation_hash_does_not_double_count() {
+        let syncer = Arc::new(FakeSyncer { events: vec![] });
+        let verifier = Arc::new(NoopVerifier);
+        let database = Arc::new(MemoryDatabase::default());
+        let keys = Keys::from_seed(&[3u8; 32]);
+
+        let mut indexer = Indexer::new(
+            syncer,
+            verifier,
+            database,
+            keys.nullifier_key,
+            keys.encryption_key,
+        );
+
+        let a = Fr::from(1u64);
+        let b = Fr::from(2u64);
+        let c = Fr::from(3u64);
+
+        indexer.stage(a);
+        indexer.stage(b);
+
+        let expected_after_stage = poseidon_hash(&[poseidon_hash(&[Fr::from(0u64), a]), b]);
+        assert_eq!(indexer.aggregation_hash(), expected_after_stage);
+        assert_eq!(indexer.committed_aggregation_hash(), Fr::from(0u64));
+
+        indexer.commit().unwrap();
+
+        // Committing the whole staged batch should bring the checkpoint up
+        // to exactly the same value `stage()` already reached -- not past it.
+        assert_eq!(indexer.committed_aggregation_hash(), expected_after_stage);
+        assert_eq!(indexer.aggregation_hash(), expected_after_stage);
+
+        indexer.stage(c);
+        let expected_after_second_stage = poseidon_hash(&[expected_after_stage, c]);
+        assert_eq!(indexer.aggregation_hash(), expected_after_second_stage);
+        // Not yet committed -- the checkpoint stays behind.
+        assert_eq!(indexer.committed_aggregation_hash(), expected_after_stage);
+
+        indexer.commit().unwrap();
+        assert_eq!(
+            indexer.committed_aggregation_hash(),
+            expected_after_second_stage
+        );
     }
 }
 

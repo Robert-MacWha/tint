@@ -1,9 +1,7 @@
 use std::borrow::Borrow;
 
 use ark_bn254::Fr;
-use ark_r1cs_std::{
-    alloc::AllocVar, boolean::Boolean, eq::EqGadget, fields::FieldVar, prelude::ToBitsGadget,
-};
+use ark_r1cs_std::{alloc::AllocVar, eq::EqGadget, fields::FieldVar};
 use ark_relations::gr1cs::{Namespace, SynthesisError};
 
 use crate::{
@@ -103,9 +101,8 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     /// Checks that all amounts in the operation fit in u128.
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn enforce_u128(&self) -> Result<(), SynthesisError> {
-        for input in &self.inputs {
-            enforce_u128(&input.base.amount)?;
-        }
+        //? Don't need to enforce u128 for inputs, since they're enforced
+        //? when notes are created.
         for output in &self.output_commitments {
             enforce_u128(&output.amount)?;
         }
@@ -216,10 +213,7 @@ impl AllocVar<Withdrawal, Fr> for WithdrawalVar {
 /// Enforces that a field element fits in [0, 2^128).
 #[tracing::instrument(target = "r1cs", skip_all)]
 fn enforce_u128(v: &FrVar) -> Result<(), SynthesisError> {
-    let bits = v.to_bits_le()?;
-    for bit in &bits[128..] {
-        bit.enforce_equal(&Boolean::constant(false))?;
-    }
+    let _ = v.to_bits_le_with_top_bits_zero(128)?;
     Ok(())
 }
 

@@ -40,6 +40,7 @@
           pkgs.foundry
 
           rustToolchain
+          pkgs.cargo-insta
           pkgs.bacon
           pkgs.wasm-pack
         ];

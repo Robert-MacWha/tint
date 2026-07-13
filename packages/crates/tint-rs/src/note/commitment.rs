@@ -144,3 +144,28 @@ impl Commitment for SpendableCommitment {
         self.base.nullifier_pub_key()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_snapshot;
+
+    use super::*;
+
+    #[test]
+    fn commitment_hash() {
+        let base_commitment = BaseCommitment::new(
+            AssetId::from(Address::new([1; 20])),
+            100,
+            Address::new([2; 20]),
+            B256::new([3; 32]),
+            NullifierPubKey(Fr::from(4)),
+            B256::new([5; 32]),
+        );
+
+        let spendable_commitment =
+            SpendableCommitment::new(base_commitment.clone(), NullifierKey(Fr::from(6)));
+
+        assert_eq!(base_commitment.hash(), spendable_commitment.hash());
+        assert_snapshot!(base_commitment.hash().to_string(), @"16228905461894564175281833576405869093428749553700125759390153678832603702885");
+    }
+}

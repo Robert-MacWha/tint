@@ -22,6 +22,7 @@ use tint_rs::{
 };
 
 #[tokio::test]
+#[ignore = "run with `cargo test --release -- --ignored`"]
 async fn public_signals_match_onchain() {
     let anvil = Anvil::new().spawn();
     let rpc_url = anvil.endpoint();

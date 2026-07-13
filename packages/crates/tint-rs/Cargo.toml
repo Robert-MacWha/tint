@@ -44,6 +44,7 @@ serde = "1.0.228"
 [dev-dependencies]
 alloy-node-bindings = "1.6.0"
 alloy-signer-local = "1.6.0"
+insta = "1.48.0"
 serde_json = "1.0"
 wasm-bindgen-test = "0.3"
 web-time = "1"

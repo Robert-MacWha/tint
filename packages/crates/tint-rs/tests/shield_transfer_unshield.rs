@@ -19,6 +19,7 @@ use tint_rs::{
 };
 
 #[tokio::test]
+#[ignore = "run with `cargo test --release -- --ignored`"]
 async fn shield_transfer_unshield() {
     let anvil = Anvil::new().spawn();
     let rpc_url = anvil.endpoint();

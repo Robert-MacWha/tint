@@ -1,4 +1,3 @@
-- Switch to poseidon2 and fix redundant nullifier calculation.
 - Switch to `create_proof_with_reduction_and_matrices`
 
 ```

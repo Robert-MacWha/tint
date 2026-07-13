@@ -10,3 +10,4 @@ node_modules/
 
 cache/
 broadcast/*/31337
+.envrc

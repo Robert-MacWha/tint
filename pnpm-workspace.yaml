@@ -1,5 +1,0 @@
-packages:
-  - "packages/*"
-allowBuilds:
-  blake-hash: set this to true or false
-  esbuild: false

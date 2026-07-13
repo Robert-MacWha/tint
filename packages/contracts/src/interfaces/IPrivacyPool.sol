@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {N_INPUTS, N_OUTPUTS} from "../lib/Constants.sol";
+import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS} from "../lib/Constants.sol";
 import {ProofLib} from "../lib/ProofLib.sol";
 
 interface IPrivacyPool {
@@ -13,10 +13,10 @@ interface IPrivacyPool {
         uint128 leavesAggregationIndex;
         bytes32[N_INPUTS] nullifiers;
         bytes32[N_OUTPUTS] commitmentsOut;
-        uint128[N_OUTPUTS] unshieldAmounts;
-        address[N_OUTPUTS] unshieldAssets;
+        uint128[N_WITHDRAWALS] unshieldAmounts;
+        address[N_WITHDRAWALS] unshieldAssets;
         // bound params
-        address[N_OUTPUTS] unshieldRecipients;
+        address[N_WITHDRAWALS] unshieldRecipients;
         address[N_OUTPUTS] spendabilityAddresses;
         bytes32[N_OUTPUTS] spendabilityData;
         bytes[N_OUTPUTS] encryptedNotes;

@@ -2,7 +2,13 @@
 pragma solidity ^0.8.24;
 
 import {PoseidonT4} from "poseidon-solidity/PoseidonT4.sol";
-import {N_INPUTS, N_OUTPUTS, N_PUB, BN254_FR_MODULUS} from "./Constants.sol";
+import {
+    N_INPUTS,
+    N_OUTPUTS,
+    N_WITHDRAWALS,
+    N_PUB,
+    BN254_FR_MODULUS
+} from "./Constants.sol";
 
 library ProofLib {
     /// @notice Groth16 proof structure.
@@ -30,10 +36,10 @@ library ProofLib {
     }
 
     function toBoundParamsHash(
-        address[N_OUTPUTS] memory unshieldRecipients
+        address[N_WITHDRAWALS] memory unshieldRecipients
     ) internal pure returns (bytes32) {
         bytes memory packed;
-        for (uint256 i = 0; i < N_OUTPUTS; i++) {
+        for (uint256 i = 0; i < N_WITHDRAWALS; i++) {
             packed = abi.encodePacked(packed, unshieldRecipients[i]);
         }
         return keccak256(packed);
@@ -60,8 +66,8 @@ library ProofLib {
         bytes32 endAggregationHash,
         bytes32[N_INPUTS] memory nullifiers,
         bytes32[N_OUTPUTS] memory commitmentsOut,
-        uint128[N_OUTPUTS] memory unshieldAmounts,
-        address[N_OUTPUTS] memory unshieldAssets
+        uint128[N_WITHDRAWALS] memory unshieldAmounts,
+        address[N_WITHDRAWALS] memory unshieldAssets
     ) internal pure returns (uint256[N_PUB] memory) {
         uint256[N_PUB] memory pub;
         pub[0] = uint256(oldRoot);
@@ -83,7 +89,7 @@ library ProofLib {
             pub[6 + N_INPUTS + i] = uint256(commitmentsOut[i]);
         }
 
-        for (uint256 i = 0; i < N_OUTPUTS; i++) {
+        for (uint256 i = 0; i < N_WITHDRAWALS; i++) {
             pub[6 + N_INPUTS + N_OUTPUTS + 2 * i] = unshieldAmounts[i];
             pub[6 + N_INPUTS + N_OUTPUTS + 2 * i + 1] = assetToFr(
                 unshieldAssets[i]

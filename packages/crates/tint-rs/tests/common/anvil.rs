@@ -7,6 +7,8 @@ use tracing::info;
 use crate::common::anvil::{MockToken::MockTokenInstance, Tint::TintInstance};
 
 pub struct Instance {
+    // Anvil instance. Kills the anvil process when dropped.
+    #[allow(dead_code)]
     pub anvil: AnvilInstance,
     pub provider: DynProvider,
     pub tint: TintInstance<DynProvider>,

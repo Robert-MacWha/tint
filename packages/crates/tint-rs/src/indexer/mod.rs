@@ -13,7 +13,7 @@ use crate::{
         join_split::{K, SUBTREE_PATH_LENGTH, SUBTREE_SIZE, TREE_DEPTH},
         poseidon2::poseidon2_hash,
     },
-    database::Database,
+    database::{Database, DatabaseError},
     indexer::{
         merkle_tree::{InclusionProof, IncrementalMerkleTree, MerkleTreeError, SubtreeAppendProof},
         syncer::{Event, Syncer},
@@ -57,6 +57,18 @@ pub struct Indexer {
     spent_nullifiers: Vec<Fr>,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum IndexerError {
+    #[error("Database error: {0}")]
+    Database(#[from] DatabaseError),
+    #[error("Merkle tree error: {0}")]
+    MerkleTree(#[from] MerkleTreeError),
+    #[error("Syncer error: {0}")]
+    Syncer(Box<dyn std::error::Error + Send + Sync + 'static>),
+    #[error("Verifier error: {0}")]
+    Verifier(Box<dyn std::error::Error + Send + Sync + 'static>),
+}
+
 impl Indexer {
     pub fn new(
         syncer: Arc<dyn Syncer + Send + Sync>,
@@ -83,9 +95,9 @@ impl Indexer {
     }
 
     /// Loads `last_synced_block` from the database, if previously persisted.
-    pub async fn load(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+    pub async fn load(&mut self) -> Result<(), IndexerError> {
         if let Some(bytes) = self.database.get(LAST_SYNCED_BLOCK_KEY).await? {
-            self.last_synced_block = u64::from_be_bytes(bytes.as_slice().try_into()?);
+            self.last_synced_block = u64::from_be_bytes(bytes.as_slice().try_into().unwrap());
         }
         Ok(())
     }
@@ -141,13 +153,21 @@ impl Indexer {
     /// Fetches and applies any new events since the last sync, advancing
     /// `aggregation_hash` and staging their commitments for the next
     /// [`Self::commit`].
-    pub async fn sync(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
-        let latest = self.syncer.latest_block().await?;
+    pub async fn sync(&mut self) -> Result<(), IndexerError> {
+        let latest = self
+            .syncer
+            .latest_block()
+            .await
+            .map_err(IndexerError::Syncer)?;
         if latest <= self.last_synced_block {
             return Ok(());
         }
 
-        let events = self.syncer.sync(self.last_synced_block + 1, latest).await?;
+        let events = self
+            .syncer
+            .sync(self.last_synced_block + 1, latest)
+            .await
+            .map_err(IndexerError::Syncer)?;
         for event in events {
             self.apply_event(event);
         }
@@ -157,8 +177,10 @@ impl Indexer {
             .set(LAST_SYNCED_BLOCK_KEY, &latest.to_be_bytes())
             .await?;
 
-        self.verifier.verify(latest).await?;
-        Ok(())
+        self.verifier
+            .verify(latest, self.root())
+            .await
+            .map_err(IndexerError::Verifier)
     }
 
     /// Drains up to `SUBTREE_SIZE` pending commitments, inserts them into
@@ -262,7 +284,11 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Verifier for NoopVerifier {
-        async fn verify(&self, _to: u64) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+        async fn verify(
+            &self,
+            _block: u64,
+            _root: Fr,
+        ) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
             Ok(())
         }
     }

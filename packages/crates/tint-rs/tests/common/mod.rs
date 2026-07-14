@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::{path::Path, process::Command, sync::Arc};
 
 use alloy_primitives::{Address, U256};
@@ -8,13 +6,13 @@ use alloy_sol_macro::sol;
 use alloy_sol_types::SolCall;
 use tint_rs::{
     abis::tint::{IPrivacyPool, Tint},
-    circuit::join_split::{K, N_PUB, TREE_DEPTH},
+    circuit::join_split::{K, N_PUB},
     database::memory::MemoryDatabase,
-    indexer::{
-        Indexer, merkle_tree::IncrementalMerkleTree, syncer::AlloyRpcSyncer, verifier::RootVerifier,
-    },
+    indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
     note::keys::Keys,
 };
+
+pub mod anvil;
 
 sol! {
     interface IERC20 {
@@ -25,7 +23,7 @@ sol! {
 
 /// Root of the Foundry project (where `foundry.toml` lives; it points `src`/
 /// `script`/`out` at `packages/contracts/...`).
-pub const REPO_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../..");
+pub const REPO_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../contracts");
 
 /// Deploys `Tint` + `Groth16Verifier` + `MockToken` via `forge script` against
 /// the anvil instance at `rpc_url`, broadcasting from `deployer_key` (a raw
@@ -34,7 +32,7 @@ pub fn deploy(rpc_url: &str, deployer_key: &str) -> (Address, Address) {
     let status = Command::new("forge")
         .args([
             "script",
-            "packages/contracts/script/Deploy.s.sol:Deploy",
+            "script/Deploy.s.sol:Deploy",
             "--rpc-url",
             rpc_url,
             "--broadcast",
@@ -69,17 +67,16 @@ pub fn deploy(rpc_url: &str, deployer_key: &str) -> (Address, Address) {
 }
 
 pub async fn make_indexer(tint_address: Address, keys: Keys, rpc_url: &str) -> Indexer {
-    let syncer = AlloyRpcSyncer::new(
+    let syncer = RpcSyncer::new(
         ProviderBuilder::new().connect_http(rpc_url.parse().unwrap()),
         tint_address,
     );
     // Checks that the genesis root (the only one registered before any
     // operate() call) is present on-chain, as a basic liveness check.
-    let root = IncrementalMerkleTree::<TREE_DEPTH, K>::new().root();
-    let verifier = RootVerifier::new(
+
+    let verifier = RpcVerifier::new(
         ProviderBuilder::new().connect_http(rpc_url.parse().unwrap()),
         tint_address,
-        root,
     );
 
     Indexer::new(

@@ -16,6 +16,20 @@ pub struct Receiver {
 }
 
 impl Receiver {
+    pub fn new(
+        nullifier_pub_key: NullifierPubKey,
+        encryption_pub_key: EncryptionPubKey,
+        spendability_address: Address,
+        spendability_data: B256,
+    ) -> Self {
+        Self {
+            nullifier_pub_key,
+            encryption_pub_key,
+            spendability_address,
+            spendability_data,
+        }
+    }
+
     pub fn commitment(&self, asset: AssetId, amount: u128, random: B256) -> BaseCommitment {
         BaseCommitment::new(
             asset,

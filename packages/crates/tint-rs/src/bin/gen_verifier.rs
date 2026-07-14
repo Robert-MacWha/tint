@@ -4,13 +4,10 @@
 
 use std::path::Path;
 
-use ark_std::rand::{SeedableRng, rngs::StdRng};
-use tint_rs::{codegen, provider};
+use tint_rs::{circuit::setup_circuits, codegen};
 
 fn main() {
-    let mut rng = StdRng::seed_from_u64(provider::DEV_SETUP_SEED);
-    println!("Setting up dev circuit");
-    let (_pk, vk) = provider::setup(&mut rng).expect("dev trusted setup failed");
+    let (_pk, vk) = setup_circuits().unwrap();
 
     println!("Generating Groth16Verifier.sol");
     let solidity = codegen::groth16_verifier_solidity(&vk);

@@ -5,8 +5,7 @@ use ark_ff::UniformRand;
 use ark_groth16::Groth16;
 use ark_groth16::r1cs_to_qap::LibsnarkReduction;
 use ark_relations::gr1cs::{
-    ConstraintSynthesizer, ConstraintSystem, OptimizationGoal, R1CS_PREDICATE_LABEL,
-    SynthesisMode,
+    ConstraintSynthesizer, ConstraintSystem, OptimizationGoal, R1CS_PREDICATE_LABEL, SynthesisMode,
 };
 use ark_snark::SNARK;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
@@ -75,16 +74,17 @@ fn main() {
 
     let r = Fr::rand(&mut rng);
     let s = Fr::rand(&mut rng);
-    let _matrices_proof = Groth16::<Bn254, LibsnarkReduction>::create_proof_with_reduction_and_matrices(
-        &pk,
-        r,
-        s,
-        &matrices,
-        num_inputs,
-        num_constraints,
-        &full_assignment,
-    )
-    .unwrap();
+    let _matrices_proof =
+        Groth16::<Bn254, LibsnarkReduction>::create_proof_with_reduction_and_matrices(
+            &pk,
+            r,
+            s,
+            &matrices,
+            num_inputs,
+            num_constraints,
+            &full_assignment,
+        )
+        .unwrap();
     let matrices_prove_time = matrices_prove_start.elapsed();
     println!("groth16 prove (matrices): {:?}", matrices_prove_time);
 

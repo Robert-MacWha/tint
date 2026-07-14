@@ -1,5 +1,13 @@
+use ark_bn254::Bn254;
 use ark_ff::Field;
+use ark_groth16::{Groth16, ProvingKey, VerifyingKey};
 use ark_r1cs_std::{GR1CSVar, alloc::AllocVar};
+use ark_snark::SNARK;
+use ark_std::rand::rngs::StdRng;
+use rand_core::SeedableRng;
+use tracing::{info, warn};
+
+use crate::circuit::join_split::JoinSplit;
 
 pub mod commitment;
 pub mod join_split;
@@ -8,6 +16,22 @@ pub mod operation;
 pub mod poseidon2;
 
 pub type FrVar = ark_r1cs_std::fields::fp::FpVar<ark_bn254::Fr>;
+
+/// Sets up the circuits and returns the proving and verifying keys.
+///
+/// This circuit setup is deterministic using a fixed seed. It is not cryptographically
+/// secure and should only be used for testing and development.
+pub fn setup_circuits()
+-> Result<(ProvingKey<Bn254>, VerifyingKey<Bn254>), ark_relations::gr1cs::SynthesisError> {
+    let mut rng = StdRng::seed_from_u64(1);
+
+    warn!("Circuit setup with fixed seed. Only use for testing and development.");
+    let circuit = JoinSplit::default();
+    let (proving_key, verifying_key) = Groth16::<Bn254>::circuit_specific_setup(circuit, &mut rng)?;
+
+    info!("Circuit setup complete.",);
+    Ok((proving_key, verifying_key))
+}
 
 /// Helper to create a new variable in the constraint system with the given
 /// value and allocation mode.

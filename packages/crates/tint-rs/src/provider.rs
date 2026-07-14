@@ -25,34 +25,22 @@ use crate::{
     operation::Operation,
 };
 
-/// The RNG seed used for the dev-only trusted setup below
-pub const DEV_SETUP_SEED: u64 = 1;
-
-/// Produces a dev proving/verifying key pair for the JoinSplitCircuit.
-pub fn setup<R: RngCore + CryptoRng>(
-    rng: &mut R,
-) -> Result<(ProvingKey<Bn254>, VerifyingKey<Bn254>), ark_relations::gr1cs::SynthesisError> {
-    let circuit = JoinSplit::default();
-    Groth16::<Bn254>::circuit_specific_setup(circuit, rng)
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum ProviderError {
     #[error("more inputs, outputs, or withdrawals than this operation supports")]
     TooManySlots,
     #[error("input commitment not present in the tree — not yet synced, or already spent")]
     InputNotFound,
+    #[error("generated proof failed local verification")]
+    InvalidProof,
+    #[error("indexer error: {0}")]
+    Indexer(#[from] crate::indexer::IndexerError),
     #[error("merkle tree error: {0}")]
     MerkleTree(#[from] crate::indexer::merkle_tree::MerkleTreeError),
     #[error("circuit error: {0}")]
     Synthesis(#[from] ark_relations::gr1cs::SynthesisError),
     #[error("encryption error: {0}")]
     Encryption(#[from] crate::note::encryption::EncryptionError),
-    #[error(
-        "generated proof failed local verification -- likely an unbalanced operation or a \
-         public-input encoding bug, not something worth submitting on-chain"
-    )]
-    InvalidProof,
 }
 
 /// Builds shield/transfer/unshield calls against a Tint deployment.
@@ -73,6 +61,15 @@ impl Provider {
             proving_key,
             verifying_key,
         }
+    }
+
+    pub fn spendable_notes(&self) -> Vec<&SpendableCommitment> {
+        self.indexer.spendable_notes()
+    }
+
+    pub async fn sync(&mut self) -> Result<(), ProviderError> {
+        self.indexer.sync().await?;
+        Ok(())
     }
 
     /// Builds a `deposit` call for a new note payable to `receiver`.
@@ -343,9 +340,12 @@ mod tests {
 
     use super::*;
     use crate::{
+        circuit::setup_circuits,
         database::memory::MemoryDatabase,
-        indexer::syncer::{Event, Syncer},
-        indexer::verifier::Verifier,
+        indexer::{
+            syncer::{Event, Syncer},
+            verifier::Verifier,
+        },
         note::keys::Keys,
     };
 
@@ -376,7 +376,8 @@ mod tests {
     impl Verifier for NoopVerifier {
         async fn verify(
             &self,
-            _to: u64,
+            _block: u64,
+            _root: Fr,
         ) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
             Ok(())
         }
@@ -406,8 +407,8 @@ mod tests {
     #[test]
     #[ignore = "run with `cargo test --release -- --ignored`"]
     fn deposit_then_transfer() {
-        let mut rng = StdRng::seed_from_u64(7);
-        let (pk, vk) = setup(&mut rng).unwrap();
+        let mut rng = StdRng::seed_from_u64(1);
+        let (pk, vk) = setup_circuits().unwrap();
 
         let sender_keys = Keys::from_seed(&[1u8; 32]);
         let recipient_keys = Keys::from_seed(&[2u8; 32]);

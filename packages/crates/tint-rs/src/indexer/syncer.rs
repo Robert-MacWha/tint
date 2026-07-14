@@ -26,19 +26,19 @@ pub trait Syncer {
 }
 
 /// A [`Syncer`] backed by an Ethereum JSON-RPC endpoint via `alloy-provider`.
-pub struct AlloyRpcSyncer<P: Provider> {
+pub struct RpcSyncer<P: Provider> {
     provider: P,
     contract: Address,
 }
 
-impl<P: Provider> AlloyRpcSyncer<P> {
+impl<P: Provider> RpcSyncer<P> {
     pub fn new(provider: P, contract: Address) -> Self {
         Self { provider, contract }
     }
 }
 
 #[async_trait::async_trait]
-impl<P: Provider> Syncer for AlloyRpcSyncer<P> {
+impl<P: Provider> Syncer for RpcSyncer<P> {
     async fn latest_block(
         &self,
     ) -> Result<u64, Box<dyn std::error::Error + Send + Sync + 'static>> {

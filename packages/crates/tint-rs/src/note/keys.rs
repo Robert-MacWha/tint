@@ -51,6 +51,14 @@ impl Keys {
             encryption_key,
         }
     }
+
+    pub fn nullifier_pub_key(&self) -> NullifierPubKey {
+        self.nullifier_key.pub_key()
+    }
+
+    pub fn encryption_pub_key(&self) -> EncryptionPubKey {
+        self.encryption_key.public_key()
+    }
 }
 
 impl NullifierKey {

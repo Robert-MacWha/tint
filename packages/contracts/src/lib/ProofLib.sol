@@ -101,6 +101,8 @@ library ProofLib {
     /// 20 address bytes, interpreted as a little-endian integer (not the
     /// natural big-endian byte order) and reduced mod the field order (a
     /// no-op here, since 160 bits never exceeds the field size).
+    ///
+    /// TODO: Simplify into just a typecast
     function assetToFr(address asset) internal pure returns (uint256) {
         bytes20 addr = bytes20(asset);
         uint256 reversed;

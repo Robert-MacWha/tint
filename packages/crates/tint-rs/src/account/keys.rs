@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use ark_bn254::Fr;
 use ark_ff::PrimeField;
 use hkdf::Hkdf;
@@ -6,17 +8,14 @@ use x25519_dalek::{PublicKey, StaticSecret};
 
 use crate::circuit::poseidon2::poseidon2_hash;
 
-const NULLIFIER_KEY_INFO: &[u8] = b"tint/nullifier-key/v1";
-const ENCRYPTION_KEY_INFO: &[u8] = b"tint/encryption-key/v1";
-
 /// The full set of keys derived from a single master seed.
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct Keys {
     pub nullifier_key: NullifierKey,
     pub encryption_key: EncryptionKey,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Clone)]
 pub struct NullifierKey(pub Fr);
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
@@ -28,9 +27,9 @@ pub struct EncryptionKey(pub StaticSecret);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EncryptionPubKey(pub PublicKey);
 
-pub trait Nullifier: Clone + std::fmt::Debug + PartialEq + Eq {
-    fn nullifying_pub_key(&self) -> Fr;
-}
+// Info strings used for HKDF key derivation.
+const NULLIFIER_KEY_INFO: &[u8] = b"tint/nullifier-key/v1";
+const ENCRYPTION_KEY_INFO: &[u8] = b"tint/encryption-key/v1";
 
 impl Keys {
     pub fn from_seed(seed: &[u8; 32]) -> Self {
@@ -63,25 +62,29 @@ impl Keys {
 
 impl NullifierKey {
     pub fn pub_key(&self) -> NullifierPubKey {
-        NullifierPubKey(self.nullifying_pub_key())
-    }
-}
-
-impl Nullifier for NullifierKey {
-    fn nullifying_pub_key(&self) -> Fr {
-        poseidon2_hash(&[self.0])
-    }
-}
-
-impl Nullifier for NullifierPubKey {
-    fn nullifying_pub_key(&self) -> Fr {
-        self.0.clone()
+        NullifierPubKey(self.0)
     }
 }
 
 impl EncryptionKey {
     pub fn public_key(&self) -> EncryptionPubKey {
         EncryptionPubKey(PublicKey::from(&self.0))
+    }
+}
+
+impl Debug for NullifierKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "NullifierKey(public_key = {})",
+            poseidon2_hash(&[self.0])
+        )
+    }
+}
+
+impl Default for EncryptionKey {
+    fn default() -> Self {
+        EncryptionKey(StaticSecret::from([0u8; 32]))
     }
 }
 

@@ -1,12 +1,11 @@
 use alloy_primitives::{Address, B256};
 
-use crate::note::{
-    asset::AssetId,
-    commitment::BaseCommitment,
-    keys::{EncryptionPubKey, NullifierPubKey},
+use crate::{
+    account::keys::{EncryptionPubKey, NullifierPubKey},
+    note::{asset::AssetId, commitment::BaseCommitment},
 };
 
-/// Everything a sender needs to construct a note payable to a recipient.
+/// Represents the data required to make a note spendable by a receiver.
 #[derive(Debug, Clone)]
 pub struct Receiver {
     pub nullifier_pub_key: NullifierPubKey,
@@ -30,6 +29,7 @@ impl Receiver {
         }
     }
 
+    /// Creates a new [`BaseCommitment`] spendable by this receiver.
     pub fn commitment(&self, asset: AssetId, amount: u128, random: B256) -> BaseCommitment {
         BaseCommitment::new(
             asset,

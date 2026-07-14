@@ -1,6 +1,8 @@
 pub mod abis;
+pub mod account;
 pub mod circuit;
 pub mod codegen;
+mod crypto;
 pub mod database;
 pub mod indexer;
 pub mod note;

@@ -11,6 +11,7 @@ use rand_core::{CryptoRng, RngCore};
 
 use crate::{
     abis::tint::{IPrivacyPool, ProofLib, Tint},
+    account::receiver::Receiver,
     circuit::join_split::{
         JoinSplit, JoinSplitResult, K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, TREE_DEPTH,
     },
@@ -18,8 +19,7 @@ use crate::{
     note::{
         asset::AssetId,
         commitment::{BaseCommitment, Commitment, SpendableCommitment},
-        note_payload::NotePayload,
-        receiver::Receiver,
+        payload::NotePayload,
         withdrawal::Withdrawal,
     },
     operation::Operation,
@@ -39,8 +39,8 @@ pub enum ProviderError {
     MerkleTree(#[from] crate::indexer::merkle_tree::MerkleTreeError),
     #[error("circuit error: {0}")]
     Synthesis(#[from] ark_relations::gr1cs::SynthesisError),
-    #[error("encryption error: {0}")]
-    Encryption(#[from] crate::note::encryption::EncryptionError),
+    #[error("note payload error: {0}")]
+    NotePayload(#[from] crate::note::payload::NotePayloadError),
 }
 
 /// Builds shield/transfer/unshield calls against a Tint deployment.
@@ -83,8 +83,8 @@ impl Provider {
         let random = B256::new(rng.r#gen());
         let commitment = receiver.commitment(asset, amount, random);
         let encrypted_note = NotePayload::from_commitment(&commitment).encrypt(
-            &self.indexer.encryption_pub_key(),
-            &self.indexer.encryption_pub_key(),
+            self.indexer.encryption_pub_key(),
+            self.indexer.encryption_pub_key(),
             rng,
         )?;
 
@@ -118,8 +118,8 @@ impl Provider {
             spendability_data[i] = receiver.spendability_data;
 
             encrypted_notes[i] = Bytes::from(NotePayload::from_commitment(output).encrypt(
-                &self.indexer.encryption_pub_key(),
-                &receiver.encryption_pub_key,
+                self.indexer.encryption_pub_key(),
+                receiver.encryption_pub_key,
                 rng,
             )?);
         }
@@ -340,13 +340,13 @@ mod tests {
 
     use super::*;
     use crate::{
+        account::keys::Keys,
         circuit::setup_circuits,
         database::memory::MemoryDatabase,
         indexer::{
             syncer::{Event, Syncer},
             verifier::Verifier,
         },
-        note::keys::Keys,
     };
 
     struct QueueSyncer {

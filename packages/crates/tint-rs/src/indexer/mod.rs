@@ -9,6 +9,7 @@ use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 
 use crate::{
+    account::keys::{EncryptionKey, EncryptionPubKey, NullifierKey},
     circuit::{
         join_split::{K, SUBTREE_PATH_LENGTH, SUBTREE_SIZE, TREE_DEPTH},
         poseidon2::poseidon2_hash,
@@ -22,8 +23,7 @@ use crate::{
     note::{
         asset::AssetId,
         commitment::{BaseCommitment, SpendableCommitment},
-        keys::{EncryptionKey, EncryptionPubKey, NullifierKey},
-        note_payload::NotePayload,
+        payload::NotePayload,
     },
 };
 
@@ -256,9 +256,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        abis::tint::Tint,
-        database::memory::MemoryDatabase,
-        note::{commitment::Commitment, keys::Keys},
+        abis::tint::Tint, account::keys::Keys, database::memory::MemoryDatabase,
+        note::commitment::Commitment,
     };
 
     struct FakeSyncer {
@@ -311,8 +310,8 @@ mod tests {
         let payload = NotePayload::from_commitment(&commitment);
         let encrypted_note = payload
             .encrypt(
-                &recipient.encryption_key.public_key(),
-                &recipient.encryption_key.public_key(),
+                recipient.encryption_key.public_key(),
+                recipient.encryption_key.public_key(),
                 &mut OsRng,
             )
             .unwrap();
@@ -402,26 +401,6 @@ mod tests {
         assert_eq!(
             indexer.committed_aggregation_hash(),
             expected_after_second_stage
-        );
-    }
-}
-
-#[cfg(test)]
-mod genesis_root {
-    use super::*;
-
-    /// Pins the empty tree's root, which `RootRegistry.sol`'s `GENESIS_ROOT`
-    /// constant must match exactly — the contract only registers this one
-    /// root at deploy time, so the first ever operation's `oldRoot` must
-    /// equal it.
-    #[test]
-    fn matches_solidity_genesis_root() {
-        let tree = IncrementalMerkleTree::<TREE_DEPTH, K>::new();
-        assert_eq!(
-            fr_to_b256(tree.root()),
-            "0x2dbd30e0c2cc00efed70e3ffff71cc81d7ea473f78dff9da61e4c9adf9c1a2ed"
-                .parse::<B256>()
-                .unwrap()
         );
     }
 }

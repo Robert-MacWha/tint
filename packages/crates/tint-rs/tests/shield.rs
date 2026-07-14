@@ -4,10 +4,11 @@ use alloy_primitives::{Address, B256, U256};
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint_rs::{
+    account::{keys::Keys, receiver::Receiver},
     circuit::setup_circuits,
     database::memory::MemoryDatabase,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
-    note::{asset::AssetId, keys::Keys, receiver::Receiver},
+    note::asset::AssetId,
     provider::Provider,
 };
 use tracing::info;

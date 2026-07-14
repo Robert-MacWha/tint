@@ -3,11 +3,9 @@ use ark_bn254::Fr;
 use ark_ff::PrimeField;
 
 use crate::{
+    account::keys::{NullifierKey, NullifierPubKey},
     circuit::poseidon2::{poseidon2_compress, poseidon2_hash},
-    note::{
-        asset::AssetId,
-        keys::{NullifierKey, NullifierPubKey},
-    },
+    note::asset::AssetId,
 };
 
 pub trait Commitment {
@@ -54,7 +52,7 @@ pub struct BaseCommitment {
 }
 
 /// A commitment that can be spent, including its nullifier key.
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone)]
 pub struct SpendableCommitment {
     pub base: BaseCommitment,
     pub nullifier_key: NullifierKey,

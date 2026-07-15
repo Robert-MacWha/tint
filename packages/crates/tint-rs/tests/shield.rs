@@ -4,7 +4,7 @@ use alloy_primitives::{Address, B256, U256};
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint_rs::{
-    account::{keys::Keys, receiver::Receiver},
+    account::{Account, keys::Keys},
     circuit::setup_circuits,
     database::memory::MemoryDatabase,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
@@ -35,24 +35,20 @@ async fn shield() {
     let token = instance.token;
 
     // Setup circuits
-    println!("Setting up circuits...");
+    info!("Setting up circuits...");
     let (proving_key, verifying_key) = setup_circuits().unwrap();
 
     // Setup tint provider
-    println!("Setting up tint provider...");
+    info!("Setting up tint provider...");
     let keys = Keys::from_seed(&[11u8; 32]);
+    let account = Account::new(keys, Address::ZERO, B256::ZERO);
 
     let syncer = Arc::new(RpcSyncer::new(provider.clone(), *tint.address()));
     let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
     let database = Arc::new(MemoryDatabase::default());
-    let indexer = Indexer::new(
-        syncer,
-        verifier,
-        database,
-        keys.nullifier_key.clone(),
-        keys.encryption_key.clone(),
-    );
+    let indexer = Indexer::new(syncer, verifier, database);
     let mut tint_provider = Provider::new(indexer, proving_key, verifying_key);
+    tint_provider.add_account(account.clone());
 
     // Approve Tint to pull the deposit.
     let _ = token
@@ -66,20 +62,13 @@ async fn shield() {
 
     // Deposit into Tint
     info!("Depositing into Tint");
-    let receiver = Receiver::new(
-        keys.nullifier_pub_key(),
-        keys.encryption_pub_key(),
-        Address::ZERO,
-        B256::ZERO,
-    );
     let asset = AssetId::from(*token.address());
     let amount = 1_000u128;
 
-    // Warmup
     let call = tint_provider
-        .deposit(&receiver, asset, amount, &mut rng)
+        .deposit(account.receiver(), asset, amount, &mut rng)
         .unwrap();
-    let receipt_1 = tint
+    let receipt = tint
         .call_builder(&call)
         .send()
         .await
@@ -88,38 +77,21 @@ async fn shield() {
         .await
         .unwrap();
 
-    // Deposit
-    let call = tint_provider
-        .deposit(&receiver, asset, amount, &mut rng)
-        .unwrap();
-    let receipt_2 = tint
-        .call_builder(&call)
-        .send()
-        .await
-        .unwrap()
-        .get_receipt()
-        .await
-        .unwrap();
-
-    // Verify balances
     info!("Syncing");
     tint_provider.sync().await.unwrap();
 
+    // Verify balances
     info!("Verifying balances");
-
     assert_eq!(
         token.balanceOf(*tint.address()).call().await.unwrap(),
-        U256::from(amount * 2)
+        U256::from(amount)
     );
 
-    let notes = tint_provider.spendable_notes();
-    assert_eq!(notes.len(), 2);
+    let notes = tint_provider.spendable_notes(account.receiver());
+    assert_eq!(notes.len(), 1);
     assert_eq!(notes[0].base.amount, amount);
     assert_eq!(notes[0].base.asset, asset);
-    assert_eq!(notes[1].base.amount, amount);
-    assert_eq!(notes[1].base.asset, asset);
 
     // Output gas benchmark
-    info!("Gas used for deposit_1: {}", receipt_1.gas_used);
-    info!("Gas used for deposit_2: {}", receipt_2.gas_used);
+    info!("Gas used for deposit: {}", receipt.gas_used);
 }

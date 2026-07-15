@@ -3,14 +3,17 @@ use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    account::keys::{EncryptionKey, EncryptionPubKey},
+    account::keys::{EncryptionKey, EncryptionPubKey, NullifierKey, NullifierPubKey},
     crypto::{aaed::EncryptionError, envelope::EncryptedEnvelope},
-    note::commitment::BaseCommitment,
+    note::{
+        asset::AssetId,
+        commitment::{BaseCommitment, SpendableCommitment},
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NotePayload {
-    pub asset: Address,
+    pub asset: AssetId,
     pub amount: u128,
     pub random: B256,
     pub spendability_address: Address,
@@ -27,7 +30,7 @@ pub enum NotePayloadError {
 
 impl NotePayload {
     pub fn new(
-        asset: Address,
+        asset: AssetId,
         amount: u128,
         random: B256,
         spendability_address: Address,
@@ -56,19 +59,38 @@ impl NotePayload {
         encrypted: &[u8],
         my_priv: &EncryptionKey,
     ) -> Result<Self, NotePayloadError> {
-        let encrypted: EncryptedEnvelope<2> = postcard::from_bytes(encrypted)?;
+        let encrypted: EncryptedEnvelope = postcard::from_bytes(encrypted)?;
         let plaintext = encrypted.decrypt(my_priv)?;
         Ok(postcard::from_bytes(&plaintext)?)
     }
 
+    pub fn into_commitment(&self, nullifier_pub_key: NullifierPubKey) -> BaseCommitment {
+        BaseCommitment::new(
+            self.asset,
+            self.amount,
+            self.spendability_address,
+            self.spendability_data,
+            nullifier_pub_key,
+            self.random,
+        )
+    }
+
+    pub fn into_spendable_commitment(
+        self,
+        nullifier_key: NullifierKey,
+        encryption_pub_key: EncryptionPubKey,
+    ) -> SpendableCommitment {
+        let base_commitment = self.into_commitment(nullifier_key.pub_key());
+        SpendableCommitment::new(base_commitment, nullifier_key, encryption_pub_key)
+    }
+
     pub fn encrypt(
         &self,
-        sender_pub: EncryptionPubKey,
-        receiver_pub: EncryptionPubKey,
+        keys: &[EncryptionPubKey],
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Vec<u8>, NotePayloadError> {
         let plaintext = postcard::to_stdvec(&self)?;
-        let encrypted = EncryptedEnvelope::encrypt(&plaintext, &[sender_pub, receiver_pub], rng)?;
+        let encrypted = EncryptedEnvelope::encrypt(&plaintext, keys, rng)?;
         Ok(postcard::to_stdvec(&encrypted)?)
     }
 }

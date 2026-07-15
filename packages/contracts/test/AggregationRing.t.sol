@@ -35,7 +35,9 @@ contract AggregationRingTests is Test {
 
     function test_commit_singleHash() public {
         ring.commit(C1);
-        bytes32 expected = bytes32(LibPoseidon2Yul.hash_2(uint256(0), uint256(C1)));
+        bytes32 expected = bytes32(
+            LibPoseidon2Yul.hash_2(uint256(0), uint256(C1))
+        );
         assertEq(ring.aggregationHashRing(0), expected);
     }
 
@@ -43,7 +45,9 @@ contract AggregationRingTests is Test {
         ring.commit(C1);
         bytes32 h0 = ring.aggregationHashRing(0);
         ring.commit(C2);
-        bytes32 expected = bytes32(LibPoseidon2Yul.hash_2(uint256(h0), uint256(C2)));
+        bytes32 expected = bytes32(
+            LibPoseidon2Yul.hash_2(uint256(h0), uint256(C2))
+        );
         assertEq(ring.aggregationHashRing(1), expected);
     }
 
@@ -52,7 +56,9 @@ contract AggregationRingTests is Test {
         ring.commit(C2);
         bytes32 h1 = ring.aggregationHashRing(1);
         ring.commit(C3);
-        bytes32 expected = bytes32(LibPoseidon2Yul.hash_2(uint256(h1), uint256(C3)));
+        bytes32 expected = bytes32(
+            LibPoseidon2Yul.hash_2(uint256(h1), uint256(C3))
+        );
         assertEq(ring.aggregationHashRing(2), expected);
     }
 
@@ -125,7 +131,7 @@ contract AggregationRingTests is Test {
         ring.commit(C1);
         ring.commit(C2);
         ring.advance(1);
-        assertEq(ring.totalConsumed(), 2);
+        assertEq(ring.totalConsumed(), 1);
     }
 
     function test_advance_doesNotDecrease() public {
@@ -133,28 +139,12 @@ contract AggregationRingTests is Test {
         ring.commit(C2);
         ring.advance(1);
         ring.advance(0); // idx < totalConsumed → no-op
-        assertEq(ring.totalConsumed(), 2);
+        assertEq(ring.totalConsumed(), 1);
     }
 
-    // ------- validateAndGetHash -------
-
-    function test_getHash_returnsCorrectHash() public {
+    function test_getHash() public {
         ring.commit(C1);
         bytes32 expected = ring.aggregationHashRing(0);
         assertEq(ring.validateAndGetHash(0), expected);
-    }
-
-    function test_getHash_indexTooHigh_reverts() public {
-        ring.commit(C1); // totalStaged=1, valid range idx<=1
-        vm.expectRevert(AggregationRing.InvalidAggregationIndex.selector);
-        ring.validateAndGetHash(2);
-    }
-
-    function test_getHash_indexTooLow_reverts() public {
-        ring.commit(C1);
-        ring.commit(C2);
-        ring.advance(1); // totalConsumed=2
-        vm.expectRevert(AggregationRing.InvalidAggregationIndex.selector);
-        ring.validateAndGetHash(0); // 0 < totalConsumed=2
     }
 }

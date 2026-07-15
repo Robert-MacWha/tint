@@ -21,19 +21,9 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
 
     mapping(bytes32 nullifierHash => bool spent) public nullifierHashes;
 
-    event Deposited(
-        address indexed asset,
-        uint128 amount,
-        bytes32 partialCommitment,
-        bytes encryptedNote
-    );
-    event Nullified(bytes32 indexed nullifier);
-    event Committed(
-        bytes32 indexed commitment,
-        address indexed spendabilityAddress,
-        bytes32 spendabilityData,
-        bytes encryptedNote
-    );
+    event Deposited(bytes32 commitment, bytes encryptedNote);
+    event Committed(bytes32 commitment, bytes encryptedNote);
+    event Nullified(bytes32 nullifier);
     event Withdrawn(
         address indexed asset,
         uint128 amount,
@@ -73,7 +63,7 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
         );
         _commit(commitment);
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
-        emit Deposited(asset, amount, partialCommitment, encryptedNote);
+        emit Deposited(commitment, encryptedNote);
     }
 
     function operate(IPrivacyPool.Operation calldata operation) public {
@@ -88,7 +78,8 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
     function computePublicSignals(
         IPrivacyPool.Operation calldata op
     ) public view returns (uint256[N_PUB] memory) {
-        bytes32 endAggregationHash = _getHash(op.leavesAggregationIndex);
+        bytes32 startAggregationHash = _getHash(op.startAggregationIndex);
+        bytes32 endAggregationHash = _getHash(op.endAggregationIndex);
 
         bytes32 boundParamsHash = ProofLib.toBoundParamsHash(
             op.unshieldRecipients
@@ -97,8 +88,8 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
         return
             ProofLib.toPublicSignals(
                 op.oldRoot,
-                op.oldRootLength,
-                op.startAggregationHash,
+                op.startAggregationIndex,
+                startAggregationHash,
                 boundParamsHash,
                 op.newRoot,
                 endAggregationHash,
@@ -156,15 +147,10 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
             bytes32 commitment = op.commitmentsOut[i];
             if (commitment == 0) continue;
             _commit(commitment);
-            emit Committed(
-                commitment,
-                op.spendabilityAddresses[i],
-                op.spendabilityData[i],
-                op.encryptedNotes[i]
-            );
+            emit Committed(commitment, op.encryptedNotes[i]);
         }
 
-        _advanceConsumed(op.leavesAggregationIndex);
+        _advanceConsumed(op.endAggregationIndex);
         _updateRoot(op.oldRoot, op.newRoot);
 
         // Execute any unshielding transfers

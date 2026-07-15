@@ -53,16 +53,16 @@ impl<
 > SubtreeAppendProofVar<SUBTREE_PATH_LEN, SUBTREE_DEPTH, SUBTREE_SIZE, K>
 {
     /// Verifies that the new leaves can be appended into the Merkle tree after
-    /// `old_root_length` leaves, and returns the new root and the new aggregation hash.
+    /// `start_aggregation_index` leaves, and returns the new root and the new aggregation hash.
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn verify(
         &self,
         old_root: &FrVar,
-        old_root_length: &FrVar,
+        start_aggregation_index: &FrVar,
         start_aggregation_hash: &FrVar,
     ) -> Result<SubtreeAppendProofResult, SynthesisError> {
         let end_aggregation_hash = self.verify_aggregation_hash(start_aggregation_hash)?;
-        let new_root = self.verify_inclusion(old_root, old_root_length)?;
+        let new_root = self.verify_insertion(old_root, start_aggregation_index)?;
         Ok(SubtreeAppendProofResult {
             new_root,
             end_aggregation_hash,
@@ -70,7 +70,7 @@ impl<
     }
 
     /// Verifies that the new leaves can be appended into the Merkle tree after
-    /// `old_root_length` leaves, and returns the new aggregation hash.
+    /// `start_aggregation_index` leaves, and returns the new aggregation hash.
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn verify_aggregation_hash(
         &self,
@@ -89,16 +89,17 @@ impl<
     }
 
     /// Verifies the append proof that `new_leaves` can be inserted into the tree
-    /// after `old_root_length` leaves.
+    /// after `start_aggregation_index` leaves.
     #[tracing::instrument(target = "r1cs", skip_all)]
-    fn verify_inclusion(
+    fn verify_insertion(
         &self,
         old_root: &FrVar,
-        old_root_length: &FrVar,
+        start_aggregation_index: &FrVar,
     ) -> Result<FrVar, SynthesisError> {
-        let (filled, current_path) = Self::locate(old_root_length)?;
-        let (_, next_path) =
-            Self::locate(&(old_root_length + FrVar::constant(Fr::from(SUBTREE_SIZE as u64))))?;
+        let (filled, current_path) = Self::locate(start_aggregation_index)?;
+        let (_, next_path) = Self::locate(
+            &(start_aggregation_index + FrVar::constant(Fr::from(SUBTREE_SIZE as u64))),
+        )?;
 
         let new_current_leaves = self.merge_current(&filled)?;
         let new_next_leaves = self.merge_next(&filled)?;

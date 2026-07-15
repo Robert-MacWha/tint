@@ -3,7 +3,7 @@ use ark_bn254::Fr;
 use ark_ff::PrimeField;
 
 use crate::{
-    account::keys::{NullifierKey, NullifierPubKey},
+    account::keys::{EncryptionPubKey, NullifierKey, NullifierPubKey},
     circuit::poseidon2::{poseidon2_compress, poseidon2_hash},
     note::asset::AssetId,
 };
@@ -56,6 +56,7 @@ pub struct BaseCommitment {
 pub struct SpendableCommitment {
     pub base: BaseCommitment,
     pub nullifier_key: NullifierKey,
+    pub encryption_pub_key: EncryptionPubKey,
 }
 
 impl BaseCommitment {
@@ -79,10 +80,15 @@ impl BaseCommitment {
 }
 
 impl SpendableCommitment {
-    pub fn new(base: BaseCommitment, nullifier_key: NullifierKey) -> Self {
+    pub fn new(
+        base: BaseCommitment,
+        nullifier_key: NullifierKey,
+        encryption_pub_key: EncryptionPubKey,
+    ) -> Self {
         SpendableCommitment {
             base,
             nullifier_key,
+            encryption_pub_key,
         }
     }
 
@@ -156,14 +162,17 @@ mod tests {
             100,
             Address::new([2; 20]),
             B256::new([3; 32]),
-            NullifierPubKey(Fr::from(4)),
+            NullifierPubKey::default(),
             B256::new([5; 32]),
         );
 
-        let spendable_commitment =
-            SpendableCommitment::new(base_commitment.clone(), NullifierKey(Fr::from(6)));
+        let spendable_commitment = SpendableCommitment::new(
+            base_commitment.clone(),
+            NullifierKey::default(),
+            EncryptionPubKey::default(),
+        );
 
         assert_eq!(base_commitment.hash(), spendable_commitment.hash());
-        assert_snapshot!(base_commitment.hash().to_string(), @"6057411664745692474243281521123860173023646113502407248790681349086148603830");
+        assert_snapshot!(base_commitment.hash().to_string(), @"8732020446209299713566750912052193069337875022379129151798010424441753885630");
     }
 }

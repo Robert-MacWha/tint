@@ -8,7 +8,7 @@ uint256 constant N_WITHDRAWALS = 5;
 // new_root, end_aggregation_hash, nullifiers, output_commitment_hashes,
 // (withdrawal_amount, withdrawal_asset) interleaved per output slot.
 uint256 constant N_PUB = 4 + 2 + N_INPUTS + N_OUTPUTS + 2 * N_WITHDRAWALS;
-uint128 constant AGGREGATION_RING_SIZE = 128;
+uint128 constant AGGREGATION_RING_SIZE = 256;
 
 /// @dev BN254 scalar field modulus — public signals fed to the Groth16
 /// verifier must be reduced into this range.

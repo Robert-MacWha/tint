@@ -51,7 +51,7 @@ contract TintTests is Test {
         tint = new Tint(address(verifier));
         token.mint(address(this), type(uint128).max);
         token.approve(address(tint), type(uint256).max);
-        // Deposit one concrete commitment so leavesAggregationIndex=0 is valid in all operate tests.
+        // Deposit one concrete commitment so endAggregationIndex=0 is valid in all operate tests.
         // Post-setUp: totalStaged=1, totalConsumed=0, roots[0]=1, currentRootIndex=1
         tint.deposit(address(token), 1, SEED, "");
     }
@@ -67,7 +67,7 @@ contract TintTests is Test {
         IPrivacyPool.Operation memory op;
         op.oldRoot = oldRoot;
         op.newRoot = bytes32(uint256(1));
-        op.leavesAggregationIndex = 0;
+        op.endAggregationIndex = 0;
         op.nullifiers = nullifiers;
         for (uint256 i; i < N_OUTPUTS; ++i) op.spendabilityData[i] = "";
         return op;
@@ -80,7 +80,12 @@ contract TintTests is Test {
         uint256 callerBefore = token.balanceOf(address(this));
 
         vm.expectEmit(true, true, true, true);
-        emit Tint.Deposited(address(token), 100, bytes32(uint256(1)), "");
+        emit Tint.Deposited(
+            bytes32(
+                0x068c43d6700b74a64f841ff94b3f86668b42fbd0bcdaa8ab98ba4e836842513c
+            ),
+            ""
+        );
         tint.deposit(address(token), 100, bytes32(uint256(1)), "");
 
         assertEq(token.balanceOf(address(this)), callerBefore - 100);
@@ -129,7 +134,7 @@ contract TintTests is Test {
         IPrivacyPool.Operation memory op;
         op.oldRoot = bytes32(uint256(1));
         op.newRoot = bytes32(uint256(2));
-        op.leavesAggregationIndex = 1;
+        op.endAggregationIndex = 1;
         op.nullifiers = nullifiers;
         for (uint256 i; i < N_OUTPUTS; ++i) op.spendabilityData[i] = "";
         vm.expectRevert(
@@ -184,7 +189,7 @@ contract TintTests is Test {
         op.commitmentsOut[0] = bytes32(uint256(42));
         uint128 stagedBefore = tint.totalStaged();
         vm.expectEmit(true, true, true, true);
-        emit Tint.Committed(bytes32(uint256(42)), address(0), "", "");
+        emit Tint.Committed(bytes32(uint256(42)), "");
         tint.operate(op);
         assertEq(tint.totalStaged(), stagedBefore + 1);
     }
@@ -232,7 +237,7 @@ contract TintTests is Test {
         IPrivacyPool.Operation memory op = _op(GENESIS_ROOT, nullifiers);
         op.oldRoot = bytes32(uint256(1));
         op.newRoot = bytes32(uint256(2));
-        op.leavesAggregationIndex = 1;
+        op.endAggregationIndex = 1;
         op.nullifiers = nullifiers;
         for (uint256 i; i < N_OUTPUTS; ++i) op.spendabilityData[i] = "";
         vm.expectRevert(
@@ -248,9 +253,9 @@ contract TintTests is Test {
         tint.deposit(address(token), 1, bytes32(uint256(2)), ""); // idx=1 now valid
         bytes32[N_INPUTS] memory nullifiers;
         IPrivacyPool.Operation memory op = _op(GENESIS_ROOT, nullifiers);
-        op.leavesAggregationIndex = 1;
+        op.endAggregationIndex = 1;
         tint.operate(op);
-        assertEq(tint.totalConsumed(), 2); // advanced to idx+1=2
+        assertEq(tint.totalConsumed(), 1);
     }
 
     function test_rootChain() public {
@@ -263,7 +268,7 @@ contract TintTests is Test {
         assertEq(tint.roots(rootA), 2);
 
         IPrivacyPool.Operation memory op = _op(rootA, nullifiers);
-        op.leavesAggregationIndex = 1;
+        op.endAggregationIndex = 1;
         op.newRoot = rootB;
         tint.operate(op); // A→B, currentRootIndex=3
         assertEq(tint.roots(rootB), 3);

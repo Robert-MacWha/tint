@@ -9,7 +9,7 @@ use x25519_dalek::{PublicKey, StaticSecret};
 use crate::circuit::poseidon2::poseidon2_hash;
 
 /// The full set of keys derived from a single master seed.
-#[derive(Default, Clone)]
+#[derive(Clone, Default, Debug)]
 pub struct Keys {
     pub nullifier_key: NullifierKey,
     pub encryption_key: EncryptionKey,
@@ -18,13 +18,13 @@ pub struct Keys {
 #[derive(Default, Clone)]
 pub struct NullifierKey(pub Fr);
 
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Hash)]
 pub struct NullifierPubKey(pub Fr);
 
 #[derive(Clone)]
 pub struct EncryptionKey(pub StaticSecret);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct EncryptionPubKey(pub PublicKey);
 
 // Info strings used for HKDF key derivation.
@@ -76,8 +76,18 @@ impl Debug for NullifierKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "NullifierKey(public_key = {})",
+            "NullifierKey(public_key = {:x?})",
             poseidon2_hash(&[self.0])
+        )
+    }
+}
+
+impl Debug for EncryptionKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "EncryptionKey(public_key = {:x?})",
+            self.public_key().0.as_bytes()
         )
     }
 }

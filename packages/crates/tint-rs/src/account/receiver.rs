@@ -6,7 +6,7 @@ use crate::{
 };
 
 /// Represents the data required to make a note spendable by a receiver.
-#[derive(Debug, Clone)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Receiver {
     pub nullifier_pub_key: NullifierPubKey,
     pub encryption_pub_key: EncryptionPubKey,
@@ -36,7 +36,7 @@ impl Receiver {
             amount,
             self.spendability_address,
             self.spendability_data,
-            self.nullifier_pub_key.clone(),
+            self.nullifier_pub_key,
             random,
         )
     }

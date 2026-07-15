@@ -5,6 +5,7 @@ use crate::account::{keys::Keys, receiver::Receiver};
 pub mod keys;
 pub mod receiver;
 
+#[derive(Clone, Debug)]
 pub struct Account {
     keys: Keys,
     spendability_address: Address,
@@ -27,5 +28,9 @@ impl Account {
             self.spendability_address,
             self.spendability_data,
         )
+    }
+
+    pub fn keys(&self) -> &Keys {
+        &self.keys
     }
 }

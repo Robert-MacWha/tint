@@ -18,7 +18,7 @@ use crate::{
 ///
 /// A commitment to the plaintext is included in the envelope to ensure that the decrypted payload is valid.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EncryptedEnvelope<const N: usize> {
+pub struct EncryptedEnvelope {
     pub ephemeral_pub: [u8; 32],
     pub commitment: [u8; 32],
     pub ct_keys: Vec<Vec<u8>>,
@@ -27,11 +27,11 @@ pub struct EncryptedEnvelope<const N: usize> {
 
 const ENVELOPE_INFO: &[u8] = b"tint/envelope/v1";
 
-impl<const N: usize> EncryptedEnvelope<N> {
+impl EncryptedEnvelope {
     /// Encrypts the given plaintext for the given recipients.
     pub fn encrypt(
         plaintext: &[u8],
-        keys: &[EncryptionPubKey; N],
+        keys: &[EncryptionPubKey],
         mut rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Self, EncryptionError> {
         let payload_key: [u8; 32] = rng.r#gen();

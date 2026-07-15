@@ -7,10 +7,9 @@ import {ProofLib} from "../lib/ProofLib.sol";
 interface IPrivacyPool {
     struct Operation {
         bytes32 oldRoot;
-        uint64 oldRootLength;
-        bytes32 startAggregationHash;
+        uint128 startAggregationIndex;
         bytes32 newRoot;
-        uint128 leavesAggregationIndex;
+        uint128 endAggregationIndex;
         bytes32[N_INPUTS] nullifiers;
         bytes32[N_OUTPUTS] commitmentsOut;
         uint128[N_WITHDRAWALS] unshieldAmounts;

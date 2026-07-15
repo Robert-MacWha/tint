@@ -44,20 +44,10 @@ library ProofLib {
     }
 
     /// @notice Builds the Groth16 public-signal vector, matching the order
-    /// `JoinSplit::synthesize` allocates public gr1cs variables in: four
-    /// asserted inputs, then the circuit's computed outputs.
-    ///
-    /// `oldRootLength` and `startAggregationHash` are trusted directly from
-    /// the caller, not independently re-derived on-chain — `oldRootLength`
-    /// is bound to `oldRoot` (already checked via `_validateOldRoot`) by the
-    /// circuit's Merkle math, and `startAggregationHash` is bound to
-    /// `endAggregationHash` (checked by the caller via `_getHash`, see
-    /// `Tint.verifyOperation`) by Poseidon's preimage resistance — a false
-    /// value for either could only produce a valid proof via a hash
-    /// collision.
+    /// `JoinSplit::synthesize` allocates public gr1cs variables in.
     function toPublicSignals(
         bytes32 oldRoot,
-        uint64 oldRootLength,
+        uint128 startAggregationIndex,
         bytes32 startAggregationHash,
         bytes32 boundParamsHash,
         bytes32 newRoot,
@@ -69,12 +59,8 @@ library ProofLib {
     ) internal pure returns (uint256[N_PUB] memory) {
         uint256[N_PUB] memory pub;
         pub[0] = uint256(oldRoot);
-        pub[1] = uint256(oldRootLength);
+        pub[1] = uint256(startAggregationIndex);
         pub[2] = uint256(startAggregationHash);
-        // Matches `Fr::from_be_bytes_mod_order` in tint-rs: a raw keccak256
-        // digest can exceed the BN254 scalar field, so it must be reduced
-        // mod r. (Poseidon outputs elsewhere in this array are already valid
-        // field elements and don't need this.)
         pub[3] = uint256(boundParamsHash) % BN254_FR_MODULUS;
         pub[4] = uint256(newRoot);
         pub[5] = uint256(endAggregationHash);

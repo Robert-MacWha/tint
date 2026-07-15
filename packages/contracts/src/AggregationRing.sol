@@ -14,12 +14,16 @@ contract AggregationRing {
     uint128 public totalConsumed; // total commitments consumed by operations (packed with totalStaged)
     bytes32[AGGREGATION_RING_SIZE] public aggregationHashRing;
 
+    event AdvanceAggregationRing(uint128 idx);
+
     error StagingFull();
     error InvalidAggregationIndex();
 
     /// Stages a commitment into the aggregation ring, extending the Poseidon hash chain.
     ///
     /// @dev Reverts if the ring is full
+    ///
+    /// TODO: Rename to _post to avoid confusion with "commitments"
     function _commit(bytes32 commitment) internal {
         if (totalStaged - totalConsumed >= AGGREGATION_RING_SIZE)
             revert StagingFull();
@@ -36,16 +40,15 @@ contract AggregationRing {
     }
 
     /// Returns the hash at `idx`.
-    ///
-    /// @dev Reverts if the index is outside the valid window.
     function _getHash(uint128 idx) internal view returns (bytes32) {
-        if (idx > totalStaged || idx < totalConsumed)
-            revert InvalidAggregationIndex();
         return aggregationHashRing[idx % AGGREGATION_RING_SIZE];
     }
 
-    /// Advances the consumed pointer to idx+1 if idx is not already consumed.
+    /// Advances the consumed pointer to idx if idx is not already consumed.
     function _advanceConsumed(uint128 idx) internal {
-        if (idx >= totalConsumed) totalConsumed = idx + 1;
+        if (idx <= totalConsumed) return;
+
+        totalConsumed = idx;
+        emit AdvanceAggregationRing(idx);
     }
 }

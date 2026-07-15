@@ -1,8 +1,9 @@
 use alloy_primitives::Address;
 use ark_bn254::Fr;
 use ark_ff::PrimeField;
+use serde::{Deserialize, Serialize};
 
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AssetId(pub Address);
 
 impl From<Address> for AssetId {

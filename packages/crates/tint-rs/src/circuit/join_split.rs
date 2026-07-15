@@ -29,12 +29,6 @@ pub const N_INPUTS: usize = 5;
 pub const N_OUTPUTS: usize = 5;
 pub const N_WITHDRAWALS: usize = 5;
 
-/// Number of Groth16 public signals: old_root, old_root_length,
-/// start_aggregation_hash, bound_params_hash, new_root, end_aggregation_hash,
-/// nullifiers, output_commitment_hashes, (withdrawal_amount, withdrawal_asset)
-/// interleaved per withdrawal slot. Mirrors `Constants.sol`'s `N_PUB`.
-pub const N_PUB: usize = 4 + 2 + N_INPUTS + N_OUTPUTS + 2 * N_WITHDRAWALS;
-
 pub const TREE_DEPTH: usize = 8;
 pub const SUBTREE_DEPTH: usize = 2;
 pub const SUBTREE_PATH_LENGTH: usize = TREE_DEPTH - SUBTREE_DEPTH;
@@ -46,7 +40,7 @@ pub const SUBTREE_SIZE: usize = K.pow(SUBTREE_DEPTH as u32);
 pub struct JoinSplit {
     // Public inputs
     pub old_root: Fr,
-    pub old_root_length: u64,
+    pub start_aggregation_index: u128,
     pub start_aggregation_hash: Fr,
     pub bound_params_hash: Fr,
 
@@ -81,6 +75,26 @@ pub struct JoinSplitResultVar {
 }
 
 impl JoinSplit {
+    pub fn new(
+        old_root: Fr,
+        start_aggregation_index: u128,
+        start_aggregation_hash: Fr,
+        bound_params_hash: Fr,
+        subtree_append: SubtreeAppendProof<SUBTREE_PATH_LENGTH, SUBTREE_SIZE, K>,
+        commitment_inclusion_proofs: [InclusionProof<TREE_DEPTH, K>; N_INPUTS],
+        operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+    ) -> Self {
+        Self {
+            old_root,
+            start_aggregation_index,
+            start_aggregation_hash,
+            bound_params_hash,
+            subtree_append,
+            commitment_inclusion_proofs,
+            operation,
+        }
+    }
+
     /// Synthesizes the JoinSplit circuit, returning the public inputs (in
     /// the order matching `ProofLib.toPublicSignals` / `N_PUB`).
     pub fn synthesize_public_inputs(&self) -> Result<Vec<Fr>, SynthesisError> {
@@ -112,14 +126,15 @@ impl JoinSplit {
     ) -> Result<JoinSplitResultVar, SynthesisError> {
         // Public inputs
         let old_root = input(cs.clone(), &self.old_root)?;
-        let old_root_length = input(cs.clone(), &Fr::from(self.old_root_length))?;
+        let start_aggregation_index = input(cs.clone(), &self.start_aggregation_index.into())?;
         let start_aggregation_hash = input(cs.clone(), &self.start_aggregation_hash)?;
         let _bound_params_hash: FrVar = input(cs.clone(), &self.bound_params_hash)?;
 
         // Witnessed values
         let join_split_var: JoinSplitVar = witness(cs.clone(), self)?;
 
-        let result = join_split_var.verify(&old_root, &old_root_length, &start_aggregation_hash)?;
+        let result =
+            join_split_var.verify(&old_root, &start_aggregation_index, &start_aggregation_hash)?;
 
         // Public outputs
         output(cs.clone(), &result.new_root)?;
@@ -152,13 +167,15 @@ impl JoinSplitVar {
     pub fn verify(
         &self,
         old_root: &FrVar,
-        old_root_length: &FrVar,
+        start_aggregation_index: &FrVar,
         start_aggregation_hash: &FrVar,
     ) -> Result<JoinSplitResultVar, SynthesisError> {
         // Verify the staged leaf append proof and return the new root of the Merkle tree.
-        let subtree_append_result =
-            self.subtree_append
-                .verify(old_root, old_root_length, start_aggregation_hash)?;
+        let subtree_append_result = self.subtree_append.verify(
+            old_root,
+            start_aggregation_index,
+            start_aggregation_hash,
+        )?;
         let new_root = subtree_append_result.new_root;
 
         // Verify the inclusion proofs for the input commitments. Skipped for

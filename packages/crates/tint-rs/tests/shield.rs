@@ -68,7 +68,7 @@ async fn shield() {
     let call = tint_provider
         .deposit(account.receiver(), asset, amount, &mut rng)
         .unwrap();
-    let receipt = tint
+    let shield_receipt = tint
         .call_builder(&call)
         .send()
         .await
@@ -77,6 +77,7 @@ async fn shield() {
         .await
         .unwrap();
 
+    info!("Shielded for {} gas", shield_receipt.gas_used);
     info!("Syncing");
     tint_provider.sync().await.unwrap();
 
@@ -91,7 +92,4 @@ async fn shield() {
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0].base.amount, amount);
     assert_eq!(notes[0].base.asset, asset);
-
-    // Output gas benchmark
-    info!("Gas used for deposit: {}", receipt.gas_used);
 }

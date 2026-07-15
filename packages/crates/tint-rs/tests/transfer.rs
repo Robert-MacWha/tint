@@ -100,7 +100,8 @@ async fn transfer() {
         )
         .unwrap();
 
-    tint.call_builder(&call)
+    let transfer_receipt = tint
+        .call_builder(&call)
         .send()
         .await
         .unwrap()
@@ -108,6 +109,7 @@ async fn transfer() {
         .await
         .unwrap();
 
+    info!("Transferred for {} gas", transfer_receipt.gas_used);
     info!("Syncing");
     tint_provider.sync().await.unwrap();
 

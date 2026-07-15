@@ -96,7 +96,8 @@ async fn unshield() {
         )
         .unwrap();
 
-    tint.call_builder(&call)
+    let unshield_receipt = tint
+        .call_builder(&call)
         .send()
         .await
         .unwrap()
@@ -104,6 +105,7 @@ async fn unshield() {
         .await
         .unwrap();
 
+    info!("Unshielded for {} gas", unshield_receipt.gas_used);
     info!("Syncing");
     tint_provider.sync().await.unwrap();
 

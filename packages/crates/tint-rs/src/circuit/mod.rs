@@ -5,7 +5,7 @@ use ark_r1cs_std::{GR1CSVar, alloc::AllocVar};
 use ark_snark::SNARK;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
-use tracing::{info, warn};
+use tracing::warn;
 
 use crate::circuit::join_split::JoinSplit;
 

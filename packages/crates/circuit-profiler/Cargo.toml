@@ -1,0 +1,10 @@
+[package]
+name = "circuit-profiler"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ark-ff = "0.6.0"
+ark-relations = "0.6.0"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

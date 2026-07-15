@@ -8,7 +8,9 @@ pub trait Database {
     async fn delete(&self, key: &[u8]) -> Result<(), DatabaseError>;
 }
 
-pub(crate) trait TintDatabase: Database {}
+pub(crate) trait TintDatabase: Database {
+    // pub fn set_indexed_account(&self, account: IndexedAccount)
+}
 
 impl<T: Database> TintDatabase for T {}
 

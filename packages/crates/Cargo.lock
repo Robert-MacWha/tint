@@ -1571,6 +1571,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "circuit-profiler"
+version = "0.1.0"
+dependencies = [
+ "ark-ff 0.6.0",
+ "ark-relations",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "clap"
 version = "4.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4629,6 +4639,7 @@ dependencies = [
  "async-trait",
  "brotli",
  "chacha20poly1305",
+ "circuit-profiler",
  "criterion",
  "getrandom 0.2.17",
  "hkdf",

@@ -82,7 +82,7 @@ contract TintTests is Test {
         vm.expectEmit(true, true, true, true);
         emit Tint.Deposited(
             bytes32(
-                0x068c43d6700b74a64f841ff94b3f86668b42fbd0bcdaa8ab98ba4e836842513c
+                0x276f9099e01965e0d0dc0cdfc20d83dea2dccc3e5470b8e0617acaccc5e6c5d5
             ),
             ""
         );

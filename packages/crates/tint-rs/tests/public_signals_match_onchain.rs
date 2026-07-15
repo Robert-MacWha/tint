@@ -102,8 +102,8 @@ async fn public_signals_match_onchain() {
     let (call, local_signals) = tint_provider
         .public_inputs(
             [notes[0].clone()],
-            [(account.receiver(), asset, amount)],
-            [],
+            [(account.receiver(), asset, amount - 100)],
+            [(Address::new([2; 20]), asset, 100)],
             &mut rng,
         )
         .unwrap();

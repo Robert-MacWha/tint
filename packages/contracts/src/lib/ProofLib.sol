@@ -26,7 +26,7 @@ library ProofLib {
         return
             bytes32(
                 LibPoseidon2Yul.hash_3(
-                    assetToFr(asset),
+                    uint256(uint160(asset)),
                     uint256(amount),
                     uint256(partialCommitment)
                 )
@@ -75,26 +75,11 @@ library ProofLib {
 
         for (uint256 i = 0; i < N_WITHDRAWALS; i++) {
             pub[6 + N_INPUTS + N_OUTPUTS + 2 * i] = unshieldAmounts[i];
-            pub[6 + N_INPUTS + N_OUTPUTS + 2 * i + 1] = assetToFr(
-                unshieldAssets[i]
+            pub[6 + N_INPUTS + N_OUTPUTS + 2 * i + 1] = uint256(
+                uint160(unshieldAssets[i])
             );
         }
 
         return pub;
-    }
-
-    /// @notice Matches `note::commitment::asset_to_fr` in tint-rs: the raw
-    /// 20 address bytes, interpreted as a little-endian integer (not the
-    /// natural big-endian byte order) and reduced mod the field order (a
-    /// no-op here, since 160 bits never exceeds the field size).
-    ///
-    /// TODO: Simplify into just a typecast
-    function assetToFr(address asset) internal pure returns (uint256) {
-        bytes20 addr = bytes20(asset);
-        uint256 reversed;
-        for (uint256 i = 0; i < 20; i++) {
-            reversed = (reversed << 8) | uint8(addr[19 - i]);
-        }
-        return reversed;
     }
 }

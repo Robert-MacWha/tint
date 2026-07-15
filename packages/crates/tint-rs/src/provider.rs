@@ -316,7 +316,7 @@ impl Provider {
             nullifiers: outputs.nullifiers.map(fr_to_b256),
             commitmentsOut: outputs.output_commitment_hashes.map(fr_to_b256),
             unshieldAmounts: outputs.withdrawal_amounts,
-            unshieldAssets: outputs.withdrawal_assets,
+            unshieldAssets: outputs.withdrawal_assets.map(|a| a.0),
             unshieldRecipients: unshield_recipients,
             spendabilityAddresses: spendability_addresses,
             spendabilityData: spendability_data,

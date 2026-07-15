@@ -1,6 +1,5 @@
 use std::borrow::Borrow;
 
-use alloy_primitives::Address;
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 use ark_r1cs_std::{
@@ -22,6 +21,7 @@ use crate::{
         output, try_array_from_fn, variable, witness,
     },
     indexer::merkle_tree::{InclusionProof, SubtreeAppendProof},
+    note::asset::AssetId,
     operation::Operation,
 };
 
@@ -62,7 +62,7 @@ pub struct JoinSplitResult {
     pub nullifiers: [Fr; N_INPUTS],
     pub output_commitment_hashes: [Fr; N_OUTPUTS],
     pub withdrawal_amounts: [u128; N_WITHDRAWALS],
-    pub withdrawal_assets: [Address; N_WITHDRAWALS],
+    pub withdrawal_assets: [AssetId; N_WITHDRAWALS],
 }
 
 pub struct JoinSplitResultVar {
@@ -247,8 +247,8 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
         let withdrawal_assets: [Fr; N_WITHDRAWALS] =
             try_array_from_fn(|i| value.withdrawal_assets[i].value())?;
 
-        let withdrawal_amounts = try_array_from_fn(|i| fr_to_u128(&withdrawal_amounts[i]))?;
-        let withdrawal_assets = try_array_from_fn(|i| fr_to_address(&withdrawal_assets[i]))?;
+        let withdrawal_amounts = std::array::from_fn(|i| fr_to_u128(&withdrawal_amounts[i]));
+        let withdrawal_assets = std::array::from_fn(|i| withdrawal_assets[i].into());
 
         Ok(Self {
             new_root,
@@ -261,18 +261,11 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
     }
 }
 
-fn fr_to_u128(fr: &Fr) -> Result<u128, SynthesisError> {
+fn fr_to_u128(fr: &Fr) -> u128 {
     let bytes = fr.into_bigint().to_bytes_le();
     let mut arr = [0u8; 16];
     arr.copy_from_slice(&bytes[..16]);
-    Ok(u128::from_le_bytes(arr))
-}
-
-fn fr_to_address(fr: &Fr) -> Result<alloy_primitives::Address, SynthesisError> {
-    let bytes = fr.into_bigint().to_bytes_le();
-    let mut arr = [0u8; 20];
-    arr.copy_from_slice(&bytes[..20]);
-    Ok(alloy_primitives::Address::from(arr))
+    u128::from_le_bytes(arr)
 }
 
 // #[cfg(test)]

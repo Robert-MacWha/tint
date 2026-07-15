@@ -45,6 +45,9 @@ taceo-poseidon2 = { path = "../../../../eddsa-babyjubjub/poseidon2", features = 
     "t4",
     "t8",
 ] }
+serde_with = "3.21.0"
+ark-serialize = "0.6.0"
+brotli = "8.0.4"
 
 [dev-dependencies]
 alloy-node-bindings = "1.6.0"

@@ -101,8 +101,6 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
     }
 
     /// @notice Verifies that the provided operation is valid or reverts if not.
-    ///
-    /// TODO: Ensure there's enough space for new commitments so `_commit` doesn't revert.
     function verifyOperation(IPrivacyPool.Operation calldata op) public view {
         _validateOldRoot(op.oldRoot);
 
@@ -120,7 +118,7 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
 
         for (uint256 i; i < N_INPUTS; ++i) {
             bytes32 hash = op.nullifiers[i];
-            if (hash == 0) continue; // dummy input slot
+            if (hash == 0) continue;
             if (nullifierHashes[hash]) revert NullifierAlreadySpent(hash);
         }
 
@@ -137,7 +135,7 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
         // Nullify the input notes
         for (uint256 i; i < N_INPUTS; ++i) {
             bytes32 hash = op.nullifiers[i];
-            if (hash == 0) continue; // dummy input slot
+            if (hash == 0) continue;
             nullifierHashes[hash] = true;
             emit Nullified(hash);
         }

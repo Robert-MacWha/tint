@@ -1,5 +1,5 @@
 //! Regenerates `packages/contracts/src/Groth16Verifier.sol` from the dev
-//! trusted setup's `VerifyingKey`. Run with `cargo run --bin gen_verifier -p tint-rs`
+//! trusted setup's `VerifyingKey`. Run with `cargo run --bin gen_verifier`
 //! whenever the circuit shape changes.
 
 use std::path::Path;

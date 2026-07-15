@@ -11,6 +11,7 @@ use crate::circuit::join_split::JoinSplit;
 
 pub mod commitment;
 pub mod join_split;
+pub mod matrices;
 pub mod merkle_tree;
 pub mod operation;
 pub mod poseidon2;
@@ -23,7 +24,7 @@ pub type FrVar = ark_r1cs_std::fields::fp::FpVar<ark_bn254::Fr>;
 /// secure and should only be used for testing and development.
 pub fn setup_circuits()
 -> Result<(ProvingKey<Bn254>, VerifyingKey<Bn254>), ark_relations::gr1cs::SynthesisError> {
-    let mut rng = StdRng::seed_from_u64(1);
+    let mut rng = StdRng::seed_from_u64(42);
 
     warn!("Circuit setup with fixed seed. Only use for testing and development.");
     let circuit = JoinSplit::default();

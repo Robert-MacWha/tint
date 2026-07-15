@@ -6,6 +6,7 @@ edition = "2024"
 [features]
 default = []
 parallel = ["ark-groth16/parallel"]
+asm = ["ark-ff/asm"]
 print-trace = ["ark-std/print-trace"]
 
 [dependencies]
@@ -15,17 +16,17 @@ alloy-rpc-types-eth = "1.6.0"
 alloy-sol-macro = { version = "1.6.0", features = ["json"] }
 alloy-sol-types = "1.6.0"
 alloy-transport-http = "1.6.0"
-ark-bn254 = "0.6.0"
+ark-bn254 = { version = "0.6.0", default-features = false }
 ark-crypto-primitives = { version = "0.6.0", features = [
     "crh",
     "merkle_tree",
     "constraints",
 ] }
-ark-ff = { version = "0.6.0" }
-ark-groth16 = { version = "0.6.0" }
-ark-snark = "0.6.0"
-ark-r1cs-std = "0.6.0"
-ark-relations = "0.6.0"
+ark-ff = { version = "0.6.0", default-features = false }
+ark-groth16 = { version = "0.6.0", default-features = false }
+ark-snark = { version = "0.6.0", default-features = false }
+ark-r1cs-std = { version = "0.6.0", default-features = false }
+ark-relations = { version = "0.6.0", default-features = false }
 async-trait = "0.1.89"
 ruint = { version = "1.19.0", features = ["ark-ff-06"] }
 thiserror = "2.0.18"

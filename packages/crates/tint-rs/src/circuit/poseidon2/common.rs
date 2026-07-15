@@ -2,7 +2,6 @@ use ark_bn254::Fr;
 
 use crate::circuit::poseidon2::element::PoseidonElement;
 
-/// S-box exponent, shared by every Poseidon2 width.
 const ALPHA: u64 = 5;
 
 /// The width-`T`-specific parts of a Poseidon2 permutation.

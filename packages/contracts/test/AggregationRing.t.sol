@@ -143,8 +143,10 @@ contract AggregationRingTests is Test {
     }
 
     function test_getHash() public {
+        assertEq(ring.validateAndGetHash(0), bytes32(0));
+
         ring.commit(C1);
         bytes32 expected = ring.aggregationHashRing(0);
-        assertEq(ring.validateAndGetHash(0), expected);
+        assertEq(ring.validateAndGetHash(1), expected);
     }
 }

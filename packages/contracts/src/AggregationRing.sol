@@ -39,9 +39,11 @@ contract AggregationRing {
         totalStaged++;
     }
 
-    /// Returns the hash at `idx`.
+    /// Returns the hash after `idx` commitments have been staged (0 if none
+    /// have been staged yet).
     function _getHash(uint128 idx) internal view returns (bytes32) {
-        return aggregationHashRing[idx % AGGREGATION_RING_SIZE];
+        if (idx == 0) return bytes32(0);
+        return aggregationHashRing[(idx - 1) % AGGREGATION_RING_SIZE];
     }
 
     /// Advances the consumed pointer to idx if idx is not already consumed.

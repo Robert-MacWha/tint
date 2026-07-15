@@ -51,7 +51,7 @@ contract TintTests is Test {
         tint = new Tint(address(verifier));
         token.mint(address(this), type(uint128).max);
         token.approve(address(tint), type(uint256).max);
-        // Deposit one concrete commitment so endAggregationIndex=0 is valid in all operate tests.
+        // Deposit one concrete commitment so endAggregationIndex=1 is valid in all operate tests.
         // Post-setUp: totalStaged=1, totalConsumed=0, roots[0]=1, currentRootIndex=1
         tint.deposit(address(token), 1, SEED, "");
     }

@@ -115,18 +115,26 @@ async fn public_signals_match_onchain() {
 
 fn public_signal_diff(local: &[Fr], onchain: &[U256]) {
     assert_eq!(local.len(), onchain.len(), "public signal length mismatch");
+    let mut mismatch_found = false;
     for i in 0..local.len() {
         let local_fr = local[i];
         let onchain_fr = u256_to_fr(onchain[i]);
         if local_fr != onchain_fr {
+            mismatch_found = true;
             println!(
                 "Mismatch at index {}: local={}, onchain={}",
                 i, local_fr, onchain_fr
             );
         }
     }
+
+    if mismatch_found {
+        panic!("Public signal mismatch found. See above for details.");
+    } else {
+        println!("All public signals match between local and on-chain computation.");
+    }
 }
 
 fn u256_to_fr(u: U256) -> Fr {
-    Fr::from_be_bytes_mod_order(&u.as_le_bytes())
+    Fr::from_le_bytes_mod_order(&u.as_le_bytes())
 }

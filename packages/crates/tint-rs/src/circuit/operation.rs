@@ -32,6 +32,7 @@ pub struct OperationResult<
     const N_WITHDRAWALS: usize,
 > {
     pub nullifiers: [FrVar; N_INPUTS],
+    pub spendability_hashes: [FrVar; N_INPUTS],
     pub output_commitment_hashes: [FrVar; N_OUTPUTS],
     pub withdrawals: [WithdrawalVar; N_WITHDRAWALS],
 }
@@ -54,6 +55,7 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
 
         Ok(OperationResult {
             nullifiers: self.nullifiers(input_commitment_hashes)?,
+            spendability_hashes: self.spendability_hashes(),
             output_commitment_hashes: self.output_commitment_hashes()?,
             withdrawals: self.withdrawals.clone(),
         })
@@ -88,6 +90,12 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
             let used = !self.inputs[i].base.amount.is_zero()?;
             used.select(&nullifier, &FrVar::zero())
         })
+    }
+
+    /// Computes the spendability hash for each input, or `0` for unused (zero-amount) slots.
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    fn spendability_hashes(&self) -> [FrVar; N_INPUTS] {
+        std::array::from_fn(|i| self.inputs[i].base.spendability_hash.clone())
     }
 
     /// Computes the commitment hash for each output, or `0` for unused (zero-amount) slots.

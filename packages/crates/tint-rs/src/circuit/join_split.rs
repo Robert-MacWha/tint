@@ -60,6 +60,7 @@ pub struct JoinSplitResult {
     pub new_root: Fr,
     pub end_aggregation_hash: Fr,
     pub nullifiers: [Fr; N_INPUTS],
+    pub spendability_hashes: [Fr; N_INPUTS],
     pub output_commitment_hashes: [Fr; N_OUTPUTS],
     pub withdrawal_amounts: [u128; N_WITHDRAWALS],
     pub withdrawal_assets: [AssetId; N_WITHDRAWALS],
@@ -69,6 +70,7 @@ pub struct JoinSplitResultVar {
     pub new_root: FrVar,
     pub end_aggregation_hash: FrVar,
     pub nullifiers: [FrVar; N_INPUTS],
+    pub spendability_hashes: [FrVar; N_INPUTS],
     pub output_commitment_hashes: [FrVar; N_OUTPUTS],
     pub withdrawal_amounts: [FrVar; N_WITHDRAWALS],
     pub withdrawal_assets: [FrVar; N_WITHDRAWALS],
@@ -137,10 +139,14 @@ impl JoinSplit {
             join_split_var.verify(&old_root, &start_aggregation_index, &start_aggregation_hash)?;
 
         // Public outputs
+        // TODO: Find a way to enforce all outputs are properly constrained, rather
+        // than doing this manually.  Maybe have `output` be the fn that converts
+        // from `FrVar` to `Fr`?
         output(cs.clone(), &result.new_root)?;
         output(cs.clone(), &result.end_aggregation_hash)?;
         for i in 0..N_INPUTS {
             output(cs.clone(), &result.nullifiers[i])?;
+            output(cs.clone(), &result.spendability_hashes[i])?;
         }
         for i in 0..N_OUTPUTS {
             output(cs.clone(), &result.output_commitment_hashes[i])?;
@@ -198,6 +204,7 @@ impl JoinSplitVar {
             new_root,
             end_aggregation_hash: subtree_append_result.end_aggregation_hash,
             nullifiers: operation_result.nullifiers,
+            spendability_hashes: operation_result.spendability_hashes,
             output_commitment_hashes: operation_result.output_commitment_hashes,
             withdrawal_amounts: std::array::from_fn(|i| {
                 operation_result.withdrawals[i].amount.clone()
@@ -240,6 +247,7 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
         let new_root = value.new_root.value()?;
         let end_aggregation_hash = value.end_aggregation_hash.value()?;
         let nullifiers = try_array_from_fn(|i| value.nullifiers[i].value())?;
+        let spendability_hashes = try_array_from_fn(|i| value.spendability_hashes[i].value())?;
         let output_commitment_hashes =
             try_array_from_fn(|i| value.output_commitment_hashes[i].value())?;
         let withdrawal_amounts: [Fr; N_WITHDRAWALS] =
@@ -254,6 +262,7 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
             new_root,
             end_aggregation_hash,
             nullifiers,
+            spendability_hashes,
             output_commitment_hashes,
             withdrawal_amounts,
             withdrawal_assets,
@@ -267,141 +276,3 @@ fn fr_to_u128(fr: &Fr) -> u128 {
     arr.copy_from_slice(&bytes[..16]);
     u128::from_le_bytes(arr)
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use alloy_primitives::{Address, B256};
-//     use ark_bn254::Bn254;
-//     use ark_ff::UniformRand;
-//     use ark_groth16::Groth16;
-//     use ark_snark::SNARK;
-//     use ark_std::rand::{Rng, SeedableRng, rngs::StdRng};
-
-//     use super::*;
-//     use crate::{
-//         circuit::poseidon::poseidon_hash,
-//         indexer::merkle_tree::IncrementalMerkleTree,
-//         note::{
-//             asset::AssetId,
-//             commitment::{BaseCommitment, Commitment, NullifierKey},
-//         },
-//     };
-
-//     /// Expect that a JoinSplit spending one pre-existing note into one new
-//     /// note produces a proof that a real Groth16 setup/prove/verify round
-//     /// trip accepts, and that a tampered public input is rejected.
-//     #[test]
-//     fn join_split_circuit_proves_and_verifies_a_transfer() {
-//         let mut rng = StdRng::seed_from_u64(42);
-
-//         let sender_key = NullifierKey(Fr::rand(&mut rng));
-//         let recipient_key = NullifierKey(Fr::rand(&mut rng));
-
-//         let input_commitment = crate::note::commitment::SpendableCommitment::new(
-//             BaseCommitment::new(
-//                 Address::repeat_byte(0xaa),
-//                  100,
-//                   Address::ZERO,
-//                    B256::ZERO,
-//                     sender_key,
-//                      B256::new(rng.r#gen())
-//                     ),
-
-//         );
-
-//         let mut tree = IncrementalMerkleTree::<TREE_DEPTH, K>::new();
-//         tree.append(&[input_commitment.hash()]);
-//         let old_root = tree.root();
-//         let old_root_length = 1u64;
-
-//         let output_commitment = Commitment::new(
-//             input_commitment.asset,
-//             input_commitment.amount,
-//             Address::ZERO,
-//             Default::default(),
-//             recipient_key.pub_key(),
-//             Fr::rand(&mut rng),
-//         );
-//         let output_hash = output_commitment.hash();
-
-//         let subtree_append = tree
-//             .append_subtree::<SUBTREE_PATH_LENGTH, SUBTREE_SIZE>(&[output_hash])
-//             .unwrap();
-//         let new_root = tree.root();
-
-//         // The input's inclusion proof must be taken against the tree's
-//         // post-append state, since `JoinSplitVar::verify` checks input
-//         // membership against `new_root` (not `old_root`) — and appending the
-//         // output leaf changes sibling hashes shared with the input's path.
-//         let inclusion_path = tree.path(input_commitment.hash()).unwrap();
-//         let input_inclusion_proof = tree.inclusion(inclusion_path);
-
-//         let start_aggregation_hash = Fr::from(0u64);
-//         let end_aggregation_hash = poseidon_hash(&[start_aggregation_hash, output_hash]);
-
-//         let dummy_inclusion_proof = InclusionProof {
-//             path: [0u8; TREE_DEPTH],
-//             siblings: [[Fr::from(0u64); K]; TREE_DEPTH],
-//             leaf: Fr::from(0u64),
-//         };
-//         let commitment_inclusion_proofs = std::array::from_fn(|i| {
-//             if i == 0 {
-//                 input_inclusion_proof.clone()
-//             } else {
-//                 dummy_inclusion_proof.clone()
-//             }
-//         });
-
-//         let mut operation = Operation::<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>::default();
-//         operation.inputs[0] = input_commitment.clone();
-//         operation.output_commitments[0] = output_commitment;
-
-//         let witness = JoinSplit {
-//             subtree_append,
-//             commitment_inclusion_proofs,
-//             operation,
-//         };
-
-//         let mut nullifiers = [Fr::from(0u64); N_INPUTS];
-//         nullifiers[0] = input_commitment.nullifier();
-//         let mut output_commitment_hashes = [Fr::from(0u64); N_OUTPUTS];
-//         output_commitment_hashes[0] = output_hash;
-//         // Dummy withdrawal slots aren't gated to zero (only `amount == 0`
-//         // marks them unused) — their `asset` reveals whatever `AssetId::default()`
-//         // hashes to, since AssetId::to_fr() is a keccak hash and never literally 0.
-//         let unshield_assets =
-//             [crate::note::withdrawal::Withdrawal::default().asset_fr(); N_OUTPUTS];
-
-//         let circuit = JoinSplitCircuit {
-//             witness,
-//             old_root_length,
-//             start_aggregation_hash,
-//             old_root,
-//             new_root,
-//             end_aggregation_hash,
-//             nullifiers,
-//             output_commitment_hashes,
-//             unshield_amounts: [Fr::from(0u64); N_OUTPUTS],
-//             unshield_assets,
-//             bound_params_hash: Fr::from(0u64),
-//         };
-
-//         let (pk, vk) = Groth16::<Bn254>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
-
-//         let public_inputs: Vec<Fr> = [old_root, new_root, end_aggregation_hash]
-//             .into_iter()
-//             .chain(nullifiers)
-//             .chain(output_commitment_hashes)
-//             .chain([Fr::from(0u64); N_OUTPUTS]) // unshield_amounts
-//             .chain(unshield_assets)
-//             .chain([Fr::from(0u64)]) // bound_params_hash
-//             .collect();
-
-//         let proof = Groth16::<Bn254>::prove(&pk, circuit, &mut rng).unwrap();
-//         assert!(Groth16::<Bn254>::verify(&vk, &public_inputs, &proof).unwrap());
-
-//         let mut tampered_inputs = public_inputs.clone();
-//         tampered_inputs[0] = Fr::from(999u64);
-//         assert!(!Groth16::<Bn254>::verify(&vk, &tampered_inputs, &proof).unwrap());
-//     }
-// }

@@ -37,7 +37,7 @@ pub trait Commitment {
             ]
             .concat(),
         );
-        Fr::from_le_bytes_mod_order(&hash.0)
+        Fr::from_be_bytes_mod_order(&hash.0)
     }
 }
 

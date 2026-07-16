@@ -88,22 +88,11 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
         bytes32 startAggregationHash = _getHash(op.startAggregationIndex);
         bytes32 endAggregationHash = _getHash(op.endAggregationIndex);
 
-        bytes32 boundParamsHash = ProofLib.toBoundParamsHash(
-            op.unshieldRecipients
-        );
-
         return
             ProofLib.toPublicSignals(
-                op.oldRoot,
-                op.startAggregationIndex,
                 startAggregationHash,
-                boundParamsHash,
-                op.newRoot,
                 endAggregationHash,
-                op.nullifiers,
-                op.commitmentsOut,
-                op.unshieldAmounts,
-                op.unshieldAssets
+                op
             );
     }
 

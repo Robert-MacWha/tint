@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, B256, Bytes};
 use ark_bn254::Fr;
 use serde::{Deserialize, Serialize};
 
@@ -51,6 +51,7 @@ pub struct SpendableCommitment {
     pub nullifier_key: NullifierKey,
     pub spendability_address: Address,
     pub spendability_witness: B256,
+    pub spendability_input: Bytes,
 
     pub encryption_pub_key: EncryptionPubKey,
 }
@@ -77,6 +78,7 @@ impl BaseCommitment {
         nullifier_key: NullifierKey,
         spendability_address: Address,
         spendability_witness: B256,
+        spendability_input: Bytes,
         encryption_pub_key: EncryptionPubKey,
     ) -> SpendableCommitment {
         SpendableCommitment::new(
@@ -85,6 +87,7 @@ impl BaseCommitment {
             nullifier_key,
             spendability_address,
             spendability_witness,
+            spendability_input,
             encryption_pub_key,
             self.random,
         )
@@ -102,6 +105,7 @@ impl SpendableCommitment {
         nullifier_key: NullifierKey,
         spendability_address: Address,
         spendability_witness: B256,
+        spendability_input: Bytes,
         encryption_pub_key: EncryptionPubKey,
         random: B256,
     ) -> Self {
@@ -118,6 +122,7 @@ impl SpendableCommitment {
             nullifier_key,
             spendability_address,
             spendability_witness,
+            spendability_input,
             encryption_pub_key,
         }
     }
@@ -194,6 +199,7 @@ mod tests {
             NullifierKey::default(),
             Address::new([2; 20]),
             B256::new([3; 32]),
+            Bytes::default(),
             EncryptionPubKey::default(),
             B256::new([5; 32]),
         );

@@ -142,13 +142,8 @@ impl Provider {
     ) -> Result<(IPrivacyPool::Operation, Vec<Fr>), ProviderError> {
         let circuit = self.build_circuit(&inputs, &outputs, &withdrawals, rng)?;
 
-        let unshield_recipients = std::array::from_fn(|i| {
-            let Some((addr, _, _)) = withdrawals.get(i) else {
-                return Address::ZERO;
-            };
-
-            *addr
-        });
+        let spendability_inputs = spendability_inputs(&inputs);
+        let unshield_recipients = unshield_recipients(&withdrawals);
         let encrypted_notes = try_from_fn(|i| {
             let output = &circuit.operation.output_commitments[i];
             let Some((receiver, _, _)) = outputs.get(i) else {
@@ -186,6 +181,7 @@ impl Provider {
                 unshieldAssets: outputs.withdrawal_assets.map(|a| a.0),
                 unshieldRecipients: unshield_recipients,
                 spendabilityAddresses: outputs.spendability_addresses,
+                spendabilityInputs: spendability_inputs,
                 encryptedNotes: encrypted_notes,
                 proof: proof.into(),
             },
@@ -210,11 +206,9 @@ impl Provider {
         let commitment_inclusion_proofs = self.commitment_inclusion_proofs(inputs)?;
         let operation = self.build_operation(inputs, outputs, withdrawals, rng)?;
 
-        let mut unshield_recipients = repeat(Address::ZERO);
-        for (i, (receiver, _, _)) in withdrawals.iter().enumerate() {
-            unshield_recipients[i] = *receiver;
-        }
-        let bound_params_hash = bound_params_hash(&unshield_recipients);
+        let unshield_recipients = unshield_recipients(withdrawals);
+        let spendability_inputs = spendability_inputs(inputs);
+        let bound_params_hash = bound_params_hash(&spendability_inputs, &unshield_recipients);
 
         let circuit = JoinSplit::new(
             // Public inputs
@@ -287,9 +281,33 @@ impl Provider {
     }
 }
 
+fn spendability_inputs<const I: usize>(inputs: &[SpendableCommitment; I]) -> [Bytes; N_INPUTS] {
+    let mut spendability_inputs = repeat(Bytes::new());
+    for (i, input) in inputs.iter().enumerate() {
+        spendability_inputs[i] = input.spendability_input.clone();
+    }
+    spendability_inputs
+}
+
+fn unshield_recipients<const W: usize>(
+    withdrawals: &[(Address, AssetId, u128); W],
+) -> [Address; N_WITHDRAWALS] {
+    let mut unshield_recipients = repeat(Address::ZERO);
+    for (i, (addr, _, _)) in withdrawals.iter().enumerate() {
+        unshield_recipients[i] = *addr;
+    }
+    unshield_recipients
+}
+
 /// Mirrors `ProofLib.toBoundParamsHash`
-fn bound_params_hash(unshield_recipients: &[Address; N_WITHDRAWALS]) -> Fr {
+fn bound_params_hash(
+    spendability_inputs: &[Bytes; N_INPUTS],
+    unshield_recipients: &[Address; N_WITHDRAWALS],
+) -> Fr {
     let mut packed = Vec::new();
+    for i in 0..N_INPUTS {
+        packed.extend_from_slice(&spendability_inputs[i]);
+    }
     for i in 0..N_WITHDRAWALS {
         packed.extend_from_slice(unshield_recipients[i].as_slice());
     }

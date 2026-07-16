@@ -15,13 +15,7 @@ alloy-provider = "1.6.0"
 alloy-rpc-types-eth = "1.6.0"
 alloy-sol-macro = { version = "1.6.0", features = ["json"] }
 alloy-sol-types = "1.6.0"
-alloy-transport-http = "1.6.0"
 ark-bn254 = { version = "0.6.0", default-features = false }
-ark-crypto-primitives = { version = "0.6.0", features = [
-    "crh",
-    "merkle_tree",
-    "constraints",
-] }
 ark-ff = { version = "0.6.0", default-features = false }
 ark-groth16 = { version = "0.6.0", default-features = false }
 ark-snark = { version = "0.6.0", default-features = false }
@@ -49,7 +43,6 @@ taceo-poseidon2 = { path = "../../../../eddsa-babyjubjub/poseidon2", features = 
 serde_with = "3.21.0"
 ark-serialize = "0.6.0"
 brotli = "8.0.4"
-hex = "0.4.3"
 
 [dev-dependencies]
 circuit-profiler = { path = "../circuit-profiler" }

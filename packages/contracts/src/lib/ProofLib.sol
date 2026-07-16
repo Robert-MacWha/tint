@@ -96,6 +96,9 @@ library ProofLib {
         IPrivacyPool.Operation calldata op
     ) internal pure returns (uint256) {
         bytes memory packed;
+        for (uint256 i = 0; i < N_INPUTS; i++) {
+            packed = abi.encodePacked(packed, op.spendabilityInputs[i]);
+        }
         for (uint256 i = 0; i < N_WITHDRAWALS; i++) {
             packed = abi.encodePacked(packed, op.unshieldRecipients[i]);
         }

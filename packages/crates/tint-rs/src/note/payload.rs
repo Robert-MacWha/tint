@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, B256, Bytes};
 use ark_bn254::Fr;
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -65,6 +65,7 @@ impl NotePayload {
         nullifier_key: NullifierKey,
         spendability_address: Address,
         spendability_witness: B256,
+        spendability_input: Bytes,
         encryption_pub_key: EncryptionPubKey,
     ) -> SpendableCommitment {
         let spendability_hash = spendability_hash(spendability_address, spendability_witness);
@@ -73,6 +74,7 @@ impl NotePayload {
             nullifier_key,
             spendability_address,
             spendability_witness,
+            spendability_input,
             encryption_pub_key,
         )
     }

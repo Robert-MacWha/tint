@@ -1,5 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
+use alloy_primitives::Bytes;
 use ark_bn254::Fr;
 use serde::{Deserialize, Serialize};
 
@@ -51,6 +52,7 @@ impl IndexedAccount {
                     account.keys().nullifier_key.clone(),
                     account.spendability_address,
                     account.spendability_witness,
+                    Bytes::new(), // TODO: Rohbust
                     account.keys().encryption_pub_key(),
                 )
             })
@@ -107,6 +109,7 @@ impl IndexedAccount {
             self.account.keys().nullifier_key.clone(),
             self.account.spendability_address,
             self.account.spendability_witness,
+            Bytes::new(), // TODO: Rohbust spendability
             self.account.keys().encryption_pub_key(),
         );
 

@@ -8,6 +8,7 @@ import {
 
 import {IVerifier} from "./interfaces/IVerifier.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
+import {ISpendability} from "./interfaces/ISpendability.sol";
 import {
     N_INPUTS,
     N_OUTPUTS,
@@ -41,6 +42,7 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
     error InvalidProof();
     error NullifierAlreadySpent(bytes32 nullifier);
     error UnshieldRecipientZero(uint256 index);
+    error InvalidSpendability(address spendabilityAddress);
 
     constructor(address _verifier) RootRegistry(GENESIS_ROOT) {
         VERIFIER = IVerifier(_verifier);
@@ -77,6 +79,30 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
         _executeOperation(operation);
     }
 
+    function preVerify(
+        bytes32 slot,
+        IPrivacyPool.Operation calldata operation
+    ) public {
+        verifyOperation(operation);
+        bytes32 operationHash = ProofLib.toOperationHash(operation);
+        assembly {
+            tstore(slot, operationHash)
+        }
+    }
+
+    function executePreVerified(
+        bytes32 slot,
+        IPrivacyPool.Operation calldata operation
+    ) public {
+        bytes32 operationHash = ProofLib.toOperationHash(operation);
+        bytes32 storedHash;
+        assembly {
+            storedHash := tload(slot)
+        }
+        if (storedHash != operationHash) revert InvalidProof();
+        _executeOperation(operation);
+    }
+
     /// @notice Computes the Groth16 public-signal vector `op` must satisfy.
     /// Exposed so a client can cross-check its locally-computed proof inputs
     /// against the contract's, rather than debugging an opaque
@@ -110,16 +136,27 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
             revert InvalidProof();
         }
 
+        // Verify nullifier uniqueness
         for (uint256 i; i < N_INPUTS; ++i) {
             bytes32 hash = op.nullifiers[i];
             if (hash == 0) continue;
             if (nullifierHashes[hash]) revert NullifierAlreadySpent(hash);
         }
 
+        // Verify unshield recipients are non-zero addresses
         for (uint256 i; i < N_WITHDRAWALS; ++i) {
             if (op.unshieldAmounts[i] == 0) continue;
             if (op.unshieldRecipients[i] == address(0))
                 revert UnshieldRecipientZero(i);
+        }
+
+        // Verify spendability
+        address[N_INPUTS] memory spendabilityAddresses = ProofLib
+            .spendabilityAddresses(op);
+        for (uint256 i; i < N_INPUTS; ++i) {
+            if (spendabilityAddresses[i] == address(0)) continue;
+            bool ok = ISpendability(spendabilityAddresses[i]).isSpendable(op);
+            if (!ok) revert InvalidSpendability(spendabilityAddresses[i]);
         }
     }
 

@@ -12,6 +12,7 @@ interface IPrivacyPool {
         uint128 endAggregationIndex;
         bytes32[N_INPUTS] nullifiers;
         address[N_INPUTS] spendabilityAddresses;
+        bytes[N_INPUTS] spendabilityInputs;
         bytes32[N_OUTPUTS] commitmentsOut;
         uint128[N_WITHDRAWALS] unshieldAmounts;
         address[N_WITHDRAWALS] unshieldAssets;
@@ -29,4 +30,9 @@ interface IPrivacyPool {
     ) external;
 
     function operate(Operation calldata operation) external;
+    function preVerify(bytes32 slot, Operation calldata operation) external;
+    function executePreVerified(
+        bytes32 slot,
+        Operation calldata operation
+    ) external;
 }

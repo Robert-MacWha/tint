@@ -19,6 +19,30 @@ library ProofLib {
         uint256[2] pC;
     }
 
+    function toOperationHash(
+        IPrivacyPool.Operation calldata op
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    op.oldRoot,
+                    op.startAggregationIndex,
+                    op.newRoot,
+                    op.endAggregationIndex,
+                    op.nullifiers,
+                    op.spendabilityAddresses,
+                    op.spendabilityInputs,
+                    op.commitmentsOut,
+                    op.unshieldAmounts,
+                    op.unshieldAssets,
+                    op.unshieldRecipients,
+                    op.proof.pA,
+                    op.proof.pB,
+                    op.proof.pC
+                )
+            );
+    }
+
     function toCommitment(
         address asset,
         uint128 amount,
@@ -76,5 +100,25 @@ library ProofLib {
             packed = abi.encodePacked(packed, op.unshieldRecipients[i]);
         }
         return uint256(keccak256(packed)) % BN254_FR_MODULUS;
+    }
+
+    function spendabilityAddresses(
+        IPrivacyPool.Operation calldata op
+    ) internal pure returns (address[N_INPUTS] memory output) {
+        uint256 count = 0;
+
+        for (uint256 i = 0; i < op.spendabilityAddresses.length; i++) {
+            bool exists = false;
+            for (uint256 j = 0; j < count; j++) {
+                if (output[j] == op.spendabilityAddresses[i]) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) {
+                output[count] = op.spendabilityAddresses[i];
+                count++;
+            }
+        }
     }
 }

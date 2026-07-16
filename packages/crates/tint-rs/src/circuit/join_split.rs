@@ -27,7 +27,7 @@ use crate::{
 
 pub const N_INPUTS: usize = 5;
 pub const N_OUTPUTS: usize = 5;
-pub const N_WITHDRAWALS: usize = 5;
+pub const N_WITHDRAWALS: usize = 2;
 
 pub const TREE_DEPTH: usize = 8;
 pub const SUBTREE_DEPTH: usize = 2;

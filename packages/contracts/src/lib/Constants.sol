@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 uint256 constant N_INPUTS = 5;
 uint256 constant N_OUTPUTS = 5;
-uint256 constant N_WITHDRAWALS = 5;
+uint256 constant N_WITHDRAWALS = 2;
 // old_root, old_root_length, start_aggregation_hash, bound_params_hash,
 // new_root, end_aggregation_hash, nullifiers, output_commitment_hashes,
 // (withdrawal_amount, withdrawal_asset) interleaved per output slot.

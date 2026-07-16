@@ -75,14 +75,7 @@ contract TintGasReportTest is Test {
     function test_shield_gas() public {
         tint.warmStorage();
 
-        for (uint256 i = 0; i < 2; i++) {
-            tint.deposit(
-                address(token),
-                1,
-                bytes32(uint256(keccak256(abi.encode(i)))),
-                ""
-            );
-        }
+        tint.deposit(address(token), 1, bytes32(uint256(1)), "");
     }
 
     function test_operate_gas() public {

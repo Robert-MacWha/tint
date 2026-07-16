@@ -4,7 +4,17 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Tint} from "../src/Tint.sol";
-import {AGGREGATION_RING_SIZE, N_PUB} from "../src/lib/Constants.sol";
+import {Groth16Verifier} from "../src/Groth16Verifier.sol";
+import {IVerifier} from "../src/interfaces/IVerifier.sol";
+import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
+import {
+    AGGREGATION_RING_SIZE,
+    N_PUB,
+    N_INPUTS,
+    N_OUTPUTS,
+    GENESIS_ROOT,
+    BN254_FR_MODULUS
+} from "../src/lib/Constants.sol";
 
 contract MockToken is ERC20 {
     constructor() ERC20("Mock", "MCK") {
@@ -12,13 +22,25 @@ contract MockToken is ERC20 {
     }
 }
 
-contract MockVerifier {
+/// @notice Forwards to the real Groth16Verifier so proof verification pays
+/// realistic pairing/precompile gas, but discards the result and always
+/// reports success. A dummy all-zero proof takes the same EC-precompile
+/// code path as a real one, so this is a close stand-in for a valid proof
+/// without needing to generate one.
+contract AlwaysTrueVerifier is IVerifier {
+    Groth16Verifier public immutable INNER;
+
+    constructor(Groth16Verifier _inner) {
+        INNER = _inner;
+    }
+
     function verifyProof(
-        uint256[2] calldata,
-        uint256[2][2] calldata,
-        uint256[2] calldata,
-        uint256[N_PUB] memory
-    ) external pure returns (bool) {
+        uint256[2] calldata pA,
+        uint256[2][2] calldata pB,
+        uint256[2] calldata pC,
+        uint256[N_PUB] calldata pubSignals
+    ) external view returns (bool) {
+        INNER.verifyProof(pA, pB, pC, pubSignals);
         return true;
     }
 }
@@ -43,7 +65,8 @@ contract TintGasReportTest is Test {
 
     function setUp() public {
         token = new MockToken();
-        MockVerifier verifier = new MockVerifier();
+        Groth16Verifier groth16Verifier = new Groth16Verifier();
+        AlwaysTrueVerifier verifier = new AlwaysTrueVerifier(groth16Verifier);
         tint = new TintHarness(address(verifier));
         token.approve(address(tint), type(uint256).max);
     }
@@ -59,5 +82,63 @@ contract TintGasReportTest is Test {
                 ""
             );
         }
+    }
+
+    function test_operate_gas() public {
+        tint.warmStorage();
+        token.transfer(address(tint), 1_000);
+
+        IPrivacyPool.Operation memory op;
+        op.oldRoot = GENESIS_ROOT;
+        op.newRoot = bytes32(uint256(1));
+
+        // Public signals fed to the verifier must be valid BN254 field
+        // elements, or it rejects them before running the real pairing
+        // check.
+        for (uint256 i = 0; i < N_INPUTS; i++) {
+            op.nullifiers[i] = bytes32(
+                uint256(keccak256(abi.encode("nullifier", i))) %
+                    BN254_FR_MODULUS
+            );
+        }
+        op.commitmentsOut[0] = bytes32(
+            uint256(keccak256(abi.encode("commitment", uint256(0)))) %
+                BN254_FR_MODULUS
+        );
+        op.unshieldAmounts[0] = 1;
+        op.unshieldAssets[0] = address(token);
+        op.unshieldRecipients[0] = address(1);
+
+        tint.operate(op);
+    }
+
+    function test_operate_full_gas() public {
+        tint.warmStorage();
+        token.transfer(address(tint), 1_000);
+
+        IPrivacyPool.Operation memory op;
+        op.oldRoot = GENESIS_ROOT;
+        op.newRoot = bytes32(uint256(1));
+
+        // Public signals fed to the verifier must be valid BN254 field
+        // elements, or it rejects them before running the real pairing
+        // check.
+        for (uint256 i = 0; i < N_INPUTS; i++) {
+            op.nullifiers[i] = bytes32(
+                uint256(keccak256(abi.encode("nullifier", i))) %
+                    BN254_FR_MODULUS
+            );
+        }
+        for (uint256 i = 0; i < N_OUTPUTS; i++) {
+            op.commitmentsOut[i] = bytes32(
+                uint256(keccak256(abi.encode("commitment", i))) %
+                    BN254_FR_MODULUS
+            );
+            op.unshieldAmounts[i] = 1;
+            op.unshieldAssets[i] = address(token);
+            op.unshieldRecipients[i] = address(uint160(i + 1));
+        }
+
+        tint.operate(op);
     }
 }

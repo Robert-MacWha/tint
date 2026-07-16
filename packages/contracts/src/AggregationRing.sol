@@ -41,8 +41,12 @@ contract AggregationRing {
 
     /// Returns the hash after `idx` commitments have been staged (0 if none
     /// have been staged yet).
+    ///
+    /// TODO: Figure out a better way to handle range errors. Essentially we want to ensure the
+    /// idx is properly constrained so a malicious actor can't overwrite or skip commitments.
     function _getHash(uint128 idx) internal view returns (bytes32) {
         if (idx == 0) return bytes32(0);
+        if (idx > totalStaged) revert InvalidAggregationIndex();
         return aggregationHashRing[(idx - 1) % AGGREGATION_RING_SIZE];
     }
 

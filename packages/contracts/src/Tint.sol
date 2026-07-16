@@ -78,6 +78,7 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
     function computePublicSignals(
         IPrivacyPool.Operation calldata op
     ) public view returns (uint256[N_PUB] memory) {
+        _validateOldRoot(op.oldRoot);
         bytes32 startAggregationHash = _getHash(op.startAggregationIndex);
         bytes32 endAggregationHash = _getHash(op.endAggregationIndex);
 
@@ -102,8 +103,6 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
 
     /// @notice Verifies that the provided operation is valid or reverts if not.
     function verifyOperation(IPrivacyPool.Operation calldata op) public view {
-        _validateOldRoot(op.oldRoot);
-
         uint256[N_PUB] memory pubSignals = computePublicSignals(op);
         if (
             !VERIFIER.verifyProof(

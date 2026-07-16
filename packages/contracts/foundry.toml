@@ -2,6 +2,9 @@
 src = "src"
 out = "out"
 libs = ["lib"]
+optimizer = true
+optimizer_runs = 10000
+via_ir = false
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "poseidon2-evm/=node_modules/poseidon2-evm/",

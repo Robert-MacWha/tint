@@ -8,7 +8,13 @@ import {
 
 import {IVerifier} from "./interfaces/IVerifier.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
-import {N_INPUTS, N_OUTPUTS, N_PUB, GENESIS_ROOT} from "./lib/Constants.sol";
+import {
+    N_INPUTS,
+    N_OUTPUTS,
+    N_WITHDRAWALS,
+    N_PUB,
+    GENESIS_ROOT
+} from "./lib/Constants.sol";
 import {ProofLib} from "./lib/ProofLib.sol";
 import {AggregationRing} from "./AggregationRing.sol";
 import {RootRegistry} from "./RootRegistry.sol";
@@ -121,7 +127,7 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
             if (nullifierHashes[hash]) revert NullifierAlreadySpent(hash);
         }
 
-        for (uint256 i; i < N_OUTPUTS; ++i) {
+        for (uint256 i; i < N_WITHDRAWALS; ++i) {
             if (op.unshieldAmounts[i] == 0) continue;
             if (op.unshieldRecipients[i] == address(0))
                 revert UnshieldRecipientZero(i);
@@ -151,7 +157,7 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
         _updateRoot(op.oldRoot, op.newRoot);
 
         // Execute any unshielding transfers
-        for (uint256 i; i < N_OUTPUTS; ++i) {
+        for (uint256 i; i < N_WITHDRAWALS; ++i) {
             address asset = op.unshieldAssets[i];
             uint128 amount = op.unshieldAmounts[i];
             address recipient = op.unshieldRecipients[i];

@@ -209,7 +209,7 @@ impl Provider {
         outputs: &[(Receiver, AssetId, u128); O],
         withdrawals: &[(Address, AssetId, u128); W],
         rng: &mut R,
-    ) -> Result<(JoinSplit, [Address; N_OUTPUTS]), ProviderError> {
+    ) -> Result<(JoinSplit, [Address; N_WITHDRAWALS]), ProviderError> {
         let old_root = self.indexer.root();
         let start_aggregation_index = self.indexer.posted_aggregation_index();
         let start_aggregation_hash = self.indexer.posted_aggregation_hash();
@@ -302,7 +302,7 @@ impl Provider {
         old_root: Fr,
         start_aggregation_index: u128,
         end_aggregation_index: u128,
-        unshield_recipients: [Address; N_OUTPUTS],
+        unshield_recipients: [Address; N_WITHDRAWALS],
         spendability_addresses: [Address; N_OUTPUTS],
         spendability_data: [B256; N_OUTPUTS],
         encrypted_notes: [Bytes; N_OUTPUTS],
@@ -328,9 +328,9 @@ impl Provider {
 }
 
 /// Mirrors `ProofLib.toBoundParamsHash`
-fn bound_params_hash(unshield_recipients: &[Address; N_OUTPUTS]) -> Fr {
+fn bound_params_hash(unshield_recipients: &[Address; N_WITHDRAWALS]) -> Fr {
     let mut packed = Vec::new();
-    for i in 0..N_OUTPUTS {
+    for i in 0..N_WITHDRAWALS {
         packed.extend_from_slice(unshield_recipients[i].as_slice());
     }
     Fr::from_be_bytes_mod_order(keccak256(&packed).as_slice())

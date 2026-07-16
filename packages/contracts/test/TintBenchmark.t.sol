@@ -12,6 +12,7 @@ import {
     N_PUB,
     N_INPUTS,
     N_OUTPUTS,
+    N_WITHDRAWALS,
     GENESIS_ROOT,
     BN254_FR_MODULUS
 } from "../src/lib/Constants.sol";
@@ -134,6 +135,8 @@ contract TintGasReportTest is Test {
                 uint256(keccak256(abi.encode("commitment", i))) %
                     BN254_FR_MODULUS
             );
+        }
+        for (uint256 i = 0; i < N_WITHDRAWALS; i++) {
             op.unshieldAmounts[i] = 1;
             op.unshieldAssets[i] = address(token);
             op.unshieldRecipients[i] = address(uint160(i + 1));

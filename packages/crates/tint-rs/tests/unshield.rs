@@ -46,9 +46,9 @@ async fn unshield() {
     let syncer = Arc::new(RpcSyncer::new(provider.clone(), *tint.address()));
     let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
     let database = Arc::new(MemoryDatabase::default());
-    let indexer = Indexer::new(syncer, verifier, database);
+    let indexer = Indexer::new(syncer, verifier, database).await.unwrap();
     let mut tint_provider = Provider::new(indexer, proving_key, verifying_key);
-    tint_provider.add_account(account_1.clone());
+    tint_provider.add_account(account_1.clone()).await.unwrap();
 
     // Approve Tint to pull the deposit.
     let _ = token

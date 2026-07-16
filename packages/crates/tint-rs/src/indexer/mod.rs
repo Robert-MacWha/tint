@@ -8,6 +8,7 @@ use std::sync::Arc;
 use alloy_primitives::B256;
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
+use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::{
@@ -16,7 +17,7 @@ use crate::{
         join_split::{K, SUBTREE_PATH_LENGTH, SUBTREE_SIZE, TREE_DEPTH},
         poseidon2::poseidon2_hash,
     },
-    database::{Database, DatabaseError},
+    database::{Database, DatabaseError, TintDatabase},
     indexer::{
         indexed_account::IndexedAccount,
         merkle_tree::{InclusionProof, IncrementalMerkleTree, MerkleTreeError, SubtreeAppendProof},
@@ -47,12 +48,15 @@ pub struct Indexer {
     accounts: Vec<IndexedAccount>,
 }
 
-#[derive(Clone, Default, Debug)]
-struct IndexerState {
+#[serde_with::serde_as]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+pub struct IndexerState {
     tree: IncrementalMerkleTree<TREE_DEPTH, K>,
 
     total_staged: u64,
+    #[serde_as(as = "Vec<crate::serde::fr::FrAsBytes>")]
     staged_commitments: Vec<Fr>,
+    #[serde_as(as = "crate::serde::fr::FrAsBytes")]
     posted_aggregation_hash: Fr,
 
     last_synced_block: u64,
@@ -73,24 +77,26 @@ pub enum IndexerError {
 }
 
 impl Indexer {
-    pub fn new(
+    pub async fn new(
         syncer: Arc<dyn Syncer + Send + Sync>,
         verifier: Arc<dyn Verifier + Send + Sync>,
         database: Arc<dyn Database + Send + Sync>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, IndexerError> {
+        let state = database.load_indexer().await?.unwrap_or(IndexerState {
+            tree: IncrementalMerkleTree::new(),
+            total_staged: 0,
+            staged_commitments: Vec::new(),
+            posted_aggregation_hash: Fr::from(0u64),
+            last_synced_block: 0,
+        });
+
+        Ok(Self {
             syncer,
             verifier,
             database,
-            state: IndexerState {
-                tree: IncrementalMerkleTree::new(),
-                posted_aggregation_hash: Fr::from(0),
-                total_staged: 0,
-                staged_commitments: Vec::new(),
-                last_synced_block: 0,
-            },
+            state,
             accounts: Vec::new(),
-        }
+        })
     }
 
     pub fn root(&self) -> Fr {
@@ -124,8 +130,10 @@ impl Indexer {
     }
 
     /// Adds an account which will be indexed.
-    pub fn add_account(&mut self, account: Account) {
-        self.accounts.push(IndexedAccount::new(account));
+    pub async fn add_account(&mut self, account: Account) -> Result<(), DatabaseError> {
+        let account = IndexedAccount::new(account, self.database.clone()).await?;
+        self.accounts.push(account);
+        Ok(())
     }
 
     /// Returns an inclusion proof for `commitment`, if it's present in the tree.
@@ -168,7 +176,10 @@ impl Indexer {
         self.verifier
             .verify(latest, self.root())
             .await
-            .map_err(IndexerError::Verifier)
+            .map_err(IndexerError::Verifier)?;
+
+        self.save().await?;
+        Ok(())
     }
 
     /// Drains up to `SUBTREE_SIZE` pending commitments, inserts them into
@@ -230,6 +241,15 @@ impl Indexer {
             } else {
                 return Err(IndexerError::InsufficientStagedCommitments);
             }
+        }
+
+        Ok(())
+    }
+
+    async fn save(&self) -> Result<(), DatabaseError> {
+        self.database.set_indexer(&self.state).await?;
+        for account in &self.accounts {
+            account.save().await?;
         }
 
         Ok(())

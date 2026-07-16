@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use ark_bn254::Fr;
 use ark_ff::PrimeField;
 use hkdf::Hkdf;
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use x25519_dalek::{PublicKey, StaticSecret};
 
@@ -15,11 +16,12 @@ pub struct Keys {
     pub encryption_key: EncryptionKey,
 }
 
-#[derive(Default, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct NullifierKey(pub Fr);
 
-#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Hash)]
-pub struct NullifierPubKey(pub Fr);
+#[serde_with::serde_as]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct NullifierPubKey(#[serde_as(as = "crate::serde::fr::FrAsBytes")] pub Fr);
 
 #[derive(Clone)]
 pub struct EncryptionKey(pub StaticSecret);

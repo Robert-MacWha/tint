@@ -54,9 +54,9 @@ async fn public_signals_match_onchain() {
     let syncer = Arc::new(RpcSyncer::new(provider.clone(), *tint.address()));
     let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
     let database = Arc::new(MemoryDatabase::default());
-    let indexer = Indexer::new(syncer, verifier, database);
+    let indexer = Indexer::new(syncer, verifier, database).await.unwrap();
     let mut tint_provider = Provider::new(indexer, proving_key, verifying_key);
-    tint_provider.add_account(account.clone());
+    tint_provider.add_account(account.clone()).await.unwrap();
 
     // Approve Tint to pull the deposit.
     let _ = token
@@ -121,7 +121,7 @@ fn public_signal_diff(local: &[Fr], onchain: &[U256]) {
         let onchain_fr = u256_to_fr(onchain[i]);
         if local_fr != onchain_fr {
             mismatch_found = true;
-            println!(
+            info!(
                 "Mismatch at index {}: local={}, onchain={}",
                 i, local_fr, onchain_fr
             );
@@ -131,7 +131,7 @@ fn public_signal_diff(local: &[Fr], onchain: &[U256]) {
     if mismatch_found {
         panic!("Public signal mismatch found. See above for details.");
     } else {
-        println!("All public signals match between local and on-chain computation.");
+        info!("All public signals match between local and on-chain computation.");
     }
 }
 

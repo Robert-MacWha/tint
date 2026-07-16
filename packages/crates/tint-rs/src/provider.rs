@@ -15,6 +15,7 @@ use crate::{
     circuit::join_split::{
         JoinSplit, JoinSplitResult, K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, TREE_DEPTH,
     },
+    database::DatabaseError,
     indexer::{Indexer, fr_to_b256, merkle_tree::InclusionProof},
     note::{
         asset::AssetId,
@@ -64,8 +65,8 @@ impl Provider {
     }
 
     /// Adds an account which will be indexed.
-    pub fn add_account(&mut self, account: Account) {
-        self.indexer.add_account(account);
+    pub async fn add_account(&mut self, account: Account) -> Result<(), DatabaseError> {
+        self.indexer.add_account(account).await
     }
 
     /// Returns the notes spendable by `receiver`.

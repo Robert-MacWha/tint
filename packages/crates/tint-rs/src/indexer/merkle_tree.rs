@@ -1,5 +1,6 @@
 use ark_bn254::Fr;
 use ark_ff::Zero;
+use serde::{Deserialize, Serialize};
 
 use crate::circuit::poseidon2::poseidon2_compress;
 
@@ -271,6 +272,37 @@ impl<const SUBTREE_PATH_LEN: usize, const SUBTREE_SIZE: usize, const K: usize> D
     }
 }
 
+#[serde_with::serde_as]
+#[derive(Serialize, Deserialize)]
+struct IMTLeaves {
+    #[serde_as(as = "Vec<crate::serde::fr::FrAsBytes>")]
+    pub leaves: Vec<Fr>,
+}
+
+impl<const D: usize, const K: usize> Serialize for IncrementalMerkleTree<D, K> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let leaves = &self.levels[0];
+        let leaves_wrapper = IMTLeaves {
+            leaves: leaves.clone(),
+        };
+        leaves_wrapper.serialize(serializer)
+    }
+}
+
+impl<'de, const D: usize, const K: usize> Deserialize<'de> for IncrementalMerkleTree<D, K> {
+    fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
+    where
+        De: serde::Deserializer<'de>,
+    {
+        let leaves_wrapper = IMTLeaves::deserialize(deserializer)?;
+        let tree = IncrementalMerkleTree::<D, K>::from_leaves(&leaves_wrapper.leaves);
+        Ok(tree)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -315,6 +347,21 @@ mod tests {
 
         assert_eq!(proof.leaf, target);
         assert_eq!(proof.root(), tree.root());
+    }
+
+    #[test]
+    fn serialize_deserialize_imt() {
+        const D: usize = 3;
+        const K: usize = 2;
+
+        let leaves: Vec<Fr> = (0..(1 << D)).map(|i| Fr::from(i as u64 + 1)).collect();
+        let tree = IncrementalMerkleTree::<D, K>::from_leaves(&leaves);
+
+        let serialized = postcard::to_stdvec(&tree).expect("serialization should succeed");
+        let deserialized: IncrementalMerkleTree<D, K> =
+            postcard::from_bytes(&serialized).expect("deserialization should succeed");
+
+        assert_eq!(tree.root(), deserialized.root());
     }
 
     // TODO: Add tests for append_subtree

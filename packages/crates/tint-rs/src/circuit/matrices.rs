@@ -1,13 +1,12 @@
 use ark_bn254::{Bn254, Fr};
-use ark_ff::{BigInteger, PrimeField, UniformRand};
+use ark_ff::UniformRand;
 use ark_groth16::{Groth16, Proof, ProvingKey};
 use ark_relations::gr1cs::{
     ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, R1CS_PREDICATE_LABEL,
     SynthesisError,
 };
 use rand_core::{CryptoRng, RngCore};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_with::{DeserializeAs, SerializeAs};
+use serde::{Deserialize, Serialize};
 
 /// Constraint matrices for a circuit, including the number of inputs, constraints, and witness variables.
 ///
@@ -15,7 +14,7 @@ use serde_with::{DeserializeAs, SerializeAs};
 #[serde_with::serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Matrices {
-    #[serde_as(as = "Vec<Vec<Vec<(FrAsBytes, _)>>>")]
+    #[serde_as(as = "Vec<Vec<Vec<(crate::serde::fr::FrAsBytes, _)>>>")]
     pub matrices: Vec<Vec<Vec<(Fr, usize)>>>,
     pub num_inputs: usize,
     pub num_constraints: usize,
@@ -80,22 +79,6 @@ impl Matrices {
             num_constraints,
             num_witness_variables,
         })
-    }
-}
-
-struct FrAsBytes;
-
-impl SerializeAs<Fr> for FrAsBytes {
-    fn serialize_as<S: Serializer>(value: &Fr, serializer: S) -> Result<S::Ok, S::Error> {
-        let bytes = value.into_bigint().to_bytes_be();
-        bytes.serialize(serializer)
-    }
-}
-
-impl<'de> DeserializeAs<'de, Fr> for FrAsBytes {
-    fn deserialize_as<D: Deserializer<'de>>(deserializer: D) -> Result<Fr, D::Error> {
-        let bytes = Vec::<u8>::deserialize(deserializer)?;
-        Ok(Fr::from_be_bytes_mod_order(&bytes))
     }
 }
 

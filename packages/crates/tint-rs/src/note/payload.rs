@@ -64,6 +64,15 @@ impl NotePayload {
         Ok(postcard::from_bytes(&plaintext)?)
     }
 
+    pub fn into_spendable_commitment(
+        &self,
+        nullifier_key: NullifierKey,
+        encryption_pub_key: EncryptionPubKey,
+    ) -> SpendableCommitment {
+        let commitment = self.into_commitment(nullifier_key.pub_key());
+        commitment.as_spendable(nullifier_key, encryption_pub_key)
+    }
+
     pub fn into_commitment(&self, nullifier_pub_key: NullifierPubKey) -> BaseCommitment {
         BaseCommitment::new(
             self.asset,
@@ -73,15 +82,6 @@ impl NotePayload {
             nullifier_pub_key,
             self.random,
         )
-    }
-
-    pub fn into_spendable_commitment(
-        self,
-        nullifier_key: NullifierKey,
-        encryption_pub_key: EncryptionPubKey,
-    ) -> SpendableCommitment {
-        let base_commitment = self.into_commitment(nullifier_key.pub_key());
-        SpendableCommitment::new(base_commitment, nullifier_key, encryption_pub_key)
     }
 
     pub fn encrypt(

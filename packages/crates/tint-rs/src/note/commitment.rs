@@ -1,6 +1,7 @@
 use alloy_primitives::{Address, B256, keccak256};
 use ark_bn254::Fr;
 use ark_ff::PrimeField;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     account::keys::{EncryptionPubKey, NullifierKey, NullifierPubKey},
@@ -41,7 +42,7 @@ pub trait Commitment {
 }
 
 /// A receivable commitment.
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BaseCommitment {
     pub asset: AssetId,
     pub amount: u128,
@@ -77,6 +78,22 @@ impl BaseCommitment {
             random,
         }
     }
+
+    pub fn as_spendable(
+        &self,
+        nullifier_key: NullifierKey,
+        encryption_pub_key: EncryptionPubKey,
+    ) -> SpendableCommitment {
+        SpendableCommitment {
+            base: self.clone(),
+            nullifier_key,
+            encryption_pub_key,
+        }
+    }
+
+    pub fn nullifier(&self, nullifier_key: &NullifierKey) -> Fr {
+        poseidon2_compress(&[nullifier_key.0, self.hash()])
+    }
 }
 
 impl SpendableCommitment {
@@ -93,7 +110,7 @@ impl SpendableCommitment {
     }
 
     pub fn nullifier(&self) -> Fr {
-        poseidon2_compress(&[self.nullifier_key.0, self.base.hash()])
+        self.base.nullifier(&self.nullifier_key)
     }
 }
 

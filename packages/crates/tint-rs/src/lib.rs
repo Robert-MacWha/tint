@@ -8,3 +8,4 @@ pub mod indexer;
 pub mod note;
 pub mod operation;
 pub mod provider;
+mod serde;

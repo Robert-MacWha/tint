@@ -49,6 +49,7 @@ taceo-poseidon2 = { path = "../../../../eddsa-babyjubjub/poseidon2", features = 
 serde_with = "3.21.0"
 ark-serialize = "0.6.0"
 brotli = "8.0.4"
+hex = "0.4.3"
 
 [dev-dependencies]
 circuit-profiler = { path = "../circuit-profiler" }

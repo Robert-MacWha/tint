@@ -4642,6 +4642,7 @@ dependencies = [
  "circuit-profiler",
  "criterion",
  "getrandom 0.2.17",
+ "hex",
  "hkdf",
  "insta",
  "postcard",

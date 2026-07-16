@@ -1,4 +1,5 @@
 use alloy_primitives::{Address, B256};
+use ark_ff::{BigInteger, PrimeField};
 
 use crate::account::{keys::Keys, receiver::Receiver};
 
@@ -19,6 +20,15 @@ impl Account {
             spendability_address,
             spendability_data,
         }
+    }
+
+    pub fn address(&self) -> Vec<u8> {
+        let mut address = Vec::new();
+        address.extend_from_slice(self.keys.encryption_pub_key().0.as_bytes());
+        address.extend_from_slice(&self.keys.nullifier_pub_key().0.into_bigint().to_bytes_be());
+        address.extend_from_slice(self.spendability_address.as_slice());
+        address.extend_from_slice(self.spendability_data.as_slice());
+        address
     }
 
     pub fn receiver(&self) -> Receiver {

@@ -1,7 +1,8 @@
 use alloy_primitives::Address;
 use ark_bn254::Fr;
-use ark_ff::{BigInteger, PrimeField};
 use serde::{Deserialize, Serialize};
+
+use crate::indexer::{address_to_fr, fr_to_address};
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AssetId(pub Address);
@@ -20,17 +21,13 @@ impl From<AssetId> for Address {
 
 impl From<AssetId> for Fr {
     fn from(asset: AssetId) -> Self {
-        let buf = asset.0.into_word().0;
-        Fr::from_be_bytes_mod_order(&buf)
+        address_to_fr(asset.0)
     }
 }
 
 impl From<Fr> for AssetId {
     fn from(fr: Fr) -> Self {
-        let bytes = fr.into_bigint().to_bytes_be();
-        let mut buf = [0u8; 32];
-        buf[32 - bytes.len()..].copy_from_slice(&bytes);
-        AssetId(Address::from_word(buf.into()))
+        AssetId(fr_to_address(fr))
     }
 }
 

@@ -51,10 +51,7 @@ library ProofLib {
 
         for (uint256 i = 0; i < N_INPUTS; i++) {
             pub[6 + 2 * i] = uint256(op.nullifiers[i]);
-            pub[6 + 2 * i + 1] = toSpendabilityHash(
-                op.spendabilityAddresses[i],
-                op.spendabilityData[i]
-            );
+            pub[6 + 2 * i + 1] = uint256(uint160(op.spendabilityAddresses[i]));
         }
 
         for (uint256 i = 0; i < N_OUTPUTS; i++) {
@@ -79,17 +76,5 @@ library ProofLib {
             packed = abi.encodePacked(packed, op.unshieldRecipients[i]);
         }
         return uint256(keccak256(packed)) % BN254_FR_MODULUS;
-    }
-
-    function toSpendabilityHash(
-        address spendabilityAddress,
-        bytes32 spendabilityData
-    ) internal pure returns (uint256) {
-        return
-            uint256(
-                keccak256(
-                    abi.encodePacked(spendabilityAddress, spendabilityData)
-                )
-            ) % BN254_FR_MODULUS;
     }
 }

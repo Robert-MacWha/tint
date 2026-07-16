@@ -10,7 +10,8 @@ use ark_r1cs_std::{
 use ark_relations::gr1cs::{Namespace, SynthesisError};
 
 use crate::{
-    circuit::{FrVar, poseidon2::poseidon2_compress_gadget, try_array_from_fn, variable},
+    array::try_from_fn,
+    circuit::{FrVar, poseidon2::poseidon2_compress_gadget, variable},
     indexer::merkle_tree::InclusionProof,
 };
 
@@ -46,7 +47,7 @@ impl<const D: usize, const K: usize> InclusionProofVar<D, K> {
         for (digit, sibling_hashes) in self.path.iter().rev().zip(self.siblings.iter().rev()) {
             let selector = Self::one_hot_selector(digit)?;
             let input: [FrVar; K] =
-                try_array_from_fn(|i| selector[i].select(&current_hash, &sibling_hashes[i]))?;
+                try_from_fn(|i| selector[i].select(&current_hash, &sibling_hashes[i]))?;
             current_hash = poseidon2_compress_gadget(&input)?;
         }
 
@@ -63,7 +64,7 @@ impl<const D: usize, const K: usize> InclusionProofVar<D, K> {
             bit.enforce_equal(&Boolean::FALSE)?;
         }
 
-        try_array_from_fn(|k| digit.is_eq(&UInt8::constant(k as u8)))
+        try_from_fn(|k| digit.is_eq(&UInt8::constant(k as u8)))
     }
 }
 
@@ -80,10 +81,9 @@ impl<const D: usize, const K: usize> AllocVar<InclusionProof<D, K>, Fr>
         let value = value.borrow();
 
         let leaf = variable(cs.clone(), &value.leaf, mode)?;
-        let path = try_array_from_fn(|i| variable(cs.clone(), &value.path[i], mode))?;
-        let siblings = try_array_from_fn(|i| {
-            try_array_from_fn(|j| variable(cs.clone(), &value.siblings[i][j], mode))
-        })?;
+        let path = try_from_fn(|i| variable(cs.clone(), &value.path[i], mode))?;
+        let siblings =
+            try_from_fn(|i| try_from_fn(|j| variable(cs.clone(), &value.siblings[i][j], mode)))?;
 
         Ok(Self {
             leaf,

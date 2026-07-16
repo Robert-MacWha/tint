@@ -12,12 +12,12 @@ use ark_r1cs_std::{
 use ark_relations::gr1cs::{Namespace, SynthesisError};
 
 use crate::{
+    array::try_from_fn,
     circuit::{
         FrVar,
-        merkle_tree::InclusionProofVar,
-        merkle_tree::root_proof,
+        merkle_tree::{InclusionProofVar, root_proof},
         poseidon2::{poseidon2_compress_gadget, poseidon2_hash_gadget},
-        try_array_from_fn, variable,
+        variable,
     },
     indexer::merkle_tree::SubtreeAppendProof,
 };
@@ -166,7 +166,7 @@ impl<
         filled_bits[..low_bits].clone_from_slice(&bits[..low_bits]);
         let filled = UInt8::from_bits_le(&filled_bits);
 
-        let path = try_array_from_fn(|i| {
+        let path = try_from_fn(|i| {
             let m = SUBTREE_PATH_LEN - 1 - i;
             let digit_bits =
                 &bits[low_bits + m * bits_per_digit..low_bits + (m + 1) * bits_per_digit];
@@ -184,7 +184,7 @@ impl<
     fn merge_current(&self, filled: &UInt8<Fr>) -> Result<[FrVar; SUBTREE_SIZE], SynthesisError> {
         let fill_eq = Self::fill_indicators(filled)?;
 
-        try_array_from_fn(|pos| {
+        try_from_fn(|pos| {
             let is_existing = UInt8::constant(pos as u8).is_lt(filled)?;
             let new_leaf = self.shifted_new_leaf(&fill_eq, pos)?;
             is_existing.select(&self.existing_leaves[pos], &new_leaf)
@@ -196,7 +196,7 @@ impl<
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn merge_next(&self, filled: &UInt8<Fr>) -> Result<[FrVar; SUBTREE_SIZE], SynthesisError> {
         let fill_eq = Self::fill_indicators(filled)?;
-        try_array_from_fn(|pos| self.shifted_new_leaf(&fill_eq, SUBTREE_SIZE + pos))
+        try_from_fn(|pos| self.shifted_new_leaf(&fill_eq, SUBTREE_SIZE + pos))
     }
 
     /// `new_leaves[target - d]` masked in for whichever `d` matches `filled`
@@ -220,7 +220,7 @@ impl<
     /// `fill_eq[d]` is true if `filled == d`.
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn fill_indicators(filled: &UInt8<Fr>) -> Result<[Boolean<Fr>; SUBTREE_SIZE], SynthesisError> {
-        try_array_from_fn(|d| filled.is_eq(&UInt8::constant(d as u8)))
+        try_from_fn(|d| filled.is_eq(&UInt8::constant(d as u8)))
     }
 
     /// Computes the root of an empty tree.
@@ -260,13 +260,13 @@ impl<
         let value = value.borrow();
 
         let existing_leaves =
-            try_array_from_fn(|i| variable(cs.clone(), &value.existing_leaves[i], mode))?;
-        let new_leaves = try_array_from_fn(|i| variable(cs.clone(), &value.new_leaves[i], mode))?;
-        let current_siblings = try_array_from_fn(|i| {
-            try_array_from_fn(|j| variable(cs.clone(), &value.current_siblings[i][j], mode))
+            try_from_fn(|i| variable(cs.clone(), &value.existing_leaves[i], mode))?;
+        let new_leaves = try_from_fn(|i| variable(cs.clone(), &value.new_leaves[i], mode))?;
+        let current_siblings = try_from_fn(|i| {
+            try_from_fn(|j| variable(cs.clone(), &value.current_siblings[i][j], mode))
         })?;
-        let next_siblings = try_array_from_fn(|i| {
-            try_array_from_fn(|j| variable(cs.clone(), &value.next_siblings[i][j], mode))
+        let next_siblings = try_from_fn(|i| {
+            try_from_fn(|j| variable(cs.clone(), &value.next_siblings[i][j], mode))
         })?;
 
         Ok(Self {

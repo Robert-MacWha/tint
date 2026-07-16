@@ -88,14 +88,3 @@ where
     out.enforce_equal(value)?;
     Ok(())
 }
-
-/// Creates an array of size N by trying to call the provided fn for each index.
-fn try_array_from_fn<T, E, const N: usize>(
-    mut f: impl FnMut(usize) -> Result<T, E>,
-) -> Result<[T; N], E> {
-    Ok((0..N)
-        .map(&mut f)
-        .collect::<Result<Vec<_>, _>>()?
-        .try_into()
-        .unwrap_or_else(|_| unreachable!()))
-}

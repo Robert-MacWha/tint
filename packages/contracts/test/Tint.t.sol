@@ -69,7 +69,8 @@ contract TintTests is Test {
         op.newRoot = bytes32(uint256(1));
         op.endAggregationIndex = 0;
         op.nullifiers = nullifiers;
-        for (uint256 i; i < N_OUTPUTS; ++i) op.spendabilityData[i] = "";
+        for (uint256 i; i < N_INPUTS; ++i)
+            op.spendabilityAddresses[i] = address(0);
         return op;
     }
 
@@ -136,7 +137,8 @@ contract TintTests is Test {
         op.newRoot = bytes32(uint256(2));
         op.endAggregationIndex = 1;
         op.nullifiers = nullifiers;
-        for (uint256 i; i < N_OUTPUTS; ++i) op.spendabilityData[i] = "";
+        for (uint256 i; i < N_INPUTS; ++i)
+            op.spendabilityAddresses[i] = address(0);
         vm.expectRevert(
             abi.encodeWithSelector(
                 Tint.NullifierAlreadySpent.selector,
@@ -239,7 +241,8 @@ contract TintTests is Test {
         op.newRoot = bytes32(uint256(2));
         op.endAggregationIndex = 1;
         op.nullifiers = nullifiers;
-        for (uint256 i; i < N_OUTPUTS; ++i) op.spendabilityData[i] = "";
+        for (uint256 i; i < N_INPUTS; ++i)
+            op.spendabilityAddresses[i] = address(0);
         vm.expectRevert(
             abi.encodeWithSelector(
                 Tint.NullifierAlreadySpent.selector,

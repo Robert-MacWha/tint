@@ -4,17 +4,16 @@ use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_sol_types::SolCall;
 use ark_bn254::{Bn254, Fr};
 use ark_ff::PrimeField;
-use ark_groth16::{Groth16, Proof, ProvingKey, VerifyingKey};
+use ark_groth16::{Groth16, ProvingKey, VerifyingKey};
 use ark_snark::SNARK;
 use ark_std::rand::Rng;
 use rand_core::{CryptoRng, RngCore};
 
 use crate::{
-    abis::tint::{IPrivacyPool, ProofLib, Tint},
+    abis::tint::{IPrivacyPool, Tint},
     account::{Account, receiver::Receiver},
-    circuit::join_split::{
-        JoinSplit, JoinSplitResult, K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, TREE_DEPTH,
-    },
+    array::try_from_fn,
+    circuit::join_split::{JoinSplit, K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, TREE_DEPTH},
     database::DatabaseError,
     indexer::{Indexer, fr_to_b256, merkle_tree::InclusionProof},
     note::{
@@ -110,30 +109,57 @@ impl Provider {
         withdrawals: [(Address, AssetId, u128); W],
         rng: &mut R,
     ) -> Result<Tint::operateCall, ProviderError> {
-        let (circuit, unshield_recipients) =
-            self.build_circuit(&inputs, &outputs, &withdrawals, rng)?;
+        let (operation, _public_inputs) = self.operation(inputs, outputs, withdrawals, rng)?;
 
-        let mut spendability_addresses = repeat(Address::ZERO);
-        let mut spendability_data = repeat(B256::ZERO);
-        let mut encrypted_notes = repeat(Bytes::new());
-        for (i, (receiver, _, _)) in outputs.iter().enumerate() {
+        Ok(Tint::operateCall::new((operation,)))
+    }
+
+    /// Computes the public-input vector and on-chain `Operation` for
+    /// this operation without generating a Groth16 proof.
+    pub fn public_inputs<const I: usize, const O: usize, const W: usize, R: RngCore + CryptoRng>(
+        &mut self,
+        inputs: [SpendableCommitment; I],
+        outputs: [(Receiver, AssetId, u128); O],
+        withdrawals: [(Address, AssetId, u128); W],
+        rng: &mut R,
+    ) -> Result<(Tint::computePublicSignalsCall, Vec<Fr>), ProviderError> {
+        let (operation, public_inputs) = self.operation(inputs, outputs, withdrawals, rng)?;
+
+        Ok((
+            Tint::computePublicSignalsCall::new((operation,)),
+            public_inputs,
+        ))
+    }
+
+    /// Computes the public-input vector and on-chain `Operation` for
+    /// this operation.
+    fn operation<const I: usize, const O: usize, const W: usize, R: RngCore + CryptoRng>(
+        &mut self,
+        inputs: [SpendableCommitment; I],
+        outputs: [(Receiver, AssetId, u128); O],
+        withdrawals: [(Address, AssetId, u128); W],
+        rng: &mut R,
+    ) -> Result<(IPrivacyPool::Operation, Vec<Fr>), ProviderError> {
+        let circuit = self.build_circuit(&inputs, &outputs, &withdrawals, rng)?;
+
+        let unshield_recipients = std::array::from_fn(|i| {
+            let Some((addr, _, _)) = withdrawals.get(i) else {
+                return Address::ZERO;
+            };
+
+            *addr
+        });
+        let encrypted_notes = try_from_fn(|i| {
             let output = &circuit.operation.output_commitments[i];
-            spendability_addresses[i] = receiver.spendability_address;
-            spendability_data[i] = receiver.spendability_data;
-
-            // TODO: Consider how we want to handle publishing encryptions
-            // the sender can decrypt. Right now we're only encrypting for
-            // the receiver.
-            //
-            // Issue is that currently we make no assumptions about the owners
-            // for each input note. Since there's no general way to say a particular
-            // output note was "from" a particular input note, I'm not sure how
-            // to handle this generically.
-            encrypted_notes[i] = Bytes::from(
+            let Some((receiver, _, _)) = outputs.get(i) else {
+                //? surprise turbofish
+                return Ok::<Bytes, ProviderError>(Bytes::new());
+            };
+            Ok(Bytes::from(
                 NotePayload::from_commitment(output)
                     .encrypt(&[receiver.encryption_pub_key], rng)?,
-            );
-        }
+            ))
+        })?;
 
         let old_root = circuit.old_root;
         let start_aggregation_index = circuit.start_aggregation_index;
@@ -148,55 +174,21 @@ impl Provider {
             return Err(ProviderError::InvalidProof);
         }
 
-        let operation = self.construct_solidity_operation(
-            old_root,
-            start_aggregation_index,
-            end_aggregation_index,
-            unshield_recipients,
-            spendability_addresses,
-            spendability_data,
-            encrypted_notes,
-            outputs,
-            proof.into(),
-        );
-
-        Ok(Tint::operateCall::new((operation,)))
-    }
-
-    /// Computes the public-input vector and on-chain `Operation` for
-    /// this operation without generating a Groth16 proof.
-    pub fn public_inputs<const I: usize, const O: usize, const W: usize, R: RngCore + CryptoRng>(
-        &mut self,
-        inputs: [SpendableCommitment; I],
-        outputs: [(Receiver, AssetId, u128); O],
-        withdrawals: [(Address, AssetId, u128); W],
-        rng: &mut R,
-    ) -> Result<(Tint::computePublicSignalsCall, Vec<Fr>), ProviderError> {
-        // let leaves_aggregation_index = self.indexer.aggregation_index();
-        let (circuit, unshield_recipients) =
-            self.build_circuit(&inputs, &outputs, &withdrawals, rng)?;
-
-        let old_root = circuit.old_root;
-        let start_aggregation_index = circuit.start_aggregation_index;
-        let end_aggregation_index = self.indexer.posted_aggregation_index();
-
-        let public_inputs = circuit.synthesize_public_inputs()?;
-        let outputs = circuit.synthesize_outputs()?;
-
-        let operation = self.construct_solidity_operation(
-            old_root,
-            start_aggregation_index,
-            end_aggregation_index,
-            unshield_recipients,
-            repeat(Address::ZERO),
-            repeat(B256::ZERO),
-            repeat(Bytes::new()),
-            outputs,
-            Proof::default().into(),
-        );
-
         Ok((
-            Tint::computePublicSignalsCall::new((operation,)),
+            IPrivacyPool::Operation {
+                oldRoot: fr_to_b256(old_root),
+                startAggregationIndex: start_aggregation_index,
+                endAggregationIndex: end_aggregation_index,
+                newRoot: fr_to_b256(outputs.new_root),
+                nullifiers: outputs.nullifiers.map(fr_to_b256),
+                commitmentsOut: outputs.output_commitment_hashes.map(fr_to_b256),
+                unshieldAmounts: outputs.withdrawal_amounts,
+                unshieldAssets: outputs.withdrawal_assets.map(|a| a.0),
+                unshieldRecipients: unshield_recipients,
+                spendabilityAddresses: outputs.spendability_addresses,
+                encryptedNotes: encrypted_notes,
+                proof: proof.into(),
+            },
             public_inputs,
         ))
     }
@@ -209,14 +201,14 @@ impl Provider {
         outputs: &[(Receiver, AssetId, u128); O],
         withdrawals: &[(Address, AssetId, u128); W],
         rng: &mut R,
-    ) -> Result<(JoinSplit, [Address; N_WITHDRAWALS]), ProviderError> {
+    ) -> Result<JoinSplit, ProviderError> {
         let old_root = self.indexer.root();
         let start_aggregation_index = self.indexer.posted_aggregation_index();
         let start_aggregation_hash = self.indexer.posted_aggregation_hash();
 
         let subtree_append = self.indexer.commit()?;
-        let commitment_inclusion_proofs = self.construct_commitment_inclusion_proofs(inputs)?;
-        let operation = self.construct_operation(inputs, outputs, withdrawals, rng)?;
+        let commitment_inclusion_proofs = self.commitment_inclusion_proofs(inputs)?;
+        let operation = self.build_operation(inputs, outputs, withdrawals, rng)?;
 
         let mut unshield_recipients = repeat(Address::ZERO);
         for (i, (receiver, _, _)) in withdrawals.iter().enumerate() {
@@ -236,15 +228,28 @@ impl Provider {
             operation,
         );
 
-        Ok((circuit, unshield_recipients))
+        Ok(circuit)
     }
 
-    fn construct_operation<
-        const I: usize,
-        const O: usize,
-        const W: usize,
-        R: RngCore + CryptoRng,
-    >(
+    /// Returns the inclusion proofs for each of the given `inputs` in the current tree.
+    fn commitment_inclusion_proofs<const I: usize>(
+        &self,
+        inputs: &[SpendableCommitment; I],
+    ) -> Result<[InclusionProof<{ TREE_DEPTH }, { K }>; N_INPUTS], ProviderError> {
+        let mut commitment_inclusion_proofs = repeat(InclusionProof::default());
+        for (i, input) in inputs.iter().enumerate() {
+            let proof = self
+                .indexer
+                .prove(input.hash())
+                .ok_or(ProviderError::InputNotFound)?;
+            commitment_inclusion_proofs[i] = proof;
+        }
+
+        Ok(commitment_inclusion_proofs)
+    }
+
+    /// Builds an `Operation` from the given inputs, outputs, and withdrawals.
+    fn build_operation<const I: usize, const O: usize, const W: usize, R: RngCore + CryptoRng>(
         &self,
         inputs: &[SpendableCommitment; I],
         outputs: &[(Receiver, AssetId, u128); O],
@@ -279,51 +284,6 @@ impl Provider {
             output_commitments,
             output_withdrawals,
         ))
-    }
-
-    fn construct_commitment_inclusion_proofs<const I: usize>(
-        &self,
-        inputs: &[SpendableCommitment; I],
-    ) -> Result<[InclusionProof<{ TREE_DEPTH }, { K }>; N_INPUTS], ProviderError> {
-        let mut commitment_inclusion_proofs = repeat(InclusionProof::default());
-        for (i, input) in inputs.iter().enumerate() {
-            let proof = self
-                .indexer
-                .prove(input.hash())
-                .ok_or(ProviderError::InputNotFound)?;
-            commitment_inclusion_proofs[i] = proof;
-        }
-
-        Ok(commitment_inclusion_proofs)
-    }
-
-    fn construct_solidity_operation(
-        &self,
-        old_root: Fr,
-        start_aggregation_index: u128,
-        end_aggregation_index: u128,
-        unshield_recipients: [Address; N_WITHDRAWALS],
-        spendability_addresses: [Address; N_OUTPUTS],
-        spendability_data: [B256; N_OUTPUTS],
-        encrypted_notes: [Bytes; N_OUTPUTS],
-        outputs: JoinSplitResult,
-        proof: ProofLib::Proof,
-    ) -> IPrivacyPool::Operation {
-        IPrivacyPool::Operation {
-            oldRoot: fr_to_b256(old_root),
-            startAggregationIndex: start_aggregation_index,
-            endAggregationIndex: end_aggregation_index,
-            newRoot: fr_to_b256(outputs.new_root),
-            nullifiers: outputs.nullifiers.map(fr_to_b256),
-            commitmentsOut: outputs.output_commitment_hashes.map(fr_to_b256),
-            unshieldAmounts: outputs.withdrawal_amounts,
-            unshieldAssets: outputs.withdrawal_assets.map(|a| a.0),
-            unshieldRecipients: unshield_recipients,
-            spendabilityAddresses: spendability_addresses,
-            spendabilityData: spendability_data,
-            encryptedNotes: encrypted_notes,
-            proof,
-        }
     }
 }
 

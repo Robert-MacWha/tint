@@ -5,10 +5,11 @@ use ark_r1cs_std::{alloc::AllocVar, eq::EqGadget, fields::FieldVar};
 use ark_relations::gr1cs::{Namespace, SynthesisError};
 
 use crate::{
+    array::try_from_fn,
     circuit::{
         FrVar,
         commitment::{BaseCommitmentVar, SpendableCommitmentVar},
-        try_array_from_fn, variable,
+        variable,
     },
     note::withdrawal::Withdrawal,
     operation::Operation,
@@ -32,7 +33,7 @@ pub struct OperationResult<
     const N_WITHDRAWALS: usize,
 > {
     pub nullifiers: [FrVar; N_INPUTS],
-    pub spendability_hashes: [FrVar; N_INPUTS],
+    pub spendability_addresses: [FrVar; N_INPUTS],
     pub output_commitment_hashes: [FrVar; N_OUTPUTS],
     pub withdrawals: [WithdrawalVar; N_WITHDRAWALS],
 }
@@ -50,12 +51,13 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
         input_commitment_hashes: &[FrVar; N_INPUTS],
     ) -> Result<OperationResult<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>, SynthesisError> {
         self.verify_input_commitments(input_commitment_hashes)?;
+        self.verify_spendability_hashes()?;
         self.enforce_u128()?;
         self.verify_balance()?;
 
         Ok(OperationResult {
             nullifiers: self.nullifiers(input_commitment_hashes)?,
-            spendability_hashes: self.spendability_hashes(),
+            spendability_addresses: self.spendability_addresses(),
             output_commitment_hashes: self.output_commitment_hashes()?,
             withdrawals: self.withdrawals.clone(),
         })
@@ -79,29 +81,40 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
         Ok(())
     }
 
+    /// Verifies that the inputs match the provided spendability hashes.
+    ///
+    /// Skipped for unused (zero-amount) input slots.
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    fn verify_spendability_hashes(&self) -> Result<(), SynthesisError> {
+        for i in 0..N_INPUTS {
+            self.inputs[i].verify_spendability()?;
+        }
+        Ok(())
+    }
+
     /// Computes the nullifier for each input, or `0` for unused (zero-amount) slots.
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn nullifiers(
         &self,
         input_base_hashes: &[FrVar; N_INPUTS],
     ) -> Result<[FrVar; N_INPUTS], SynthesisError> {
-        try_array_from_fn(|i| {
+        try_from_fn(|i| {
             let nullifier = self.inputs[i].nullifier(&input_base_hashes[i])?;
             let used = !self.inputs[i].base.amount.is_zero()?;
             used.select(&nullifier, &FrVar::zero())
         })
     }
 
-    /// Computes the spendability hash for each input, or `0` for unused (zero-amount) slots.
+    /// Returns the spendability address for each input
     #[tracing::instrument(target = "r1cs", skip_all)]
-    fn spendability_hashes(&self) -> [FrVar; N_INPUTS] {
-        std::array::from_fn(|i| self.inputs[i].base.spendability_hash.clone())
+    fn spendability_addresses(&self) -> [FrVar; N_INPUTS] {
+        std::array::from_fn(|i| self.inputs[i].spendability_address.clone())
     }
 
     /// Computes the commitment hash for each output, or `0` for unused (zero-amount) slots.
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn output_commitment_hashes(&self) -> Result<[FrVar; N_OUTPUTS], SynthesisError> {
-        try_array_from_fn(|i| {
+        try_from_fn(|i| {
             let hash = self.output_commitments[i].hash()?;
             let used = !self.output_commitments[i].amount.is_zero()?;
             used.select(&hash, &FrVar::zero())
@@ -189,11 +202,11 @@ impl<const I: usize, const O: usize, const W: usize> AllocVar<Operation<I, O, W>
         let value = f()?;
         let value = value.borrow();
 
-        let inputs = try_array_from_fn(|i| variable(cs.clone(), &value.inputs[i], mode))?;
+        let inputs = try_from_fn(|i| variable(cs.clone(), &value.inputs[i], mode))?;
         let output_commitments =
-            try_array_from_fn(|i| variable(cs.clone(), &value.output_commitments[i], mode))?;
+            try_from_fn(|i| variable(cs.clone(), &value.output_commitments[i], mode))?;
         let output_withdrawals =
-            try_array_from_fn(|i| variable(cs.clone(), &value.output_withdrawals[i], mode))?;
+            try_from_fn(|i| variable(cs.clone(), &value.output_withdrawals[i], mode))?;
 
         Ok(Self {
             inputs,

@@ -49,6 +49,8 @@ impl IndexedAccount {
             .map(|c: BaseCommitment| {
                 c.as_spendable(
                     account.keys().nullifier_key.clone(),
+                    account.spendability_address,
+                    account.spendability_witness,
                     account.keys().encryption_pub_key(),
                 )
             })
@@ -103,6 +105,8 @@ impl IndexedAccount {
 
         let commitment = note.into_spendable_commitment(
             self.account.keys().nullifier_key.clone(),
+            self.account.spendability_address,
+            self.account.spendability_witness,
             self.account.keys().encryption_pub_key(),
         );
 

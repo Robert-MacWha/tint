@@ -11,13 +11,12 @@ interface IPrivacyPool {
         bytes32 newRoot;
         uint128 endAggregationIndex;
         bytes32[N_INPUTS] nullifiers;
+        address[N_INPUTS] spendabilityAddresses;
         bytes32[N_OUTPUTS] commitmentsOut;
         uint128[N_WITHDRAWALS] unshieldAmounts;
         address[N_WITHDRAWALS] unshieldAssets;
         // bound params
         address[N_WITHDRAWALS] unshieldRecipients;
-        address[N_OUTPUTS] spendabilityAddresses;
-        bytes32[N_OUTPUTS] spendabilityData;
         bytes[N_OUTPUTS] encryptedNotes;
         ProofLib.Proof proof;
     }

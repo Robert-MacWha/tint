@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 
+use alloy_primitives::Address;
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 use ark_r1cs_std::{
@@ -14,13 +15,17 @@ use ark_relations::gr1cs::{
 };
 
 use crate::{
+    array::try_from_fn,
     circuit::{
         FrVar, input,
         merkle_tree::{InclusionProofVar, SubtreeAppendProofVar},
         operation::OperationVar,
-        output, try_array_from_fn, variable, witness,
+        output, variable, witness,
     },
-    indexer::merkle_tree::{InclusionProof, SubtreeAppendProof},
+    indexer::{
+        fr_to_address,
+        merkle_tree::{InclusionProof, SubtreeAppendProof},
+    },
     note::asset::AssetId,
     operation::Operation,
 };
@@ -60,7 +65,7 @@ pub struct JoinSplitResult {
     pub new_root: Fr,
     pub end_aggregation_hash: Fr,
     pub nullifiers: [Fr; N_INPUTS],
-    pub spendability_hashes: [Fr; N_INPUTS],
+    pub spendability_addresses: [Address; N_INPUTS],
     pub output_commitment_hashes: [Fr; N_OUTPUTS],
     pub withdrawal_amounts: [u128; N_WITHDRAWALS],
     pub withdrawal_assets: [AssetId; N_WITHDRAWALS],
@@ -70,7 +75,7 @@ pub struct JoinSplitResultVar {
     pub new_root: FrVar,
     pub end_aggregation_hash: FrVar,
     pub nullifiers: [FrVar; N_INPUTS],
-    pub spendability_hashes: [FrVar; N_INPUTS],
+    pub spendability_addresses: [FrVar; N_INPUTS],
     pub output_commitment_hashes: [FrVar; N_OUTPUTS],
     pub withdrawal_amounts: [FrVar; N_WITHDRAWALS],
     pub withdrawal_assets: [FrVar; N_WITHDRAWALS],
@@ -146,7 +151,7 @@ impl JoinSplit {
         output(cs.clone(), &result.end_aggregation_hash)?;
         for i in 0..N_INPUTS {
             output(cs.clone(), &result.nullifiers[i])?;
-            output(cs.clone(), &result.spendability_hashes[i])?;
+            output(cs.clone(), &result.spendability_addresses[i])?;
         }
         for i in 0..N_OUTPUTS {
             output(cs.clone(), &result.output_commitment_hashes[i])?;
@@ -204,7 +209,7 @@ impl JoinSplitVar {
             new_root,
             end_aggregation_hash: subtree_append_result.end_aggregation_hash,
             nullifiers: operation_result.nullifiers,
-            spendability_hashes: operation_result.spendability_hashes,
+            spendability_addresses: operation_result.spendability_addresses,
             output_commitment_hashes: operation_result.output_commitment_hashes,
             withdrawal_amounts: std::array::from_fn(|i| {
                 operation_result.withdrawals[i].amount.clone()
@@ -227,9 +232,8 @@ impl AllocVar<JoinSplit, Fr> for JoinSplitVar {
         let value = value.borrow();
 
         let subtree_append = variable(cs.clone(), &value.subtree_append, mode)?;
-        let commitment_inclusion_proofs = try_array_from_fn(|i| {
-            variable(cs.clone(), &value.commitment_inclusion_proofs[i], mode)
-        })?;
+        let commitment_inclusion_proofs =
+            try_from_fn(|i| variable(cs.clone(), &value.commitment_inclusion_proofs[i], mode))?;
         let operation = variable(cs.clone(), &value.operation, mode)?;
 
         Ok(Self {
@@ -246,15 +250,17 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
     fn try_from(value: JoinSplitResultVar) -> Result<Self, Self::Error> {
         let new_root = value.new_root.value()?;
         let end_aggregation_hash = value.end_aggregation_hash.value()?;
-        let nullifiers = try_array_from_fn(|i| value.nullifiers[i].value())?;
-        let spendability_hashes = try_array_from_fn(|i| value.spendability_hashes[i].value())?;
-        let output_commitment_hashes =
-            try_array_from_fn(|i| value.output_commitment_hashes[i].value())?;
+        let nullifiers = try_from_fn(|i| value.nullifiers[i].value())?;
+        let spendability_addresses: [Fr; N_INPUTS] =
+            try_from_fn(|i| value.spendability_addresses[i].value())?;
+        let output_commitment_hashes = try_from_fn(|i| value.output_commitment_hashes[i].value())?;
         let withdrawal_amounts: [Fr; N_WITHDRAWALS] =
-            try_array_from_fn(|i| value.withdrawal_amounts[i].value())?;
+            try_from_fn(|i| value.withdrawal_amounts[i].value())?;
         let withdrawal_assets: [Fr; N_WITHDRAWALS] =
-            try_array_from_fn(|i| value.withdrawal_assets[i].value())?;
+            try_from_fn(|i| value.withdrawal_assets[i].value())?;
 
+        let spendability_addresses =
+            std::array::from_fn(|i| fr_to_address(spendability_addresses[i]));
         let withdrawal_amounts = std::array::from_fn(|i| fr_to_u128(&withdrawal_amounts[i]));
         let withdrawal_assets = std::array::from_fn(|i| withdrawal_assets[i].into());
 
@@ -262,7 +268,7 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
             new_root,
             end_aggregation_hash,
             nullifiers,
-            spendability_hashes,
+            spendability_addresses,
             output_commitment_hashes,
             withdrawal_amounts,
             withdrawal_assets,

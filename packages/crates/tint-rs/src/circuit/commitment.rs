@@ -1,5 +1,5 @@
 use ark_bn254::Fr;
-use ark_r1cs_std::alloc::AllocVar;
+use ark_r1cs_std::{alloc::AllocVar, eq::EqGadget, fields::FieldVar};
 use ark_relations::gr1cs::SynthesisError;
 
 use crate::{
@@ -22,6 +22,8 @@ pub struct BaseCommitmentVar {
 pub struct SpendableCommitmentVar {
     pub base: BaseCommitmentVar,
     pub nullifier: FrVar,
+    pub spendability_address: FrVar,
+    pub spendability_witness: FrVar,
 }
 
 impl BaseCommitmentVar {
@@ -42,11 +44,33 @@ impl BaseCommitmentVar {
 }
 
 impl SpendableCommitmentVar {
+    /// Verifies that the spendability hash of this commitment is correct and bound to
+    /// the raw spendability address / witness.
+    ///
+    /// If the commitment is not used (i.e. the amount is zero), then the spendability hash must be zero.
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    pub fn verify_spendability(&self) -> Result<(), SynthesisError> {
+        let expected = &self.base.spendability_hash;
+        let used = !self.base.amount.is_zero()?;
+        let computed_hash = used.select(&self.spendability_hash()?, &FrVar::zero())?;
+        computed_hash.enforce_equal(expected)?;
+        Ok(())
+    }
+
     /// Computes the nullifier for this commitment, given its already-computed
     /// base commitment hash (to avoid recomputing it).
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn nullifier(&self, base_hash: &FrVar) -> Result<FrVar, SynthesisError> {
         poseidon2_compress_gadget(&[self.nullifier.clone(), base_hash.clone()])
+    }
+
+    /// Computes the spendability hash for this commitment
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    fn spendability_hash(&self) -> Result<FrVar, SynthesisError> {
+        poseidon2_compress_gadget(&[
+            self.spendability_address.clone(),
+            self.spendability_witness.clone(),
+        ])
     }
 }
 
@@ -86,10 +110,17 @@ impl AllocVar<SpendableCommitment, Fr> for SpendableCommitmentVar {
         let value = f()?;
         let value = value.borrow();
 
-        let base = BaseCommitmentVar::new_variable(cs.clone(), || Ok(&value.base), mode)?;
+        let base = variable(cs.clone(), &value.base, mode)?;
         let nullifier = variable(cs.clone(), &value.nullifier_key.0, mode)?;
+        let spendability_address = variable(cs.clone(), &value.spendability_address_fr(), mode)?;
+        let spendability_witness = variable(cs.clone(), &value.spendability_witness_fr(), mode)?;
 
-        Ok(Self { base, nullifier })
+        Ok(Self {
+            base,
+            nullifier,
+            spendability_address,
+            spendability_witness,
+        })
     }
 }
 

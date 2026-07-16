@@ -1,4 +1,6 @@
-use alloy_primitives::{Address, B256};
+use alloy_primitives::B256;
+use ark_bn254::Fr;
+use ark_ff::{BigInteger, PrimeField};
 
 use crate::{
     account::keys::{EncryptionPubKey, NullifierPubKey},
@@ -10,22 +12,19 @@ use crate::{
 pub struct Receiver {
     pub nullifier_pub_key: NullifierPubKey,
     pub encryption_pub_key: EncryptionPubKey,
-    pub spendability_address: Address,
-    pub spendability_data: B256,
+    pub spendability_hash: Fr,
 }
 
 impl Receiver {
     pub fn new(
         nullifier_pub_key: NullifierPubKey,
         encryption_pub_key: EncryptionPubKey,
-        spendability_address: Address,
-        spendability_data: B256,
+        spendability_hash: Fr,
     ) -> Self {
         Self {
             nullifier_pub_key,
             encryption_pub_key,
-            spendability_address,
-            spendability_data,
+            spendability_hash,
         }
     }
 
@@ -34,10 +33,17 @@ impl Receiver {
         BaseCommitment::new(
             asset,
             amount,
-            self.spendability_address,
-            self.spendability_data,
+            self.spendability_hash,
             self.nullifier_pub_key,
             random,
         )
+    }
+
+    pub fn address(&self) -> Vec<u8> {
+        let mut address = Vec::new();
+        address.extend_from_slice(self.encryption_pub_key.0.as_bytes());
+        address.extend_from_slice(&self.nullifier_pub_key.0.into_bigint().to_bytes_be());
+        address.extend_from_slice(&self.spendability_hash.into_bigint().to_bytes_be());
+        address
     }
 }

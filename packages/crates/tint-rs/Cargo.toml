@@ -37,7 +37,6 @@ serde = "1.0.228"
 taceo-poseidon2 = { path = "../../../../eddsa-babyjubjub/poseidon2", features = [
     "t2",
     "t3",
-    "t4",
     "t8",
 ] }
 serde_with = "3.21.0"

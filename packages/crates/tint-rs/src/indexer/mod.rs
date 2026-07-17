@@ -13,7 +13,7 @@ use crate::{
     account::{Account, receiver::Receiver},
     circuit::{
         join_split::{K, SUBTREE_PATH_LENGTH, SUBTREE_SIZE, TREE_DEPTH},
-        poseidon2::poseidon2_hash,
+        poseidon2::poseidon2_compress,
     },
     database::{Database, DatabaseError, TintDatabase},
     fr::b256_to_fr,
@@ -184,7 +184,7 @@ impl Indexer {
 
         let mut hash = self.state.posted_aggregation_hash;
         for commitment in &drained {
-            hash = poseidon2_hash(&[hash, *commitment]);
+            hash = poseidon2_compress(&[hash, *commitment]);
         }
         self.state.posted_aggregation_hash = hash;
 

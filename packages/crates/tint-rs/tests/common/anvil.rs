@@ -6,6 +6,7 @@ use tracing::info;
 
 use crate::common::anvil::{MockToken::MockTokenInstance, Tint::TintInstance};
 
+#[allow(dead_code)]
 pub struct Instance {
     // Anvil instance. Kills the anvil process when dropped.
     #[allow(dead_code)]
@@ -34,6 +35,7 @@ sol!(
 );
 
 /// Sets up an anvil instance for testing, deploying tint and a mock ERC20
+#[allow(dead_code)]
 pub async fn setup() -> anyhow::Result<Instance> {
     let anvil = Anvil::new().spawn();
     let rpc_url = anvil.endpoint();

@@ -7,6 +7,7 @@ import {Tint} from "../src/Tint.sol";
 import {Groth16Verifier} from "../src/Groth16Verifier.sol";
 import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
+import {ProofLib} from "../src/lib/ProofLib.sol";
 import {
     AGGREGATION_RING_SIZE,
     N_PUB,
@@ -58,6 +59,19 @@ contract TintHarness is Tint {
         totalStaged = AGGREGATION_RING_SIZE;
         totalConsumed = AGGREGATION_RING_SIZE;
     }
+
+    function toPublicSignals(
+        bytes32 startAggregationHash,
+        bytes32 endAggregationHash,
+        IPrivacyPool.Operation calldata op
+    ) external pure returns (uint256[N_PUB] memory) {
+        return
+            ProofLib.toPublicSignals(
+                startAggregationHash,
+                endAggregationHash,
+                op
+            );
+    }
 }
 
 contract TintGasReportTest is Test {
@@ -76,6 +90,34 @@ contract TintGasReportTest is Test {
         tint.warmStorage();
 
         tint.deposit(address(token), 1, bytes32(uint256(1)), "");
+    }
+
+    function test_toPublicInputs_gas() public {
+        bytes32 startAggregationHash = bytes32(uint256(1));
+        bytes32 endAggregationHash = bytes32(uint256(2));
+
+        IPrivacyPool.Operation memory op;
+        op.oldRoot = GENESIS_ROOT;
+        op.newRoot = bytes32(uint256(1));
+
+        // Public signals fed to the verifier must be valid BN254 field
+        // elements, or it rejects them before running the real pairing
+        // check.
+        for (uint256 i = 0; i < N_INPUTS; i++) {
+            op.nullifiers[i] = bytes32(
+                uint256(keccak256(abi.encode("nullifier", i))) %
+                    BN254_FR_MODULUS
+            );
+        }
+        op.commitmentsOut[0] = bytes32(
+            uint256(keccak256(abi.encode("commitment", uint256(0)))) %
+                BN254_FR_MODULUS
+        );
+        op.unshieldAmounts[0] = 1;
+        op.unshieldAssets[0] = address(token);
+        op.context.unshieldRecipients[0] = address(1);
+
+        tint.toPublicSignals(startAggregationHash, endAggregationHash, op);
     }
 
     function test_operate_gas() public {

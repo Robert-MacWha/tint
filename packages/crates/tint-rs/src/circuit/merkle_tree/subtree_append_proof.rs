@@ -16,7 +16,7 @@ use crate::{
     circuit::{
         FrVar,
         merkle_tree::{InclusionProofVar, root_proof},
-        poseidon2::{poseidon2_compress_gadget, poseidon2_hash_gadget},
+        poseidon2::poseidon2_compress_gadget,
         variable,
     },
     indexer::merkle_tree::SubtreeAppendProof,
@@ -79,7 +79,7 @@ impl<
         let mut aggregation_hash: FrVar = start_aggregation_hash.clone();
         for new_leaf in &self.new_leaves {
             let next_aggregation_hash: FrVar =
-                poseidon2_hash_gadget(&[aggregation_hash.clone(), new_leaf.clone()])?;
+                poseidon2_compress_gadget(&[aggregation_hash.clone(), new_leaf.clone()])?;
             aggregation_hash = new_leaf
                 .is_zero()?
                 .select(&aggregation_hash, &next_aggregation_hash)?;

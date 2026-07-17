@@ -8,7 +8,7 @@ use crate::{
         keys::{EncryptionKey, EncryptionPubKey, NullifierKey, NullifierPubKey},
         spendability_hash,
     },
-    circuit::poseidon2::{poseidon2_compress, poseidon2_hash},
+    circuit::poseidon2::poseidon2_compress,
     crypto::envelope::EncryptedEnvelope,
     fr::{address_to_fr, b256_to_fr},
     note::asset::AssetId,
@@ -22,7 +22,7 @@ pub trait Commitment {
     fn nullifier_pub_key(&self) -> NullifierPubKey;
 
     fn hash(&self) -> Fr {
-        poseidon2_hash(&[self.asset_fr(), self.amount_fr(), self.partial_hash()])
+        poseidon2_compress(&[self.asset_fr(), self.amount_fr(), self.partial_hash()])
     }
 
     fn partial_hash(&self) -> Fr {

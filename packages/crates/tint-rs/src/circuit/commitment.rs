@@ -3,11 +3,7 @@ use ark_r1cs_std::{alloc::AllocVar, eq::EqGadget, fields::FieldVar};
 use ark_relations::gr1cs::SynthesisError;
 
 use crate::{
-    circuit::{
-        FrVar,
-        poseidon2::{poseidon2_compress_gadget, poseidon2_hash_gadget},
-        variable,
-    },
+    circuit::{FrVar, poseidon2::poseidon2_compress_gadget, variable},
     note::commitment::{BaseCommitment, Commitment, SpendableCommitment},
 };
 
@@ -20,8 +16,12 @@ pub struct BaseCommitmentVar {
 }
 
 pub struct SpendableCommitmentVar {
-    pub base: BaseCommitmentVar,
-    pub nullifier: FrVar,
+    pub asset: FrVar,
+    pub amount: FrVar,
+    pub spendability_hash: FrVar,
+    pub random: FrVar,
+
+    pub nullifying_key: FrVar,
     pub spendability_address: FrVar,
     pub spendability_witness: FrVar,
 }
@@ -30,7 +30,7 @@ impl BaseCommitmentVar {
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn hash(&self) -> Result<FrVar, SynthesisError> {
         let partial_hash = self.partial_hash()?;
-        poseidon2_hash_gadget(&[self.asset.clone(), self.amount.clone(), partial_hash])
+        poseidon2_compress_gadget(&[self.asset.clone(), self.amount.clone(), partial_hash])
     }
 
     #[tracing::instrument(target = "r1cs", skip_all)]
@@ -50,8 +50,8 @@ impl SpendableCommitmentVar {
     /// If the commitment is not used (i.e. the amount is zero), then the spendability hash must be zero.
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn verify_spendability(&self) -> Result<(), SynthesisError> {
-        let expected = &self.base.spendability_hash;
-        let used = !self.base.amount.is_zero()?;
+        let expected = &self.spendability_hash;
+        let used = !self.amount.is_zero()?;
         let computed_hash = used.select(&self.spendability_hash()?, &FrVar::zero())?;
         computed_hash.enforce_equal(expected)?;
         Ok(())
@@ -61,7 +61,7 @@ impl SpendableCommitmentVar {
     /// base commitment hash (to avoid recomputing it).
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn nullifier(&self, base_hash: &FrVar) -> Result<FrVar, SynthesisError> {
-        poseidon2_compress_gadget(&[self.nullifier.clone(), base_hash.clone()])
+        poseidon2_compress_gadget(&[self.nullifying_key.clone(), base_hash.clone()])
     }
 
     /// Computes the spendability hash for this commitment
@@ -71,6 +71,26 @@ impl SpendableCommitmentVar {
             self.spendability_address.clone(),
             self.spendability_witness.clone(),
         ])
+    }
+
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    pub fn hash(&self) -> Result<FrVar, SynthesisError> {
+        let partial_hash = self.partial_hash()?;
+        poseidon2_compress_gadget(&[self.asset.clone(), self.amount.clone(), partial_hash])
+    }
+
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    fn partial_hash(&self) -> Result<FrVar, SynthesisError> {
+        poseidon2_compress_gadget(&[
+            self.spendability_hash.clone(),
+            self.nullifying_pub_key()?,
+            self.random.clone(),
+        ])
+    }
+
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    fn nullifying_pub_key(&self) -> Result<FrVar, SynthesisError> {
+        poseidon2_compress_gadget(&[self.nullifying_key.clone(), FrVar::zero()])
     }
 }
 
@@ -110,14 +130,20 @@ impl AllocVar<SpendableCommitment, Fr> for SpendableCommitmentVar {
         let value = f()?;
         let value = value.borrow();
 
-        let base = variable(cs.clone(), &value.base, mode)?;
-        let nullifier = variable(cs.clone(), &value.nullifier_key.0, mode)?;
+        let asset = variable(cs.clone(), &value.base.asset_fr(), mode)?;
+        let amount = variable(cs.clone(), &value.base.amount_fr(), mode)?;
+        let spendability_hash = variable(cs.clone(), &value.base.spendability_hash(), mode)?;
+        let random = variable(cs.clone(), &value.base.random_fr(), mode)?;
+        let nullifying_key = variable(cs.clone(), &value.nullifier_key.0, mode)?;
         let spendability_address = variable(cs.clone(), &value.spendability_address_fr(), mode)?;
         let spendability_witness = variable(cs.clone(), &value.spendability_witness_fr(), mode)?;
 
         Ok(Self {
-            base,
-            nullifier,
+            asset,
+            amount,
+            spendability_hash,
+            random,
+            nullifying_key,
             spendability_address,
             spendability_witness,
         })
@@ -170,7 +196,7 @@ mod tests {
         let commitment_var: SpendableCommitmentVar = witness(cs.clone(), &commitment).unwrap();
 
         let nullifier = commitment.nullifier();
-        let base_hash = commitment_var.base.hash().unwrap();
+        let base_hash = commitment_var.hash().unwrap();
         let nullifier_var = commitment_var.nullifier(&base_hash).unwrap();
 
         assert_eq!(nullifier, nullifier_var.value().unwrap());

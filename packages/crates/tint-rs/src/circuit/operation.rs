@@ -73,8 +73,8 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
         input_commitment_hashes: &[FrVar; N_INPUTS],
     ) -> Result<(), SynthesisError> {
         for i in 0..N_INPUTS {
-            let computed_hash: FrVar = self.inputs[i].base.hash()?;
-            let used = !self.inputs[i].base.amount.is_zero()?;
+            let computed_hash: FrVar = self.inputs[i].hash()?;
+            let used = !self.inputs[i].amount.is_zero()?;
             let expected = used.select(&input_commitment_hashes[i], &computed_hash)?;
             computed_hash.enforce_equal(&expected)?;
         }
@@ -100,7 +100,7 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     ) -> Result<[FrVar; N_INPUTS], SynthesisError> {
         try_from_fn(|i| {
             let nullifier = self.inputs[i].nullifier(&input_base_hashes[i])?;
-            let used = !self.inputs[i].base.amount.is_zero()?;
+            let used = !self.inputs[i].amount.is_zero()?;
             used.select(&nullifier, &FrVar::zero())
         })
     }
@@ -138,7 +138,7 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     /// Verifies that the sum of inputs equals the sum of outputs for each asset type.
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn verify_balance(&self) -> Result<(), SynthesisError> {
-        let inputs = self.inputs.iter().map(|i| &i.base.asset);
+        let inputs = self.inputs.iter().map(|i| &i.asset);
         let commitments = self.output_commitments.iter().map(|o| &o.asset);
         let withdrawals = self.withdrawals.iter().map(|o| &o.asset);
 
@@ -155,8 +155,8 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     fn input_sum_for_asset(&self, asset: &FrVar) -> Result<FrVar, SynthesisError> {
         let mut sum = FrVar::zero();
         for input in &self.inputs {
-            let is_equal = asset.is_eq(&input.base.asset)?;
-            let weighted = is_equal.select(&input.base.amount, &FrVar::zero())?;
+            let is_equal = asset.is_eq(&input.asset)?;
+            let weighted = is_equal.select(&input.amount, &FrVar::zero())?;
             sum += &weighted;
         }
         Ok(sum)
@@ -338,12 +338,12 @@ mod tests {
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
 
-        let sum = var.input_sum_for_asset(&var.inputs[0].base.asset).unwrap();
+        let sum = var.input_sum_for_asset(&var.inputs[0].asset).unwrap();
         let expected_sum = FpVar::new_witness(cs.clone(), || Ok(Fr::from(20))).unwrap();
         sum.enforce_equal(&expected_sum).unwrap();
         assert!(cs.is_satisfied().unwrap());
 
-        let sum = var.input_sum_for_asset(&var.inputs[2].base.asset).unwrap();
+        let sum = var.input_sum_for_asset(&var.inputs[2].asset).unwrap();
         let expected_sum = FpVar::new_witness(cs.clone(), || Ok(Fr::from(10))).unwrap();
         sum.enforce_equal(&expected_sum).unwrap();
         assert!(cs.is_satisfied().unwrap());
@@ -391,8 +391,7 @@ mod tests {
         op.inputs[0].base.amount = 10;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
-        let input_base_hashes: [FrVar; 3] =
-            std::array::from_fn(|i| var.inputs[i].base.hash().unwrap());
+        let input_base_hashes: [FrVar; 3] = std::array::from_fn(|i| var.inputs[i].hash().unwrap());
         let nullifiers = var.nullifiers(&input_base_hashes).unwrap();
 
         assert_eq!(nullifiers[0].value().unwrap(), op.inputs[0].nullifier());

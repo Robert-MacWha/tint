@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {LibPoseidon2Yul} from "poseidon2-evm/src/bn254/yul/LibPoseidon2Yul.sol";
+import {LibPoseidon2T2_BN254} from "./lib/LibPoseidon2T2_BN254.sol";
 import {AGGREGATION_RING_SIZE} from "./lib/Constants.sol";
 
 /// @notice Manages the circular Poseidon hash ring used to batch commitments for zk-proof aggregation.
@@ -33,7 +33,7 @@ contract AggregationRing {
             : bytes32(0);
 
         aggregationHashRing[totalStaged % AGGREGATION_RING_SIZE] = bytes32(
-            LibPoseidon2Yul.hash_2(uint256(prevHash), uint256(commitment))
+            LibPoseidon2T2_BN254.compress(uint256(prevHash), uint256(commitment), 0)
         );
 
         totalStaged++;

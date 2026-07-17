@@ -1,7 +1,7 @@
 use std::array::repeat;
 
 use alloy_primitives::{Address, B256, Bytes, keccak256};
-use alloy_sol_types::SolCall;
+use alloy_sol_types::{SolCall, SolValue};
 use ark_bn254::{Bn254, Fr};
 use ark_ff::PrimeField;
 use ark_groth16::{Groth16, ProvingKey, VerifyingKey};
@@ -139,24 +139,7 @@ impl Provider {
         withdrawals: [(Address, AssetId, u128); W],
         rng: &mut R,
     ) -> Result<(IPrivacyPool::Operation, Vec<Fr>), ProviderError> {
-        let circuit = self.build_circuit(&inputs, &outputs, &withdrawals, rng)?;
-
-        let spendability_inputs = spendability_inputs(&inputs);
-        let unshield_recipients = unshield_recipients(&withdrawals);
-        let encrypted = try_from_fn(|i| {
-            let output = &circuit.operation.output_commitments[i];
-            let Some((receiver, _, _)) = outputs.get(i) else {
-                return Ok::<Bytes, ProviderError>(Bytes::new());
-            };
-
-            // TODO: We'd ideally encrypt with both the sender and receiver's keys. The issue
-            // is a single operation may have multiple senders, so we don't have a single key to use.
-            // We could add a list of keys as args to this function, I'm not sure if there's a better
-            // solution.
-            Ok(Bytes::from(
-                output.encrypt(&[receiver.encryption_pub_key], rng)?,
-            ))
-        })?;
+        let (circuit, context) = self.build_circuit(&inputs, &outputs, &withdrawals, rng)?;
 
         let old_root = circuit.old_root;
         let start_aggregation_index = circuit.start_aggregation_index;
@@ -181,10 +164,8 @@ impl Provider {
                 commitmentsOut: outputs.output_commitment_hashes.map(fr_to_b256),
                 unshieldAmounts: outputs.withdrawal_amounts,
                 unshieldAssets: outputs.withdrawal_assets.map(|a| a.0),
-                unshieldRecipients: unshield_recipients,
                 spendabilityAddresses: outputs.spendability_addresses,
-                spendabilityInputs: spendability_inputs,
-                encryptedNotes: encrypted,
+                context,
                 proof: proof.into(),
             },
             public_inputs,
@@ -199,7 +180,7 @@ impl Provider {
         outputs: &[(Receiver, AssetId, u128); O],
         withdrawals: &[(Address, AssetId, u128); W],
         rng: &mut R,
-    ) -> Result<JoinSplit, ProviderError> {
+    ) -> Result<(JoinSplit, IPrivacyPool::Context), ProviderError> {
         let old_root = self.indexer.root();
         let start_aggregation_index = self.indexer.posted_aggregation_index();
         let start_aggregation_hash = self.indexer.posted_aggregation_hash();
@@ -210,7 +191,26 @@ impl Provider {
 
         let unshield_recipients = unshield_recipients(withdrawals);
         let spendability_inputs = spendability_inputs(inputs);
-        let bound_params_hash = bound_params_hash(&spendability_inputs, &unshield_recipients);
+        let ciphertexts = try_from_fn(|i| {
+            let output = &operation.output_commitments[i];
+            let Some((receiver, _, _)) = outputs.get(i) else {
+                return Ok::<Bytes, ProviderError>(Bytes::new());
+            };
+
+            // TODO: We'd ideally encrypt with both the sender and receiver's keys. The issue
+            // is a single operation may have multiple senders, so we don't have a single key to use.
+            // We could add a list of keys as args to this function, I'm not sure if there's a better
+            // solution.
+            Ok(Bytes::from(
+                output.encrypt(&[receiver.encryption_pub_key], rng)?,
+            ))
+        })?;
+        let context = IPrivacyPool::Context {
+            spendabilityInputs: spendability_inputs,
+            unshieldRecipients: unshield_recipients,
+            ciphertexts,
+        };
+        let bound_params_hash = bound_params_hash(&context);
 
         let circuit = JoinSplit::new(
             // Public inputs
@@ -224,7 +224,7 @@ impl Provider {
             operation,
         );
 
-        Ok(circuit)
+        Ok((circuit, context))
     }
 
     /// Returns the inclusion proofs for each of the given `inputs` in the current tree.
@@ -302,16 +302,6 @@ fn unshield_recipients<const W: usize>(
 }
 
 /// Mirrors `ProofLib.toBoundParamsHash`
-fn bound_params_hash(
-    spendability_inputs: &[Bytes; N_INPUTS],
-    unshield_recipients: &[Address; N_WITHDRAWALS],
-) -> Fr {
-    let mut packed = Vec::new();
-    for i in 0..N_INPUTS {
-        packed.extend_from_slice(&spendability_inputs[i]);
-    }
-    for i in 0..N_WITHDRAWALS {
-        packed.extend_from_slice(unshield_recipients[i].as_slice());
-    }
-    Fr::from_be_bytes_mod_order(keccak256(&packed).as_slice())
+fn bound_params_hash(context: &IPrivacyPool::Context) -> Fr {
+    Fr::from_be_bytes_mod_order(keccak256(context.abi_encode()).as_slice())
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {LibPoseidon2Yul} from "poseidon2-evm/src/bn254/yul/LibPoseidon2Yul.sol";
+import {LibPoseidon2T3_BN254} from "./LibPoseidon2T3_BN254.sol";
 import {IPrivacyPool} from "../interfaces/IPrivacyPool.sol";
 import {
     N_INPUTS,
@@ -70,7 +70,7 @@ library ProofLib {
     function toBoundParamsHash(
         IPrivacyPool.Operation calldata op
     ) internal pure returns (uint256) {
-        return uint256(keccak256(abi.encode(op.context)));
+        return uint256(keccak256(abi.encode(op.context))) % BN254_FR_MODULUS;
     }
 
     /// @notice Computes the commitment for a deposit.
@@ -81,10 +81,11 @@ library ProofLib {
     ) internal pure returns (bytes32) {
         return
             bytes32(
-                LibPoseidon2Yul.hash_3(
+                LibPoseidon2T3_BN254.compress(
                     uint256(uint160(asset)),
                     uint256(amount),
-                    uint256(partialCommitment)
+                    uint256(partialCommitment),
+                    0
                 )
             );
     }

@@ -1,3 +1,6 @@
 [submodule "packages/contracts/lib/openzeppelin-contracts"]
 	path = packages/contracts/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "packages/contracts/lib/poseidon2-solidity"]
+	path = packages/contracts/lib/poseidon2-solidity
+	url = https://github.com/TaceoLabs/poseidon2-solidity

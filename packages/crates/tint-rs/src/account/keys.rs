@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use x25519_dalek::{PublicKey, StaticSecret};
 
-use crate::circuit::poseidon2::poseidon2_hash;
+use crate::circuit::poseidon2::poseidon2_compress;
 
 /// The full set of keys derived from a single master seed.
 #[derive(Clone, Default, Debug)]
@@ -64,7 +64,7 @@ impl Keys {
 
 impl NullifierKey {
     pub fn pub_key(&self) -> NullifierPubKey {
-        NullifierPubKey(self.0)
+        NullifierPubKey(poseidon2_compress(&[self.0, Fr::from(0)]))
     }
 }
 
@@ -76,11 +76,7 @@ impl EncryptionKey {
 
 impl Debug for NullifierKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "NullifierKey(public_key = {:x?})",
-            poseidon2_hash(&[self.0])
-        )
+        write!(f, "NullifierKey(public_key = {:x?})", self.pub_key())
     }
 }
 

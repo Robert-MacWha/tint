@@ -8,10 +8,7 @@ use crate::{
     account::{Account, receiver::Receiver},
     database::{Database, DatabaseError, TintDatabase},
     indexer::{b256_to_fr, syncer::Event},
-    note::{
-        commitment::{BaseCommitment, SpendableCommitment},
-        payload::NotePayload,
-    },
+    note::commitment::{BaseCommitment, SpendableCommitment},
 };
 
 pub struct IndexedAccount {
@@ -82,10 +79,10 @@ impl IndexedAccount {
     pub fn apply_event(&mut self, event: &Event) {
         match event {
             Event::Deposit(d) => {
-                self.decrypt_note(&d.encryptedNote);
+                self.decrypt_commitment(&d.encryptedNote);
             }
             Event::Committed(c) => {
-                self.decrypt_note(&c.encryptedNote);
+                self.decrypt_commitment(&c.encryptedNote);
             }
             Event::Nullified(n) => {
                 let nullifier = b256_to_fr(n.nullifier);
@@ -98,14 +95,14 @@ impl IndexedAccount {
         }
     }
 
-    fn decrypt_note(&mut self, encrypted: &[u8]) {
-        let note = NotePayload::from_encrypted(encrypted, &self.account.keys().encryption_key);
-
-        let Ok(note) = note else {
+    fn decrypt_commitment(&mut self, encrypted: &[u8]) {
+        let Ok(commitment) =
+            BaseCommitment::from_encrypted(encrypted, &self.account.keys().encryption_key)
+        else {
             return;
         };
 
-        let commitment = note.into_spendable_commitment(
+        let spendable_commitment = commitment.as_spendable(
             self.account.keys().nullifier_key.clone(),
             self.account.spendability_address,
             self.account.spendability_witness,
@@ -113,8 +110,9 @@ impl IndexedAccount {
             self.account.keys().encryption_pub_key(),
         );
 
-        self.spendable_notes.push(commitment.clone());
-        self.note_nullifiers.insert(commitment.nullifier());
+        self.note_nullifiers
+            .insert(spendable_commitment.nullifier());
+        self.spendable_notes.push(spendable_commitment);
     }
 
     pub async fn save(&self) -> Result<(), DatabaseError> {

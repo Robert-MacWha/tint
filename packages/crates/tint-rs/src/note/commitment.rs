@@ -1,13 +1,15 @@
 use alloy_primitives::{Address, B256, Bytes};
 use ark_bn254::Fr;
+use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     account::{
-        keys::{EncryptionPubKey, NullifierKey, NullifierPubKey},
+        keys::{EncryptionKey, EncryptionPubKey, NullifierKey, NullifierPubKey},
         spendability_hash,
     },
     circuit::poseidon2::{poseidon2_compress, poseidon2_hash},
+    crypto::envelope::EncryptedEnvelope,
     indexer::{address_to_fr, b256_to_fr},
     note::asset::AssetId,
 };
@@ -56,6 +58,14 @@ pub struct SpendableCommitment {
     pub encryption_pub_key: EncryptionPubKey,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, thiserror::Error)]
+pub enum CommitmentError {
+    #[error("encryption error")]
+    Encryption(#[from] crate::crypto::aaed::EncryptionError),
+    #[error("serialization error")]
+    Serialization(#[from] postcard::Error),
+}
+
 impl BaseCommitment {
     pub fn new(
         asset: AssetId,
@@ -71,6 +81,15 @@ impl BaseCommitment {
             nullifier_pub_key,
             random,
         }
+    }
+
+    pub fn from_encrypted(
+        encrypted: &[u8],
+        my_priv: &EncryptionKey,
+    ) -> Result<Self, CommitmentError> {
+        let encrypted: EncryptedEnvelope = postcard::from_bytes(encrypted)?;
+        let plaintext = encrypted.decrypt(my_priv)?;
+        Ok(postcard::from_bytes(&plaintext)?)
     }
 
     pub fn as_spendable(
@@ -95,6 +114,16 @@ impl BaseCommitment {
 
     pub fn nullifier(&self, nullifier_key: &NullifierKey) -> Fr {
         poseidon2_compress(&[nullifier_key.0, self.hash()])
+    }
+
+    pub fn encrypt<R: RngCore + CryptoRng>(
+        &self,
+        keys: &[EncryptionPubKey],
+        rng: &mut R,
+    ) -> Result<Vec<u8>, CommitmentError> {
+        let plaintext = postcard::to_stdvec(&self)?;
+        let encrypted = EncryptedEnvelope::encrypt(&plaintext, keys, rng)?;
+        Ok(postcard::to_stdvec(&encrypted)?)
     }
 }
 
@@ -189,6 +218,8 @@ mod tests {
     use alloy_primitives::Address;
     use insta::assert_snapshot;
 
+    use crate::account::keys::Keys;
+
     use super::*;
 
     #[test]
@@ -207,5 +238,30 @@ mod tests {
 
         assert_eq!(base_commitment.hash(), spendable_commitment.hash());
         assert_snapshot!(base_commitment.hash().to_string(), @"6798057769400104581763912905739377134824170279094112012482064995161618118540");
+    }
+
+    #[test]
+    fn commitment_encryption_decryption() {
+        let keys = Keys::from_seed(&[1; 32]);
+
+        let spendable_commitment = SpendableCommitment::new(
+            AssetId::from(Address::new([1; 20])),
+            100,
+            NullifierKey::default(),
+            Address::new([2; 20]),
+            B256::new([3; 32]),
+            Bytes::default(),
+            EncryptionPubKey::default(),
+            B256::new([5; 32]),
+        );
+
+        let mut rng = rand_core::OsRng;
+        let encrypted = spendable_commitment
+            .base
+            .encrypt(&[keys.encryption_pub_key()], &mut rng)
+            .unwrap();
+        let decrypted = BaseCommitment::from_encrypted(&encrypted, &keys.encryption_key).unwrap();
+
+        assert_eq!(decrypted, spendable_commitment.base);
     }
 }

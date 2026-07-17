@@ -19,7 +19,6 @@ use crate::{
     note::{
         asset::AssetId,
         commitment::{BaseCommitment, Commitment, SpendableCommitment},
-        payload::NotePayload,
         withdrawal::Withdrawal,
     },
     operation::Operation,
@@ -39,8 +38,8 @@ pub enum ProviderError {
     MerkleTree(#[from] crate::indexer::merkle_tree::MerkleTreeError),
     #[error("circuit error: {0}")]
     Synthesis(#[from] ark_relations::gr1cs::SynthesisError),
-    #[error("note payload error: {0}")]
-    NotePayload(#[from] crate::note::payload::NotePayloadError),
+    #[error("commitment error: {0}")]
+    Commitment(#[from] crate::note::commitment::CommitmentError),
 }
 
 /// Builds shield/transfer/unshield calls against a Tint deployment.
@@ -89,14 +88,13 @@ impl Provider {
     ) -> Result<Tint::depositCall, ProviderError> {
         let random = B256::new(rng.r#gen());
         let commitment = receiver.commitment(asset, amount, random);
-        let encrypted_note = NotePayload::from_commitment(&commitment)
-            .encrypt(&[receiver.encryption_pub_key], rng)?;
+        let encrypted = commitment.encrypt(&[receiver.encryption_pub_key], rng)?;
 
         Ok(Tint::depositCall {
             asset: asset.into(),
             amount,
             partialCommitment: fr_to_b256(commitment.partial_hash()),
-            encryptedNote: Bytes::from(encrypted_note),
+            encryptedNote: Bytes::from(encrypted),
         })
     }
 
@@ -144,15 +142,18 @@ impl Provider {
 
         let spendability_inputs = spendability_inputs(&inputs);
         let unshield_recipients = unshield_recipients(&withdrawals);
-        let encrypted_notes = try_from_fn(|i| {
+        let encrypted = try_from_fn(|i| {
             let output = &circuit.operation.output_commitments[i];
             let Some((receiver, _, _)) = outputs.get(i) else {
-                //? surprise turbofish
                 return Ok::<Bytes, ProviderError>(Bytes::new());
             };
+
+            // TODO: We'd ideally encrypt with both the sender and receiver's keys. The issue
+            // is a single operation may have multiple senders, so we don't have a single key to use.
+            // We could add a list of keys as args to this function, I'm not sure if there's a better
+            // solution.
             Ok(Bytes::from(
-                NotePayload::from_commitment(output)
-                    .encrypt(&[receiver.encryption_pub_key], rng)?,
+                output.encrypt(&[receiver.encryption_pub_key], rng)?,
             ))
         })?;
 
@@ -164,7 +165,7 @@ impl Provider {
         let outputs = circuit.synthesize_outputs()?;
         let proof = Groth16::<Bn254>::prove(&self.proving_key, circuit, rng)?;
 
-        // Smoke-verify the proof locally
+        // Smoke-test the proof locally
         if !Groth16::<Bn254>::verify(&self.verifying_key, &public_inputs, &proof)? {
             return Err(ProviderError::InvalidProof);
         }
@@ -182,7 +183,7 @@ impl Provider {
                 unshieldRecipients: unshield_recipients,
                 spendabilityAddresses: outputs.spendability_addresses,
                 spendabilityInputs: spendability_inputs,
-                encryptedNotes: encrypted_notes,
+                encryptedNotes: encrypted,
                 proof: proof.into(),
             },
             public_inputs,

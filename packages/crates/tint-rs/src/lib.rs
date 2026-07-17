@@ -5,6 +5,7 @@ pub mod circuit;
 pub mod codegen;
 mod crypto;
 pub mod database;
+mod fr;
 pub mod indexer;
 pub mod note;
 pub mod operation;

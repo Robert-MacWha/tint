@@ -4,7 +4,7 @@ use ark_bn254::Fr;
 use crate::{
     account::{keys::Keys, receiver::Receiver},
     circuit::poseidon2::poseidon2_compress,
-    indexer::b256_to_fr,
+    fr::b256_to_fr,
 };
 
 pub mod keys;

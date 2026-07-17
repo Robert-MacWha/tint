@@ -15,7 +15,8 @@ use crate::{
     array::try_from_fn,
     circuit::join_split::{JoinSplit, K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, TREE_DEPTH},
     database::DatabaseError,
-    indexer::{Indexer, fr_to_b256, merkle_tree::InclusionProof},
+    fr::fr_to_b256,
+    indexer::{Indexer, merkle_tree::InclusionProof},
     note::{
         asset::AssetId,
         commitment::{BaseCommitment, Commitment, SpendableCommitment},

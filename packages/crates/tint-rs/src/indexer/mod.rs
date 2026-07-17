@@ -5,9 +5,7 @@ pub mod verifier;
 
 use std::sync::Arc;
 
-use alloy_primitives::{Address, B256};
 use ark_bn254::Fr;
-use ark_ff::{BigInteger, PrimeField};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -18,6 +16,7 @@ use crate::{
         poseidon2::poseidon2_hash,
     },
     database::{Database, DatabaseError, TintDatabase},
+    fr::b256_to_fr,
     indexer::{
         indexed_account::IndexedAccount,
         merkle_tree::{InclusionProof, IncrementalMerkleTree, MerkleTreeError, SubtreeAppendProof},
@@ -26,23 +25,6 @@ use crate::{
     },
     note::commitment::SpendableCommitment,
 };
-
-pub(crate) fn fr_to_b256(fr: Fr) -> B256 {
-    B256::from_slice(&fr.into_bigint().to_bytes_be())
-}
-
-pub(crate) fn fr_to_address(fr: Fr) -> Address {
-    let word = fr_to_b256(fr);
-    Address::from_word(word)
-}
-
-pub(crate) fn b256_to_fr(bytes: B256) -> Fr {
-    Fr::from_be_bytes_mod_order(bytes.as_slice())
-}
-
-pub(crate) fn address_to_fr(address: Address) -> Fr {
-    b256_to_fr(address.into_word())
-}
 
 /// Indexes on-chain `Tint` events.
 ///

@@ -10,7 +10,7 @@ use crate::{
     },
     circuit::poseidon2::{poseidon2_compress, poseidon2_hash},
     crypto::envelope::EncryptedEnvelope,
-    indexer::{address_to_fr, b256_to_fr},
+    fr::{address_to_fr, b256_to_fr},
     note::asset::AssetId,
 };
 

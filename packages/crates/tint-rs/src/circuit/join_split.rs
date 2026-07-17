@@ -2,7 +2,6 @@ use std::borrow::Borrow;
 
 use alloy_primitives::Address;
 use ark_bn254::Fr;
-use ark_ff::{BigInteger, PrimeField};
 use ark_r1cs_std::{
     GR1CSVar,
     alloc::{AllocVar, AllocationMode},
@@ -22,10 +21,8 @@ use crate::{
         operation::OperationVar,
         output, variable, witness,
     },
-    indexer::{
-        fr_to_address,
-        merkle_tree::{InclusionProof, SubtreeAppendProof},
-    },
+    fr::{fr_to_address, fr_to_u128},
+    indexer::merkle_tree::{InclusionProof, SubtreeAppendProof},
     note::asset::AssetId,
     operation::Operation,
 };
@@ -274,11 +271,4 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
             withdrawal_assets,
         })
     }
-}
-
-fn fr_to_u128(fr: &Fr) -> u128 {
-    let bytes = fr.into_bigint().to_bytes_le();
-    let mut arr = [0u8; 16];
-    arr.copy_from_slice(&bytes[..16]);
-    u128::from_le_bytes(arr)
 }

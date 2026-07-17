@@ -4,7 +4,7 @@ use alloy_rpc_types_eth::{BlockNumberOrTag, TransactionRequest};
 use alloy_sol_types::SolCall;
 use ark_bn254::Fr;
 
-use crate::{abis::tint::Tint, indexer::fr_to_b256};
+use crate::{abis::tint::Tint, fr::fr_to_b256};
 
 #[async_trait::async_trait]
 pub trait Verifier {

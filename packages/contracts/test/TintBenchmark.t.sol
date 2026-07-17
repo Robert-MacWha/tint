@@ -101,7 +101,7 @@ contract TintGasReportTest is Test {
         );
         op.unshieldAmounts[0] = 1;
         op.unshieldAssets[0] = address(token);
-        op.unshieldRecipients[0] = address(1);
+        op.context.unshieldRecipients[0] = address(1);
 
         tint.operate(op);
     }
@@ -132,7 +132,7 @@ contract TintGasReportTest is Test {
         for (uint256 i = 0; i < N_WITHDRAWALS; i++) {
             op.unshieldAmounts[i] = 1;
             op.unshieldAssets[i] = address(token);
-            op.unshieldRecipients[i] = address(uint160(i + 1));
+            op.context.unshieldRecipients[i] = address(uint160(i + 1));
         }
 
         tint.operate(op);

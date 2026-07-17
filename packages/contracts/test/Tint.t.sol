@@ -209,7 +209,7 @@ contract TintTests is Test {
         IPrivacyPool.Operation memory op = _op(GENESIS_ROOT, nullifiers);
         op.unshieldAmounts[0] = 1;
         op.unshieldAssets[0] = address(token);
-        op.unshieldRecipients[0] = address(this);
+        op.context.unshieldRecipients[0] = address(this);
         uint256 callerBefore = token.balanceOf(address(this));
         vm.expectEmit(true, true, true, true);
         emit Tint.Withdrawn(address(token), 1, address(this));

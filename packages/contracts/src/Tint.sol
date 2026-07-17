@@ -96,10 +96,18 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
     ) public {
         bytes32 operationHash = ProofLib.toOperationHash(operation);
         bytes32 storedHash;
+
+        // Check that the operation hash matches the stored pre-verified hash
         assembly {
             storedHash := tload(slot)
         }
         if (storedHash != operationHash) revert InvalidProof();
+
+        // Clear the stored hash to prevent replay attacks
+        assembly {
+            tstore(slot, 0)
+        }
+
         _executeOperation(operation);
     }
 
@@ -146,7 +154,7 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
         // Verify unshield recipients are non-zero addresses
         for (uint256 i; i < N_WITHDRAWALS; ++i) {
             if (op.unshieldAmounts[i] == 0) continue;
-            if (op.unshieldRecipients[i] == address(0))
+            if (op.context.unshieldRecipients[i] == address(0))
                 revert UnshieldRecipientZero(i);
         }
 
@@ -176,7 +184,7 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
             bytes32 commitment = op.commitmentsOut[i];
             if (commitment == 0) continue;
             _commit(commitment);
-            emit Committed(commitment, op.encryptedNotes[i]);
+            emit Committed(commitment, op.context.ciphertexts[i]);
         }
 
         _advanceConsumed(op.endAggregationIndex);
@@ -186,7 +194,7 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
         for (uint256 i; i < N_WITHDRAWALS; ++i) {
             address asset = op.unshieldAssets[i];
             uint128 amount = op.unshieldAmounts[i];
-            address recipient = op.unshieldRecipients[i];
+            address recipient = op.context.unshieldRecipients[i];
             if (amount == 0) continue;
             IERC20(asset).safeTransfer(recipient, amount);
             emit Withdrawn(asset, amount, recipient);

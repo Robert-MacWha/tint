@@ -12,14 +12,17 @@ interface IPrivacyPool {
         uint128 endAggregationIndex;
         bytes32[N_INPUTS] nullifiers;
         address[N_INPUTS] spendabilityAddresses;
-        bytes[N_INPUTS] spendabilityInputs;
         bytes32[N_OUTPUTS] commitmentsOut;
         uint128[N_WITHDRAWALS] unshieldAmounts;
         address[N_WITHDRAWALS] unshieldAssets;
-        // bound params
-        address[N_WITHDRAWALS] unshieldRecipients;
-        bytes[N_OUTPUTS] encryptedNotes;
+        Context context;
         ProofLib.Proof proof;
+    }
+
+    struct Context {
+        bytes[N_INPUTS] spendabilityInputs;
+        bytes[N_OUTPUTS] ciphertexts;
+        address[N_WITHDRAWALS] unshieldRecipients;
     }
 
     function deposit(

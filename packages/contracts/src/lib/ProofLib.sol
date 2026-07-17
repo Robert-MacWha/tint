@@ -19,30 +19,61 @@ library ProofLib {
         uint256[2] pC;
     }
 
+    /// @notice Builds the Groth16 public-signal vector, matching the order
+    /// `JoinSplit::synthesize` allocates public gr1cs variables in.
+    function toPublicSignals(
+        bytes32 startAggregationHash,
+        bytes32 endAggregationHash,
+        IPrivacyPool.Operation calldata op
+    ) internal pure returns (uint256[N_PUB] memory) {
+        unchecked {
+            uint256[N_PUB] memory pub;
+            pub[0] = uint256(op.oldRoot);
+            pub[1] = uint256(op.startAggregationIndex);
+            pub[2] = uint256(startAggregationHash);
+            pub[3] = toBoundParamsHash(op);
+            pub[4] = uint256(op.newRoot);
+            pub[5] = uint256(endAggregationHash);
+
+            for (uint256 i = 0; i < N_INPUTS; i++) {
+                pub[6 + 2 * i] = uint256(op.nullifiers[i]);
+                pub[6 + 2 * i + 1] = uint256(
+                    uint160(op.spendabilityAddresses[i])
+                );
+            }
+
+            for (uint256 i = 0; i < N_OUTPUTS; i++) {
+                pub[6 + 2 * N_INPUTS + i] = uint256(op.commitmentsOut[i]);
+            }
+
+            for (uint256 i = 0; i < N_WITHDRAWALS; i++) {
+                pub[6 + 2 * N_INPUTS + N_OUTPUTS + 2 * i] = op.unshieldAmounts[
+                    i
+                ];
+                pub[6 + 2 * N_INPUTS + N_OUTPUTS + 2 * i + 1] = uint256(
+                    uint160(op.unshieldAssets[i])
+                );
+            }
+
+            return pub;
+        }
+    }
+
+    /// @notice Computes the operation hash, used to uniquely identify an operation.
     function toOperationHash(
         IPrivacyPool.Operation calldata op
     ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    op.oldRoot,
-                    op.startAggregationIndex,
-                    op.newRoot,
-                    op.endAggregationIndex,
-                    op.nullifiers,
-                    op.spendabilityAddresses,
-                    op.spendabilityInputs,
-                    op.commitmentsOut,
-                    op.unshieldAmounts,
-                    op.unshieldAssets,
-                    op.unshieldRecipients,
-                    op.proof.pA,
-                    op.proof.pB,
-                    op.proof.pC
-                )
-            );
+        return keccak256(abi.encode(op));
     }
 
+    /// @notice Computes the hash of the bound parameters in an operation.
+    function toBoundParamsHash(
+        IPrivacyPool.Operation calldata op
+    ) internal pure returns (uint256) {
+        return uint256(keccak256(abi.encode(op.context)));
+    }
+
+    /// @notice Computes the commitment for a deposit.
     function toCommitment(
         address asset,
         uint128 amount,
@@ -58,53 +89,7 @@ library ProofLib {
             );
     }
 
-    /// @notice Builds the Groth16 public-signal vector, matching the order
-    /// `JoinSplit::synthesize` allocates public gr1cs variables in.
-    function toPublicSignals(
-        bytes32 startAggregationHash,
-        bytes32 endAggregationHash,
-        IPrivacyPool.Operation calldata op
-    ) internal pure returns (uint256[N_PUB] memory) {
-        uint256[N_PUB] memory pub;
-        pub[0] = uint256(op.oldRoot);
-        pub[1] = uint256(op.startAggregationIndex);
-        pub[2] = uint256(startAggregationHash);
-        pub[3] = toBoundParamsHash(op);
-        pub[4] = uint256(op.newRoot);
-        pub[5] = uint256(endAggregationHash);
-
-        for (uint256 i = 0; i < N_INPUTS; i++) {
-            pub[6 + 2 * i] = uint256(op.nullifiers[i]);
-            pub[6 + 2 * i + 1] = uint256(uint160(op.spendabilityAddresses[i]));
-        }
-
-        for (uint256 i = 0; i < N_OUTPUTS; i++) {
-            pub[6 + 2 * N_INPUTS + i] = uint256(op.commitmentsOut[i]);
-        }
-
-        for (uint256 i = 0; i < N_WITHDRAWALS; i++) {
-            pub[6 + 2 * N_INPUTS + N_OUTPUTS + 2 * i] = op.unshieldAmounts[i];
-            pub[6 + 2 * N_INPUTS + N_OUTPUTS + 2 * i + 1] = uint256(
-                uint160(op.unshieldAssets[i])
-            );
-        }
-
-        return pub;
-    }
-
-    function toBoundParamsHash(
-        IPrivacyPool.Operation calldata op
-    ) internal pure returns (uint256) {
-        bytes memory packed;
-        for (uint256 i = 0; i < N_INPUTS; i++) {
-            packed = abi.encodePacked(packed, op.spendabilityInputs[i]);
-        }
-        for (uint256 i = 0; i < N_WITHDRAWALS; i++) {
-            packed = abi.encodePacked(packed, op.unshieldRecipients[i]);
-        }
-        return uint256(keccak256(packed)) % BN254_FR_MODULUS;
-    }
-
+    /// @notice Returns the unique spendability addresses in an operation.
     function spendabilityAddresses(
         IPrivacyPool.Operation calldata op
     ) internal pure returns (address[N_INPUTS] memory output) {

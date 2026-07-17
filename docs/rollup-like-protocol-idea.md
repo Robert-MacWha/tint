@@ -1,3 +1,9 @@
+## Blockers
+
+1. State access.  We need to guarantee that the list of staged operations is the same list that's proven against in-circuit.  This means that a summary of this list of staged operations needs to be stored verifiably on-chain.  This could be done via progressively hashing the list on-chain into an aggregation hash, or by storing the operations in blob storage.  
+   1. Using an aggregation hash introduces much higher gas costs (each operation needs to upload multiple proofs.  Since we can't use groth16 those proofs will be several kilobytes).
+   2. Using blob storage is cheaper on-chain, but requires proving the blob hash in-circuit, which is probably incredibly expensive because it uses sha256 and different field arithmetics.
+
 ## Definitions
 
 **Operation**: An operation is a single interaction with the protocol.  Operations can be shields, transfers, or unshield.

@@ -10,49 +10,49 @@ asm = ["ark-ff/asm"]
 print-trace = ["ark-std/print-trace"]
 
 [dependencies]
-alloy-primitives = "1.6.0"
-alloy-provider = "1.6.0"
-alloy-rpc-types-eth = "1.6.0"
-alloy-sol-macro = { version = "1.6.0", features = ["json"] }
-alloy-sol-types = "1.6.0"
-ark-bn254 = { version = "0.6.0", default-features = false }
-ark-ff = { version = "0.6.0", default-features = false }
-ark-groth16 = { version = "0.6.0", default-features = false }
-ark-snark = { version = "0.6.0", default-features = false }
-ark-r1cs-std = { version = "0.6.0", default-features = false }
-ark-relations = { version = "0.6.0", default-features = false }
-async-trait = "0.1.89"
-ruint = { version = "1.19.0", features = ["ark-ff-06"] }
-thiserror = "2.0.18"
-tracing = "0.1.44"
-x25519-dalek = { version = "2.0.1", features = ["static_secrets"] }
-chacha20poly1305 = "0.10.1"
-hkdf = "0.12.4"
-sha2 = "0.10.9"
-rand_core = { version = "0.6.4", features = ["getrandom"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
-ark-std = "0.6.0"
-postcard = { version = "1.1.3", features = ["use-std"] }
-serde = "1.0.228"
+alloy-primitives = { workspace = true }
+alloy-provider = { workspace = true }
+alloy-rpc-types-eth = { workspace = true }
+alloy-sol-macro = { workspace = true, features = ["json"] }
+alloy-sol-types = { workspace = true }
+ark-bn254 = { workspace = true, default-features = false }
+ark-ff = { workspace = true, default-features = false }
+ark-groth16 = { workspace = true, default-features = false }
+ark-snark = { workspace = true, default-features = false }
+ark-r1cs-std = { workspace = true, default-features = false }
+ark-relations = { workspace = true, default-features = false }
+async-trait = { workspace = true }
+ruint = { workspace = true, features = ["ark-ff-06"] }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+x25519-dalek = { workspace = true, features = ["static_secrets"] }
+chacha20poly1305 = { workspace = true }
+hkdf = { workspace = true }
+sha2 = { workspace = true }
+rand_core = { workspace = true, features = ["getrandom"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+ark-std = { workspace = true }
+postcard = { workspace = true, features = ["use-std"] }
+serde = { workspace = true }
 taceo-poseidon2 = { path = "../../../../eddsa-babyjubjub/poseidon2", features = [
     "t2",
     "t3",
     "t8",
 ] }
-serde_with = "3.21.0"
-ark-serialize = "0.6.0"
-brotli = "8.0.4"
+serde_with = { workspace = true }
+ark-serialize = { workspace = true }
+brotli = { workspace = true }
 
 [dev-dependencies]
-circuit-profiler = { path = "../circuit-profiler" }
-alloy-node-bindings = "1.6.0"
-alloy-signer-local = "1.6.0"
-anyhow = "1.0.103"
-insta = "1.48.0"
-serde_json = "1.0"
-criterion = "0.8.2"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-alloy-contract = "1.6.0"
+circuit-profiler = { workspace = true }
+alloy-node-bindings = { workspace = true }
+alloy-signer-local = { workspace = true }
+anyhow = { workspace = true }
+insta = { workspace = true }
+serde_json = { workspace = true }
+criterion = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+alloy-contract = { workspace = true }
 
 [[bench]]
 name = "groth16_constraints"

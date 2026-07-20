@@ -1,19 +1,9 @@
-//! Cross-checks that the public-input vector `Provider::public_inputs`
-//! computes locally matches what `Tint.computePublicSignals` computes
-//! on-chain for the same operation -- independent of proof generation, so a
-//! mismatch (e.g. an asset-encoding bug) shows up as a precise, labeled diff
-//! instead of an opaque `InvalidProof` revert.
-
-mod common;
-
 use std::sync::Arc;
 
 use alloy_primitives::{Address, B256, U256};
-use ark_bn254::Fr;
-use ark_ff::PrimeField;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
-use tint_rs::{
+use tint::{
     account::{Account, keys::Keys},
     circuit::setup_circuits,
     database::memory::MemoryDatabase,
@@ -23,11 +13,13 @@ use tint_rs::{
 };
 use tracing::info;
 
-use crate::common::anvil::{self};
+use crate::common::anvil;
+
+mod common;
 
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
-async fn public_signals_match_onchain() {
+async fn shield() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
         .add_directive("gr1cs=off".parse().unwrap())
@@ -76,7 +68,8 @@ async fn public_signals_match_onchain() {
     let call = tint_provider
         .deposit(account.receiver(), asset, amount, &mut rng)
         .unwrap();
-    tint.call_builder(&call)
+    let shield_receipt = tint
+        .call_builder(&call)
         .send()
         .await
         .unwrap()
@@ -84,6 +77,7 @@ async fn public_signals_match_onchain() {
         .await
         .unwrap();
 
+    info!("Shielded for {} gas", shield_receipt.gas_used);
     info!("Syncing");
     tint_provider.sync().await.unwrap();
 
@@ -98,43 +92,4 @@ async fn public_signals_match_onchain() {
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0].base.amount, amount);
     assert_eq!(notes[0].base.asset, asset);
-
-    let (call, local_signals) = tint_provider
-        .public_inputs(
-            [notes[0].clone()],
-            [(account.receiver(), asset, amount - 100)],
-            [(Address::new([2; 20]), asset, 100)],
-            &mut rng,
-        )
-        .unwrap();
-
-    let onchain_signals = tint.call_builder(&call).call().await.unwrap();
-
-    public_signal_diff(&local_signals, &onchain_signals);
-}
-
-fn public_signal_diff(local: &[Fr], onchain: &[U256]) {
-    assert_eq!(local.len(), onchain.len(), "public signal length mismatch");
-    let mut mismatch_found = false;
-    for i in 0..local.len() {
-        let local_fr = local[i];
-        let onchain_fr = u256_to_fr(onchain[i]);
-        if local_fr != onchain_fr {
-            mismatch_found = true;
-            info!(
-                "Mismatch at index {}: local={}, onchain={}",
-                i, local_fr, onchain_fr
-            );
-        }
-    }
-
-    if mismatch_found {
-        panic!("Public signal mismatch found. See above for details.");
-    } else {
-        info!("All public signals match between local and on-chain computation.");
-    }
-}
-
-fn u256_to_fr(u: U256) -> Fr {
-    Fr::from_le_bytes_mod_order(&u.as_le_bytes())
 }

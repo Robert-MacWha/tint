@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use tint_rs::{circuit::setup_circuits, codegen};
+use tint::{circuit::setup_circuits, codegen};
 
 fn main() {
     let (_pk, vk) = setup_circuits().unwrap();

@@ -1,9 +1,19 @@
+//! Cross-checks that the public-input vector `Provider::public_inputs`
+//! computes locally matches what `Tint.computePublicSignals` computes
+//! on-chain for the same operation -- independent of proof generation, so a
+//! mismatch (e.g. an asset-encoding bug) shows up as a precise, labeled diff
+//! instead of an opaque `InvalidProof` revert.
+
+mod common;
+
 use std::sync::Arc;
 
 use alloy_primitives::{Address, B256, U256};
-use ark_std::rand::{Rng, rngs::StdRng};
+use ark_bn254::Fr;
+use ark_ff::PrimeField;
+use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
-use tint_rs::{
+use tint::{
     account::{Account, keys::Keys},
     circuit::setup_circuits,
     database::memory::MemoryDatabase,
@@ -13,13 +23,11 @@ use tint_rs::{
 };
 use tracing::info;
 
-use crate::common::anvil;
-
-mod common;
+use crate::common::anvil::{self};
 
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
-async fn unshield() {
+async fn public_signals_match_onchain() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
         .add_directive("gr1cs=off".parse().unwrap())
@@ -40,15 +48,15 @@ async fn unshield() {
 
     // Setup tint provider
     info!("Setting up tint provider...");
-    let account_1 = Account::new(Keys::from_seed(&[11u8; 32]), Address::ZERO, B256::ZERO);
-    let unshield_address = Address::new(rng.r#gen());
+    let keys = Keys::from_seed(&[11u8; 32]);
+    let account = Account::new(keys, Address::ZERO, B256::ZERO);
 
     let syncer = Arc::new(RpcSyncer::new(provider.clone(), *tint.address()));
     let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
     let database = Arc::new(MemoryDatabase::default());
     let indexer = Indexer::new(syncer, verifier, database).await.unwrap();
     let mut tint_provider = Provider::new(indexer, proving_key, verifying_key);
-    tint_provider.add_account(account_1.clone()).await.unwrap();
+    tint_provider.add_account(account.clone()).await.unwrap();
 
     // Approve Tint to pull the deposit.
     let _ = token
@@ -66,7 +74,7 @@ async fn unshield() {
     let amount = 1_000u128;
 
     let call = tint_provider
-        .deposit(account_1.receiver(), asset, amount, &mut rng)
+        .deposit(account.receiver(), asset, amount, &mut rng)
         .unwrap();
     tint.call_builder(&call)
         .send()
@@ -79,46 +87,54 @@ async fn unshield() {
     info!("Syncing");
     tint_provider.sync().await.unwrap();
 
-    // Unshield
-    info!("Unshielding");
-    let notes = tint_provider.spendable_notes(account_1.receiver());
+    // Verify balances
+    info!("Verifying balances");
+    assert_eq!(
+        token.balanceOf(*tint.address()).call().await.unwrap(),
+        U256::from(amount)
+    );
 
+    let notes = tint_provider.spendable_notes(account.receiver());
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0].base.amount, amount);
     assert_eq!(notes[0].base.asset, asset);
 
-    let call = tint_provider
-        .operate(
+    let (call, local_signals) = tint_provider
+        .public_inputs(
             [notes[0].clone()],
-            [(account_1.receiver(), asset, 100)],
-            [(unshield_address, asset, amount - 100)],
+            [(account.receiver(), asset, amount - 100)],
+            [(Address::new([2; 20]), asset, 100)],
             &mut rng,
         )
         .unwrap();
 
-    let unshield_receipt = tint
-        .call_builder(&call)
-        .send()
-        .await
-        .unwrap()
-        .get_receipt()
-        .await
-        .unwrap();
+    let onchain_signals = tint.call_builder(&call).call().await.unwrap();
 
-    info!("Unshielded for {} gas", unshield_receipt.gas_used);
-    info!("Syncing");
-    tint_provider.sync().await.unwrap();
+    public_signal_diff(&local_signals, &onchain_signals);
+}
 
-    // Verify balances
-    info!("Verifying balances");
+fn public_signal_diff(local: &[Fr], onchain: &[U256]) {
+    assert_eq!(local.len(), onchain.len(), "public signal length mismatch");
+    let mut mismatch_found = false;
+    for i in 0..local.len() {
+        let local_fr = local[i];
+        let onchain_fr = u256_to_fr(onchain[i]);
+        if local_fr != onchain_fr {
+            mismatch_found = true;
+            info!(
+                "Mismatch at index {}: local={}, onchain={}",
+                i, local_fr, onchain_fr
+            );
+        }
+    }
 
-    let notes_1 = tint_provider.spendable_notes(account_1.receiver());
-    assert_eq!(notes_1.len(), 1);
-    assert_eq!(notes_1[0].base.amount, 100);
-    assert_eq!(notes_1[0].base.asset, asset);
+    if mismatch_found {
+        panic!("Public signal mismatch found. See above for details.");
+    } else {
+        info!("All public signals match between local and on-chain computation.");
+    }
+}
 
-    assert_eq!(
-        token.balanceOf(unshield_address).call().await.unwrap(),
-        U256::from(amount - 100)
-    );
+fn u256_to_fr(u: U256) -> Fr {
+    Fr::from_le_bytes_mod_order(&u.as_le_bytes())
 }

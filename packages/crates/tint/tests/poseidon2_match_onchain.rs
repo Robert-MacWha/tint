@@ -11,7 +11,7 @@ use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_macro::sol;
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
-use tint_rs::circuit::poseidon2::poseidon2_compress;
+use tint::circuit::poseidon2::poseidon2_compress;
 use tracing::info;
 
 sol!(

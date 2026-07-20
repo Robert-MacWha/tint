@@ -10,9 +10,9 @@ use ark_bn254::Bn254;
 use ark_groth16::{Groth16, ProvingKey};
 use ark_serialize::CanonicalDeserialize;
 use ark_snark::SNARK;
-use ark_std::rand::{SeedableRng, rngs::StdRng};
-use tint_rs::circuit::join_split::JoinSplit;
-use tint_rs::circuit::matrices::{Matrices, prove_with_matrices};
+use ark_std::rand::{rngs::StdRng, SeedableRng};
+use tint::circuit::join_split::JoinSplit;
+use tint::circuit::matrices::{prove_with_matrices, Matrices};
 
 const PK_PATH: &str = "artifacts/proving_key.bin.br";
 const MATRICES_PATH: &str = "artifacts/matrices.bin.br";

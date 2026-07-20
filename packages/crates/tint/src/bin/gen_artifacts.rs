@@ -11,7 +11,7 @@ use ark_relations::gr1cs::{
 };
 use ark_serialize::CanonicalSerialize;
 use brotli::CompressorWriter;
-use tint_rs::circuit::{join_split::JoinSplit, matrices::Matrices, setup_circuits};
+use tint::circuit::{join_split::JoinSplit, matrices::Matrices, setup_circuits};
 
 const ARTIFACTS_DIR: &str = "artifacts/";
 

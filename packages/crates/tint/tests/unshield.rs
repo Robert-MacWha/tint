@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use alloy_primitives::{Address, B256, U256};
-use ark_std::rand::rngs::StdRng;
+use ark_std::rand::{Rng, rngs::StdRng};
 use rand_core::SeedableRng;
-use tint_rs::{
+use tint::{
     account::{Account, keys::Keys},
     circuit::setup_circuits,
     database::memory::MemoryDatabase,
@@ -19,7 +19,7 @@ mod common;
 
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
-async fn transfer() {
+async fn unshield() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
         .add_directive("gr1cs=off".parse().unwrap())
@@ -41,7 +41,7 @@ async fn transfer() {
     // Setup tint provider
     info!("Setting up tint provider...");
     let account_1 = Account::new(Keys::from_seed(&[11u8; 32]), Address::ZERO, B256::ZERO);
-    let account_2 = Account::new(Keys::from_seed(&[22u8; 32]), Address::ZERO, B256::ZERO);
+    let unshield_address = Address::new(rng.r#gen());
 
     let syncer = Arc::new(RpcSyncer::new(provider.clone(), *tint.address()));
     let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
@@ -49,7 +49,6 @@ async fn transfer() {
     let indexer = Indexer::new(syncer, verifier, database).await.unwrap();
     let mut tint_provider = Provider::new(indexer, proving_key, verifying_key);
     tint_provider.add_account(account_1.clone()).await.unwrap();
-    tint_provider.add_account(account_2.clone()).await.unwrap();
 
     // Approve Tint to pull the deposit.
     let _ = token
@@ -80,8 +79,8 @@ async fn transfer() {
     info!("Syncing");
     tint_provider.sync().await.unwrap();
 
-    // Transfer to another account
-    info!("Transferring to another account");
+    // Unshield
+    info!("Unshielding");
     let notes = tint_provider.spendable_notes(account_1.receiver());
 
     assert_eq!(notes.len(), 1);
@@ -91,16 +90,13 @@ async fn transfer() {
     let call = tint_provider
         .operate(
             [notes[0].clone()],
-            [
-                (account_1.receiver(), asset, 100),
-                (account_2.receiver(), asset, amount - 100),
-            ],
-            [],
+            [(account_1.receiver(), asset, 100)],
+            [(unshield_address, asset, amount - 100)],
             &mut rng,
         )
         .unwrap();
 
-    let transfer_receipt = tint
+    let unshield_receipt = tint
         .call_builder(&call)
         .send()
         .await
@@ -109,7 +105,7 @@ async fn transfer() {
         .await
         .unwrap();
 
-    info!("Transferred for {} gas", transfer_receipt.gas_used);
+    info!("Unshielded for {} gas", unshield_receipt.gas_used);
     info!("Syncing");
     tint_provider.sync().await.unwrap();
 
@@ -121,8 +117,8 @@ async fn transfer() {
     assert_eq!(notes_1[0].base.amount, 100);
     assert_eq!(notes_1[0].base.asset, asset);
 
-    let notes_2 = tint_provider.spendable_notes(account_2.receiver());
-    assert_eq!(notes_2.len(), 1);
-    assert_eq!(notes_2[0].base.amount, amount - 100);
-    assert_eq!(notes_2[0].base.asset, asset);
+    assert_eq!(
+        token.balanceOf(unshield_address).call().await.unwrap(),
+        U256::from(amount - 100)
+    );
 }

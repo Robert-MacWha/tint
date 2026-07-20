@@ -4577,7 +4577,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tint-rs"
+name = "tint"
 version = "0.1.0"
 dependencies = [
  "alloy-contract",

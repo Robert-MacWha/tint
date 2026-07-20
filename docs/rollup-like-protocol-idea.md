@@ -2,7 +2,8 @@
 
 1. We need a proving system with the following properties:
    1. Binary-recursion compatible proofs
-   2. Verifiable on-chain
+   2. Conditional on child proof validity.  An invalid child proof should not invalidate the parent proof, but should instead return a boolean which can be selected against in-circuit.
+   3. Verifiable on-chain
 
 ## Definitions
 

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-uint256 constant N_INPUTS = 5;
-uint256 constant N_OUTPUTS = 5;
-uint256 constant N_WITHDRAWALS = 2;
+uint256 constant N_INPUTS = 1;
+uint256 constant N_OUTPUTS = 1;
+uint256 constant N_WITHDRAWALS = 5;
 uint256 constant N_PUB = 6 + 2 * N_INPUTS + N_OUTPUTS + 2 * N_WITHDRAWALS;
 uint128 constant AGGREGATION_RING_SIZE = 256;
 

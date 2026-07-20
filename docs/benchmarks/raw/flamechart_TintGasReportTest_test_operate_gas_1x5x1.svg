@@ -1,0 +1,491 @@
+<?xml version="1.0" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg version="1.1" width="1200" height="182" onload="init(evt)" viewBox="0 0 1200 182" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:fg="http://github.com/jonhoo/inferno"><!--Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples.--><!--NOTES: --><defs><linearGradient id="background" y1="0" y2="1" x1="0" x2="0"><stop stop-color="#eeeeee" offset="5%"/><stop stop-color="#eeeeb0" offset="95%"/></linearGradient></defs><style type="text/css">
+text { font-family:monospace; font-size:12px }
+#title { text-anchor:middle; font-size:17px; }
+#matched { text-anchor:end; }
+#search { text-anchor:end; opacity:0.1; cursor:pointer; }
+#search:hover, #search.show { opacity:1; }
+#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+#unzoom { cursor:pointer; }
+#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+.hide { display:none; }
+.parent { opacity:0.5; }
+</style><script type="text/ecmascript"><![CDATA[
+        var nametype = 'Function:';
+        var fontsize = 12;
+        var fontwidth = 0.59;
+        var xpad = 10;
+        var inverted = false;
+        var searchcolor = 'rgb(230,0,230)';
+        var fluiddrawing = true;
+        var truncate_text_right = false;
+    ]]><![CDATA["use strict";
+var details, searchbtn, unzoombtn, matchedtxt, svg, searching, frames, known_font_width;
+function init(evt) {
+    details = document.getElementById("details").firstChild;
+    searchbtn = document.getElementById("search");
+    unzoombtn = document.getElementById("unzoom");
+    matchedtxt = document.getElementById("matched");
+    svg = document.getElementsByTagName("svg")[0];
+    frames = document.getElementById("frames");
+    known_font_width = get_monospace_width(frames);
+    total_samples = parseInt(frames.attributes.total_samples.value);
+    searching = 0;
+
+    // Use GET parameters to restore a flamegraph's state.
+    var restore_state = function() {
+        var params = get_params();
+        if (params.x && params.y)
+            zoom(find_group(document.querySelector('[*|x="' + params.x + '"][y="' + params.y + '"]')));
+        if (params.s)
+            search(params.s);
+    };
+
+    if (fluiddrawing) {
+        // Make width dynamic so the SVG fits its parent's width.
+        svg.removeAttribute("width");
+        // Edge requires us to have a viewBox that gets updated with size changes.
+        var isEdge = /Edge\/\d./i.test(navigator.userAgent);
+        if (!isEdge) {
+            svg.removeAttribute("viewBox");
+        }
+        var update_for_width_change = function() {
+            if (isEdge) {
+                svg.attributes.viewBox.value = "0 0 " + svg.width.baseVal.value + " " + svg.height.baseVal.value;
+            }
+
+            // Keep consistent padding on left and right of frames container.
+            frames.attributes.width.value = svg.width.baseVal.value - xpad * 2;
+
+            // Text truncation needs to be adjusted for the current width.
+            update_text_for_elements(frames.children);
+
+            // Keep search elements at a fixed distance from right edge.
+            var svgWidth = svg.width.baseVal.value;
+            searchbtn.attributes.x.value = svgWidth - xpad;
+            matchedtxt.attributes.x.value = svgWidth - xpad;
+        };
+        window.addEventListener('resize', function() {
+            update_for_width_change();
+        });
+        // This needs to be done asynchronously for Safari to work.
+        setTimeout(function() {
+            unzoom();
+            update_for_width_change();
+            restore_state();
+        }, 0);
+    } else {
+        restore_state();
+    }
+}
+// event listeners
+window.addEventListener("click", function(e) {
+    var target = find_group(e.target);
+    if (target) {
+        if (target.nodeName == "a") {
+            if (e.ctrlKey === false) return;
+            e.preventDefault();
+        }
+        if (target.classList.contains("parent")) unzoom();
+        zoom(target);
+
+        // set parameters for zoom state
+        var el = target.querySelector("rect");
+        if (el && el.attributes && el.attributes.y && el.attributes["fg:x"]) {
+            var params = get_params()
+            params.x = el.attributes["fg:x"].value;
+            params.y = el.attributes.y.value;
+            history.replaceState(null, null, parse_params(params));
+        }
+    }
+    else if (e.target.id == "unzoom") {
+        unzoom();
+
+        // remove zoom state
+        var params = get_params();
+        if (params.x) delete params.x;
+        if (params.y) delete params.y;
+        history.replaceState(null, null, parse_params(params));
+    }
+    else if (e.target.id == "search") search_prompt();
+}, false)
+// mouse-over for info
+// show
+window.addEventListener("mouseover", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = nametype + " " + g_to_text(target);
+}, false)
+// clear
+window.addEventListener("mouseout", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = ' ';
+}, false)
+// ctrl-F for search
+window.addEventListener("keydown",function (e) {
+    if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+        e.preventDefault();
+        search_prompt();
+    }
+}, false)
+// functions
+function get_params() {
+    var params = {};
+    var paramsarr = window.location.search.substr(1).split('&');
+    for (var i = 0; i < paramsarr.length; ++i) {
+        var tmp = paramsarr[i].split("=");
+        if (!tmp[0] || !tmp[1]) continue;
+        params[tmp[0]]  = decodeURIComponent(tmp[1]);
+    }
+    return params;
+}
+function parse_params(params) {
+    var uri = "?";
+    for (var key in params) {
+        uri += key + '=' + encodeURIComponent(params[key]) + '&';
+    }
+    if (uri.slice(-1) == "&")
+        uri = uri.substring(0, uri.length - 1);
+    if (uri == '?')
+        uri = window.location.href.split('?')[0];
+    return uri;
+}
+function find_child(node, selector) {
+    var children = node.querySelectorAll(selector);
+    if (children.length) return children[0];
+    return;
+}
+function find_group(node) {
+    var parent = node.parentElement;
+    if (!parent) return;
+    if (parent.id == "frames") return node;
+    return find_group(parent);
+}
+function orig_save(e, attr, val) {
+    if (e.attributes["fg:orig_" + attr] != undefined) return;
+    if (e.attributes[attr] == undefined) return;
+    if (val == undefined) val = e.attributes[attr].value;
+    e.setAttribute("fg:orig_" + attr, val);
+}
+function orig_load(e, attr) {
+    if (e.attributes["fg:orig_"+attr] == undefined) return;
+    e.attributes[attr].value = e.attributes["fg:orig_" + attr].value;
+    e.removeAttribute("fg:orig_" + attr);
+}
+function g_to_text(e) {
+    var text = find_child(e, "title").firstChild.nodeValue;
+    return (text)
+}
+function g_to_func(e) {
+    var func = g_to_text(e);
+    // if there's any manipulation we want to do to the function
+    // name before it's searched, do it here before returning.
+    return (func);
+}
+function get_monospace_width(frames) {
+    // Given the id="frames" element, return the width of text characters if
+    // this is a monospace font, otherwise return 0.
+    text = find_child(frames.children[0], "text");
+    originalContent = text.textContent;
+    text.textContent = "!";
+    bangWidth = text.getComputedTextLength();
+    text.textContent = "W";
+    wWidth = text.getComputedTextLength();
+    text.textContent = originalContent;
+    if (bangWidth === wWidth) {
+        return bangWidth;
+    } else {
+        return 0;
+    }
+}
+function update_text_for_elements(elements) {
+    // In order to render quickly in the browser, you want to do one pass of
+    // reading attributes, and one pass of mutating attributes. See
+    // https://web.dev/avoid-large-complex-layouts-and-layout-thrashing/ for details.
+
+    // Fall back to inefficient calculation, if we're variable-width font.
+    // TODO This should be optimized somehow too.
+    if (known_font_width === 0) {
+        for (var i = 0; i < elements.length; i++) {
+            update_text(elements[i]);
+        }
+        return;
+    }
+
+    var textElemNewAttributes = [];
+    for (var i = 0; i < elements.length; i++) {
+        var e = elements[i];
+        var r = find_child(e, "rect");
+        var t = find_child(e, "text");
+        var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+        var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+        var newX = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+
+        // Smaller than this size won't fit anything
+        if (w < 2 * known_font_width) {
+            textElemNewAttributes.push([newX, ""]);
+            continue;
+        }
+
+        // Fit in full text width
+        if (txt.length * known_font_width < w) {
+            textElemNewAttributes.push([newX, txt]);
+            continue;
+        }
+
+        var substringLength = Math.floor(w / known_font_width) - 2;
+        if (truncate_text_right) {
+            // Truncate the right side of the text.
+            textElemNewAttributes.push([newX, txt.substring(0, substringLength) + ".."]);
+            continue;
+        } else {
+            // Truncate the left side of the text.
+            textElemNewAttributes.push([newX, ".." + txt.substring(txt.length - substringLength, txt.length)]);
+            continue;
+        }
+    }
+
+    console.assert(textElemNewAttributes.length === elements.length, "Resize failed, please file a bug at https://github.com/jonhoo/inferno/");
+
+    // Now that we know new textContent, set it all in one go so we don't refresh a bazillion times.
+    for (var i = 0; i < elements.length; i++) {
+        var e = elements[i];
+        var values = textElemNewAttributes[i];
+        var t = find_child(e, "text");
+        t.attributes.x.value = values[0];
+        t.textContent = values[1];
+    }
+}
+
+function update_text(e) {
+    var r = find_child(e, "rect");
+    var t = find_child(e, "text");
+    var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+    var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+    t.attributes.x.value = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+
+    // Smaller than this size won't fit anything
+    if (w < 2 * fontsize * fontwidth) {
+        t.textContent = "";
+        return;
+    }
+    t.textContent = txt;
+    // Fit in full text width
+    if (t.getComputedTextLength() < w)
+        return;
+    if (truncate_text_right) {
+        // Truncate the right side of the text.
+        for (var x = txt.length - 2; x > 0; x--) {
+            if (t.getSubStringLength(0, x + 2) <= w) {
+                t.textContent = txt.substring(0, x) + "..";
+                return;
+            }
+        }
+    } else {
+        // Truncate the left side of the text.
+        for (var x = 2; x < txt.length; x++) {
+            if (t.getSubStringLength(x - 2, txt.length) <= w) {
+                t.textContent = ".." + txt.substring(x, txt.length);
+                return;
+            }
+        }
+    }
+    t.textContent = "";
+}
+// zoom
+function zoom_reset(e) {
+    if (e.tagName == "rect") {
+        e.attributes.x.value = format_percent(100 * parseInt(e.attributes["fg:x"].value) / total_samples);
+        e.attributes.width.value = format_percent(100 * parseInt(e.attributes["fg:w"].value) / total_samples);
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_reset(c[i]);
+    }
+}
+function zoom_child(e, x, zoomed_width_samples) {
+    if (e.tagName == "text") {
+        var parent_x = parseFloat(find_child(e.parentNode, "rect[x]").attributes.x.value);
+        e.attributes.x.value = format_percent(parent_x + (100 * 3 / frames.attributes.width.value));
+    } else if (e.tagName == "rect") {
+        e.attributes.x.value = format_percent(100 * (parseInt(e.attributes["fg:x"].value) - x) / zoomed_width_samples);
+        e.attributes.width.value = format_percent(100 * parseInt(e.attributes["fg:w"].value) / zoomed_width_samples);
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_child(c[i], x, zoomed_width_samples);
+    }
+}
+function zoom_parent(e) {
+    if (e.attributes) {
+        if (e.attributes.x != undefined) {
+            e.attributes.x.value = "0.0%";
+        }
+        if (e.attributes.width != undefined) {
+            e.attributes.width.value = "100.0%";
+        }
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_parent(c[i]);
+    }
+}
+function zoom(node) {
+    var attr = find_child(node, "rect").attributes;
+    var width = parseInt(attr["fg:w"].value);
+    var xmin = parseInt(attr["fg:x"].value);
+    var xmax = xmin + width;
+    var ymin = parseFloat(attr.y.value);
+    unzoombtn.classList.remove("hide");
+    var el = frames.children;
+    var to_update_text = [];
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        var a = find_child(e, "rect").attributes;
+        var ex = parseInt(a["fg:x"].value);
+        var ew = parseInt(a["fg:w"].value);
+        // Is it an ancestor
+        if (!inverted) {
+            var upstack = parseFloat(a.y.value) > ymin;
+        } else {
+            var upstack = parseFloat(a.y.value) < ymin;
+        }
+        if (upstack) {
+            // Direct ancestor
+            if (ex <= xmin && (ex+ew) >= xmax) {
+                e.classList.add("parent");
+                zoom_parent(e);
+                to_update_text.push(e);
+            }
+            // not in current path
+            else
+                e.classList.add("hide");
+        }
+        // Children maybe
+        else {
+            // no common path
+            if (ex < xmin || ex >= xmax) {
+                e.classList.add("hide");
+            }
+            else {
+                zoom_child(e, xmin, width);
+                to_update_text.push(e);
+            }
+        }
+    }
+    update_text_for_elements(to_update_text);
+}
+function unzoom() {
+    unzoombtn.classList.add("hide");
+    var el = frames.children;
+    for(var i = 0; i < el.length; i++) {
+        el[i].classList.remove("parent");
+        el[i].classList.remove("hide");
+        zoom_reset(el[i]);
+    }
+    update_text_for_elements(el);
+}
+// search
+function reset_search() {
+    var el = document.querySelectorAll("#frames rect");
+    for (var i = 0; i < el.length; i++) {
+        orig_load(el[i], "fill")
+    }
+    var params = get_params();
+    delete params.s;
+    history.replaceState(null, null, parse_params(params));
+}
+function search_prompt() {
+    if (!searching) {
+        var term = prompt("Enter a search term (regexp " +
+            "allowed, eg: ^ext4_)", "");
+        if (term != null) {
+            search(term)
+        }
+    } else {
+        reset_search();
+        searching = 0;
+        searchbtn.classList.remove("show");
+        searchbtn.firstChild.nodeValue = "Search"
+        matchedtxt.classList.add("hide");
+        matchedtxt.firstChild.nodeValue = ""
+    }
+}
+function search(term) {
+    var re = new RegExp(term);
+    var el = frames.children;
+    var matches = new Object();
+    var maxwidth = 0;
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        // Skip over frames which are either not visible, or below the zoomed-to frame
+        if (e.classList.contains("hide") || e.classList.contains("parent")) {
+            continue;
+        }
+        var func = g_to_func(e);
+        var rect = find_child(e, "rect");
+        if (func == null || rect == null)
+            continue;
+        // Save max width. Only works as we have a root frame
+        var w = parseInt(rect.attributes["fg:w"].value);
+        if (w > maxwidth)
+            maxwidth = w;
+        if (func.match(re)) {
+            // highlight
+            var x = parseInt(rect.attributes["fg:x"].value);
+            orig_save(rect, "fill");
+            rect.attributes.fill.value = searchcolor;
+            // remember matches
+            if (matches[x] == undefined) {
+                matches[x] = w;
+            } else {
+                if (w > matches[x]) {
+                    // overwrite with parent
+                    matches[x] = w;
+                }
+            }
+            searching = 1;
+        }
+    }
+    if (!searching)
+        return;
+    var params = get_params();
+    params.s = term;
+    history.replaceState(null, null, parse_params(params));
+
+    searchbtn.classList.add("show");
+    searchbtn.firstChild.nodeValue = "Reset Search";
+    // calculate percent matched, excluding vertical overlap
+    var count = 0;
+    var lastx = -1;
+    var lastw = 0;
+    var keys = Array();
+    for (k in matches) {
+        if (matches.hasOwnProperty(k))
+            keys.push(k);
+    }
+    // sort the matched frames by their x location
+    // ascending, then width descending
+    keys.sort(function(a, b){
+        return a - b;
+    });
+    // Step through frames saving only the biggest bottom-up frames
+    // thanks to the sort order. This relies on the tree property
+    // where children are always smaller than their parents.
+    for (var k in keys) {
+        var x = parseInt(keys[k]);
+        var w = matches[keys[k]];
+        if (x >= lastx + lastw) {
+            count += w;
+            lastx = x;
+            lastw = w;
+        }
+    }
+    // display matched percent
+    matchedtxt.classList.remove("hide");
+    var pct = 100 * count / maxwidth;
+    if (pct != 100) pct = pct.toFixed(1);
+    matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+}
+function format_percent(n) {
+    return n.toFixed(4) + "%";
+}
+]]></script><rect x="0" y="0" width="100%" height="182" fill="url(#background)"/><text id="title" fill="rgb(0,0,0)" x="50.0000%" y="24.00">flamechart TintGasReportTest::test_operate_gas</text><text id="details" fill="rgb(0,0,0)" x="10" y="165.00"> </text><text id="unzoom" class="hide" fill="rgb(0,0,0)" x="10" y="24.00">Reset Zoom</text><text id="search" fill="rgb(0,0,0)" x="1190" y="24.00">Search</text><text id="matched" fill="rgb(0,0,0)" x="1190" y="165.00"> </text><svg id="frames" x="10" width="1180" total_samples="6146225"><g><title>TintHarness.warmStorage() (5,701,213 gas, 92.76%)</title><rect x="0.3075%" y="101" width="92.7596%" height="15" fill="rgb(227,0,7)" fg:x="18902" fg:w="5701213"/><text x="0.5575%" y="111.50">TintHarness.warmStorage()</text></g><g><title>MockToken.transfer(address,uint256) (29,572 gas, 0.48%)</title><rect x="93.0671%" y="101" width="0.4811%" height="15" fill="rgb(217,0,24)" fg:x="5720115" fg:w="29572"/><text x="93.3171%" y="111.50"></text></g><g><title>Tint::computePublicSignals (8,366 gas, 0.14%)</title><rect x="93.6846%" y="69" width="0.1361%" height="15" fill="rgb(221,193,54)" fg:x="5758067" fg:w="8366"/><text x="93.9346%" y="79.50"></text></g><g><title>ProofLib::toPublicSignals (5,682 gas, 0.09%)</title><rect x="93.7283%" y="53" width="0.0924%" height="15" fill="rgb(248,212,6)" fg:x="5760751" fg:w="5682"/><text x="93.9783%" y="63.50"></text></g><g><title>PRECOMPILES.ecmul(uint256,uint256,uint256) (6,000 gas, 0.10%)</title><rect x="94.0022%" y="37" width="0.0976%" height="15" fill="rgb(208,68,35)" fg:x="5777587" fg:w="6000"/><text x="94.2522%" y="47.50"></text></g><g><title>PRECOMPILES.ecmul(uint256,uint256,uint256) (6,000 gas, 0.10%)</title><rect x="94.1023%" y="37" width="0.0976%" height="15" fill="rgb(232,128,0)" fg:x="5783737" fg:w="6000"/><text x="94.3523%" y="47.50"></text></g><g><title>PRECOMPILES.ecmul(uint256,uint256,uint256) (6,000 gas, 0.10%)</title><rect x="94.2023%" y="37" width="0.0976%" height="15" fill="rgb(207,160,47)" fg:x="5789887" fg:w="6000"/><text x="94.4523%" y="47.50"></text></g><g><title>PRECOMPILES.ecmul(uint256,uint256,uint256) (6,000 gas, 0.10%)</title><rect x="94.3024%" y="37" width="0.0976%" height="15" fill="rgb(228,23,34)" fg:x="5796037" fg:w="6000"/><text x="94.5524%" y="47.50"></text></g><g><title>PRECOMPILES.ecmul(uint256,uint256,uint256) (6,000 gas, 0.10%)</title><rect x="94.4025%" y="37" width="0.0976%" height="15" fill="rgb(218,30,26)" fg:x="5802187" fg:w="6000"/><text x="94.6525%" y="47.50"></text></g><g><title>PRECOMPILES.ecmul(uint256,uint256,uint256) (6,000 gas, 0.10%)</title><rect x="94.5025%" y="37" width="0.0976%" height="15" fill="rgb(220,122,19)" fg:x="5808337" fg:w="6000"/><text x="94.7525%" y="47.50"></text></g><g><title>PRECOMPILES.ecmul(uint256,uint256,uint256) (6,000 gas, 0.10%)</title><rect x="94.6026%" y="37" width="0.0976%" height="15" fill="rgb(250,228,42)" fg:x="5814487" fg:w="6000"/><text x="94.8526%" y="47.50"></text></g><g><title>PRECOMPILES.ecmul(uint256,uint256,uint256) (6,000 gas, 0.10%)</title><rect x="94.7026%" y="37" width="0.0976%" height="15" fill="rgb(240,193,28)" fg:x="5820637" fg:w="6000"/><text x="94.9526%" y="47.50"></text></g><g><title>PRECOMPILES.ecmul(uint256,uint256,uint256) (6,000 gas, 0.10%)</title><rect x="94.8027%" y="37" width="0.0976%" height="15" fill="rgb(216,20,37)" fg:x="5826787" fg:w="6000"/><text x="95.0527%" y="47.50"></text></g><g><title>PRECOMPILES.ecmul(uint256,uint256,uint256) (6,000 gas, 0.10%)</title><rect x="94.9028%" y="37" width="0.0976%" height="15" fill="rgb(206,188,39)" fg:x="5832937" fg:w="6000"/><text x="95.1528%" y="47.50"></text></g><g><title>PRECOMPILES.ecmul(uint256,uint256,uint256) (6,000 gas, 0.10%)</title><rect x="95.0028%" y="37" width="0.0976%" height="15" fill="rgb(217,207,13)" fg:x="5839087" fg:w="6000"/><text x="95.2528%" y="47.50"></text></g><g><title>PRECOMPILES.ecmul(uint256,uint256,uint256) (6,000 gas, 0.10%)</title><rect x="95.1029%" y="37" width="0.0976%" height="15" fill="rgb(231,73,38)" fg:x="5845237" fg:w="6000"/><text x="95.3529%" y="47.50"></text></g><g><title>PRECOMPILES.ecmul(uint256,uint256,uint256) (6,000 gas, 0.10%)</title><rect x="95.2029%" y="37" width="0.0976%" height="15" fill="rgb(225,20,46)" fg:x="5851387" fg:w="6000"/><text x="95.4529%" y="47.50"></text></g><g><title>PRECOMPILES.ecmul(uint256,uint256,uint256) (6,000 gas, 0.10%)</title><rect x="95.3030%" y="37" width="0.0976%" height="15" fill="rgb(210,31,41)" fg:x="5857537" fg:w="6000"/><text x="95.5530%" y="47.50"></text></g><g><title>PRECOMPILES.ecmul(uint256,uint256,uint256) (6,000 gas, 0.10%)</title><rect x="95.4031%" y="37" width="0.0976%" height="15" fill="rgb(221,200,47)" fg:x="5863687" fg:w="6000"/><text x="95.6531%" y="47.50"></text></g><g><title>Tint::verifyOperation (300,907 gas, 4.90%)</title><rect x="93.5522%" y="85" width="4.8958%" height="15" fill="rgb(226,26,5)" fg:x="5749930" fg:w="300907"/><text x="93.8022%" y="95.50">Tint::..</text></g><g><title>AlwaysTrueVerifier.verifyProof(uint256[2],uint256[2][2],uint256[2],uint256[15]) (284,404 gas, 4.63%)</title><rect x="93.8207%" y="69" width="4.6273%" height="15" fill="rgb(249,33,26)" fg:x="5766433" fg:w="284404"/><text x="94.0707%" y="79.50">Alway..</text></g><g><title>Groth16Verifier.verifyProof(uint256[2],uint256[2][2],uint256[2],uint256[15]) (280,931 gas, 4.57%)</title><rect x="93.8772%" y="53" width="4.5708%" height="15" fill="rgb(235,183,28)" fg:x="5769906" fg:w="280931"/><text x="94.1272%" y="63.50">Groth..</text></g><g><title>PRECOMPILES.ecpairing((uint256,uint256,uint256,uint256,uint256,uint256)[]) (181,000 gas, 2.94%)</title><rect x="95.5031%" y="37" width="2.9449%" height="15" fill="rgb(221,5,38)" fg:x="5869837" fg:w="181000"/><text x="95.7531%" y="47.50">PR..</text></g><g><title>AggregationRing::_commit (16,053 gas, 0.26%)</title><rect x="99.3330%" y="69" width="0.2612%" height="15" fill="rgb(247,18,42)" fg:x="6105231" fg:w="16053"/><text x="99.5830%" y="79.50"></text></g><g><title>all (6,146,225 gas, 100%)</title><rect x="0.0000%" y="133" width="100.0000%" height="15" fill="rgb(241,131,45)" fg:x="0" fg:w="6146225"/><text x="0.2500%" y="143.50"></text></g><g><title>TintGasReportTest.test_operate_gas() (6,146,225 gas, 100.00%)</title><rect x="0.0000%" y="117" width="100.0000%" height="15" fill="rgb(249,31,29)" fg:x="0" fg:w="6146225"/><text x="0.2500%" y="127.50">TintGasReportTest.test_operate_gas()</text></g><g><title>TintHarness.operate((bytes32,uint128,bytes32,uint128,bytes32[1],address[1],bytes32[5],uint128[1],address[1],(bytes[1],bytes[5],address[1]),(uint256[2],uint256[2][2],uint256[2]))) (396,538 gas, 6.45%)</title><rect x="93.5483%" y="101" width="6.4517%" height="15" fill="rgb(225,111,53)" fg:x="5749687" fg:w="396538"/><text x="93.7983%" y="111.50">TintHarn..</text></g><g><title>Tint::_executeOperation (95,388 gas, 1.55%)</title><rect x="98.4480%" y="85" width="1.5520%" height="15" fill="rgb(238,160,17)" fg:x="6050837" fg:w="95388"/><text x="98.6980%" y="95.50"></text></g><g><title>MockToken.transfer(address,uint256) (24,772 gas, 0.40%)</title><rect x="99.5970%" y="69" width="0.4030%" height="15" fill="rgb(214,148,48)" fg:x="6121453" fg:w="24772"/><text x="99.8470%" y="79.50"></text></g></svg></svg>

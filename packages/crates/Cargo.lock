@@ -767,6 +767,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-ed-on-bn254"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4585ccc828ac1a1c0973a6d859b8cd9ae6055a0ee943139c8e254dfd87d6f38"
+dependencies = [
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff 0.6.0",
+ "ark-std 0.6.0",
+]
+
+[[package]]
 name = "ark-ff"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4623,6 +4635,14 @@ dependencies = [
 [[package]]
 name = "tint-aml"
 version = "0.1.0"
+dependencies = [
+ "ark-bn254",
+ "ark-ed-on-bn254",
+ "ark-r1cs-std",
+ "ark-relations",
+ "tint",
+ "tracing",
+]
 
 [[package]]
 name = "tinystr"

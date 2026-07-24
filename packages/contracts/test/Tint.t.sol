@@ -83,7 +83,7 @@ contract TintTests is Test {
         vm.expectEmit(true, true, true, true);
         emit Tint.Deposited(
             bytes32(
-                0x276f9099e01965e0d0dc0cdfc20d83dea2dccc3e5470b8e0617acaccc5e6c5d5
+                0x2ee5225f16cda90e5c31a84c3ff505613050d79f01b022a6a629ee951a050715
             ),
             ""
         );
@@ -267,7 +267,7 @@ contract TintTests is Test {
         bytes32 rootA = bytes32(uint256(1));
         bytes32 rootB = bytes32(uint256(2));
 
-        tint.operate(_op(GENESIS_ROOT, nullifiers)); // 0→A, currentRootIndex=2
+        tint.operate(_op(GENESIS_ROOT, nullifiers)); // 0->A, currentRootIndex=2
         assertEq(tint.roots(rootA), 2);
 
         IPrivacyPool.Operation memory op = _op(rootA, nullifiers);

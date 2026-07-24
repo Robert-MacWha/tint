@@ -10,6 +10,7 @@ interface IPrivacyPool {
         uint128 startAggregationIndex;
         bytes32 newRoot;
         uint128 endAggregationIndex;
+        bytes32 operationHash;
         bytes32[N_INPUTS] nullifiers;
         address[N_INPUTS] spendabilityAddresses;
         bytes32[N_OUTPUTS] commitmentsOut;

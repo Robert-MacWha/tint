@@ -27,9 +27,9 @@ use crate::{
     operation::Operation,
 };
 
-pub const N_INPUTS: usize = 1;
-pub const N_OUTPUTS: usize = 1;
-pub const N_WITHDRAWALS: usize = 5;
+pub const N_INPUTS: usize = 5;
+pub const N_OUTPUTS: usize = 5;
+pub const N_WITHDRAWALS: usize = 2;
 
 pub const TREE_DEPTH: usize = 8;
 pub const SUBTREE_DEPTH: usize = 2;
@@ -61,6 +61,7 @@ pub struct JoinSplitVar {
 pub struct JoinSplitResult {
     pub new_root: Fr,
     pub end_aggregation_hash: Fr,
+    pub operation_hash: Fr,
     pub nullifiers: [Fr; N_INPUTS],
     pub spendability_addresses: [Address; N_INPUTS],
     pub output_commitment_hashes: [Fr; N_OUTPUTS],
@@ -71,6 +72,7 @@ pub struct JoinSplitResult {
 pub struct JoinSplitResultVar {
     pub new_root: FrVar,
     pub end_aggregation_hash: FrVar,
+    pub operation_hash: FrVar,
     pub nullifiers: [FrVar; N_INPUTS],
     pub spendability_addresses: [FrVar; N_INPUTS],
     pub output_commitment_hashes: [FrVar; N_OUTPUTS],
@@ -146,6 +148,7 @@ impl JoinSplit {
         // from `FrVar` to `Fr`?
         output(cs.clone(), &result.new_root)?;
         output(cs.clone(), &result.end_aggregation_hash)?;
+        output(cs.clone(), &result.operation_hash)?;
         for i in 0..N_INPUTS {
             output(cs.clone(), &result.nullifiers[i])?;
             output(cs.clone(), &result.spendability_addresses[i])?;
@@ -205,6 +208,7 @@ impl JoinSplitVar {
         Ok(JoinSplitResultVar {
             new_root,
             end_aggregation_hash: subtree_append_result.end_aggregation_hash,
+            operation_hash: operation_result.hash,
             nullifiers: operation_result.nullifiers,
             spendability_addresses: operation_result.spendability_addresses,
             output_commitment_hashes: operation_result.output_commitment_hashes,
@@ -247,6 +251,7 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
     fn try_from(value: JoinSplitResultVar) -> Result<Self, Self::Error> {
         let new_root = value.new_root.value()?;
         let end_aggregation_hash = value.end_aggregation_hash.value()?;
+        let operation_hash = value.operation_hash.value()?;
         let nullifiers = try_from_fn(|i| value.nullifiers[i].value())?;
         let spendability_addresses: [Fr; N_INPUTS] =
             try_from_fn(|i| value.spendability_addresses[i].value())?;
@@ -264,6 +269,7 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
         Ok(Self {
             new_root,
             end_aggregation_hash,
+            operation_hash,
             nullifiers,
             spendability_addresses,
             output_commitment_hashes,

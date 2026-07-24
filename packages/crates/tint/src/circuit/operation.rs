@@ -9,6 +9,7 @@ use crate::{
     circuit::{
         FrVar,
         commitment::{BaseCommitmentVar, SpendableCommitmentVar},
+        poseidon2::poseidon2_compress_gadget,
         variable,
     },
     note::withdrawal::Withdrawal,
@@ -27,11 +28,12 @@ pub struct WithdrawalVar {
     pub amount: FrVar,
 }
 
-pub struct OperationResult<
+pub struct OperationResultVar<
     const N_INPUTS: usize,
     const N_OUTPUTS: usize,
     const N_WITHDRAWALS: usize,
 > {
+    pub hash: FrVar,
     pub nullifiers: [FrVar; N_INPUTS],
     pub spendability_addresses: [FrVar; N_INPUTS],
     pub output_commitment_hashes: [FrVar; N_OUTPUTS],
@@ -49,34 +51,74 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     pub fn verify(
         &self,
         input_commitment_hashes: &[FrVar; N_INPUTS],
-    ) -> Result<OperationResult<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>, SynthesisError> {
+    ) -> Result<OperationResultVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>, SynthesisError> {
         self.verify_input_commitments(input_commitment_hashes)?;
         self.verify_spendability_hashes()?;
         self.enforce_u128()?;
         self.verify_balance()?;
 
-        Ok(OperationResult {
+        let output_commitment_hashes = self.output_commitment_hashes()?;
+        let withdrawal_hashes = self.withdrawal_hashes()?;
+        let hash = self.hash_inner(
+            input_commitment_hashes,
+            &output_commitment_hashes,
+            &withdrawal_hashes,
+        )?;
+
+        Ok(OperationResultVar {
+            hash,
             nullifiers: self.nullifiers(input_commitment_hashes)?,
             spendability_addresses: self.spendability_addresses(),
-            output_commitment_hashes: self.output_commitment_hashes()?,
+            output_commitment_hashes,
             withdrawals: self.withdrawals.clone(),
         })
     }
 
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    pub fn hash(&self) -> Result<FrVar, SynthesisError> {
+        let input_commitment_hashes = self.input_commitment_hashes()?;
+        let output_commitment_hashes = self.output_commitment_hashes()?;
+        let withdrawal_hashes = self.withdrawal_hashes()?;
+        self.hash_inner(
+            &input_commitment_hashes,
+            &output_commitment_hashes,
+            &withdrawal_hashes,
+        )
+    }
+
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    fn hash_inner(
+        &self,
+        input_commitment_hashes: &[FrVar; N_INPUTS],
+        output_commitment_hashes: &[FrVar; N_OUTPUTS],
+        withdrawal_hashes: &[FrVar; N_WITHDRAWALS],
+    ) -> Result<FrVar, SynthesisError> {
+        let mut hash = FrVar::zero();
+        for i in input_commitment_hashes {
+            hash = poseidon2_compress_gadget(&[hash.clone(), i.clone()])?;
+        }
+
+        for commitment_hash in output_commitment_hashes {
+            hash = poseidon2_compress_gadget(&[hash.clone(), commitment_hash.clone()])?;
+        }
+
+        for withdrawal_hash in withdrawal_hashes {
+            hash = poseidon2_compress_gadget(&[hash.clone(), withdrawal_hash.clone()])?;
+        }
+
+        Ok(hash)
+    }
+
     /// Verifies that the inputs match the provided input commitment hashes,
     /// returning each input's computed base commitment hash for reuse.
-    ///
-    /// Skipped for unused (zero-amount) input slots.
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn verify_input_commitments(
         &self,
         input_commitment_hashes: &[FrVar; N_INPUTS],
     ) -> Result<(), SynthesisError> {
+        let expected_hashes = self.input_commitment_hashes()?;
         for i in 0..N_INPUTS {
-            let computed_hash: FrVar = self.inputs[i].hash()?;
-            let used = !self.inputs[i].amount.is_zero()?;
-            let expected = used.select(&input_commitment_hashes[i], &computed_hash)?;
-            computed_hash.enforce_equal(&expected)?;
+            input_commitment_hashes[i].enforce_equal(&expected_hashes[i])?;
         }
         Ok(())
     }
@@ -111,12 +153,32 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
         std::array::from_fn(|i| self.inputs[i].spendability_address.clone())
     }
 
+    /// Computes the commitment hash for each input, or `0` for unused (zero-amount) slots.
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    fn input_commitment_hashes(&self) -> Result<[FrVar; N_INPUTS], SynthesisError> {
+        try_from_fn(|i| {
+            let hash = self.inputs[i].hash()?;
+            let used = !self.inputs[i].amount.is_zero()?;
+            used.select(&hash, &FrVar::zero())
+        })
+    }
+
     /// Computes the commitment hash for each output, or `0` for unused (zero-amount) slots.
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn output_commitment_hashes(&self) -> Result<[FrVar; N_OUTPUTS], SynthesisError> {
         try_from_fn(|i| {
             let hash = self.output_commitments[i].hash()?;
             let used = !self.output_commitments[i].amount.is_zero()?;
+            used.select(&hash, &FrVar::zero())
+        })
+    }
+
+    /// Computes the withdrawal hash for each withdrawal, or `0` for unused (zero-amount) slots.
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    fn withdrawal_hashes(&self) -> Result<[FrVar; N_WITHDRAWALS], SynthesisError> {
+        try_from_fn(|i| {
+            let hash = self.withdrawals[i].hash()?;
+            let used = !self.withdrawals[i].amount.is_zero()?;
             used.select(&hash, &FrVar::zero())
         })
     }
@@ -182,6 +244,11 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
 }
 
 impl WithdrawalVar {
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    pub fn hash(&self) -> Result<FrVar, SynthesisError> {
+        poseidon2_compress_gadget(&[self.asset.clone(), self.amount.clone()])
+    }
+
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn enforce_equal(&self, other: &WithdrawalVar) -> Result<(), SynthesisError> {
         self.asset.enforce_equal(&other.asset)?;

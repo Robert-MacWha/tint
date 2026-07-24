@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {LibPoseidon2T3_BN254} from "./LibPoseidon2T3_BN254.sol";
 import {IPrivacyPool} from "../interfaces/IPrivacyPool.sol";
 import {
+    N_CONST,
     N_INPUTS,
     N_OUTPUTS,
     N_WITHDRAWALS,
@@ -34,23 +35,23 @@ library ProofLib {
             pub[3] = toBoundParamsHash(op);
             pub[4] = uint256(op.newRoot);
             pub[5] = uint256(endAggregationHash);
+            pub[6] = uint256(op.operationHash);
 
             for (uint256 i = 0; i < N_INPUTS; i++) {
-                pub[6 + 2 * i] = uint256(op.nullifiers[i]);
-                pub[6 + 2 * i + 1] = uint256(
+                pub[N_CONST + 2 * i] = uint256(op.nullifiers[i]);
+                pub[N_CONST + 2 * i + 1] = uint256(
                     uint160(op.spendabilityAddresses[i])
                 );
             }
 
             for (uint256 i = 0; i < N_OUTPUTS; i++) {
-                pub[6 + 2 * N_INPUTS + i] = uint256(op.commitmentsOut[i]);
+                pub[N_CONST + 2 * N_INPUTS + i] = uint256(op.commitmentsOut[i]);
             }
 
             for (uint256 i = 0; i < N_WITHDRAWALS; i++) {
-                pub[6 + 2 * N_INPUTS + N_OUTPUTS + 2 * i] = op.unshieldAmounts[
-                    i
-                ];
-                pub[6 + 2 * N_INPUTS + N_OUTPUTS + 2 * i + 1] = uint256(
+                pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i] = op
+                    .unshieldAmounts[i];
+                pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i + 1] = uint256(
                     uint160(op.unshieldAssets[i])
                 );
             }

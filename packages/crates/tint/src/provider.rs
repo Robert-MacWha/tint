@@ -160,6 +160,7 @@ impl Provider {
                 startAggregationIndex: start_aggregation_index,
                 endAggregationIndex: end_aggregation_index,
                 newRoot: fr_to_b256(outputs.new_root),
+                operationHash: fr_to_b256(outputs.operation_hash),
                 nullifiers: outputs.nullifiers.map(fr_to_b256),
                 commitmentsOut: outputs.output_commitment_hashes.map(fr_to_b256),
                 unshieldAmounts: outputs.withdrawal_amounts,

@@ -1,0 +1,15 @@
+[package]
+name = "cli"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+
+[dependencies]
+anyhow = { workspace = true }
+openlv = { workspace = true, features = ["provider"] }
+tokio = { workspace = true, features = ["full"] }
+serde_json = { workspace = true }
+alloy = { workspace = true }
+serde = { workspace = true }
+rustls = { version = "0.23", features = ["ring"] }

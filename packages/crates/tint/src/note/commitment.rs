@@ -47,7 +47,7 @@ pub struct BaseCommitment {
 }
 
 /// A commitment that can be spent, including its nullifier key.
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct SpendableCommitment {
     pub base: BaseCommitment,
     pub nullifier_key: NullifierKey,
@@ -169,6 +169,21 @@ impl SpendableCommitment {
     }
 }
 
+impl Default for SpendableCommitment {
+    fn default() -> Self {
+        Self::new(
+            AssetId::default(),
+            0,
+            NullifierKey::default(),
+            Address::default(),
+            B256::default(),
+            Bytes::default(),
+            EncryptionPubKey::default(),
+            B256::default(),
+        )
+    }
+}
+
 impl Commitment for BaseCommitment {
     fn asset_fr(&self) -> Fr {
         Fr::from(self.asset)
@@ -237,7 +252,7 @@ mod tests {
         let base_commitment = spendable_commitment.base.clone();
 
         assert_eq!(base_commitment.hash(), spendable_commitment.hash());
-        assert_snapshot!(base_commitment.hash().to_string(), @"6798057769400104581763912905739377134824170279094112012482064995161618118540");
+        assert_snapshot!(base_commitment.hash().to_string(), @"17640475429295364107359838331529334780077059090612734967321040506786550571143");
     }
 
     #[test]

@@ -485,18 +485,19 @@ mod tests {
         assert!(cs.is_satisfied().unwrap());
     }
 
-    /// Expect that unused (zero-amount) input slots don't need their provided
-    /// leaf to match the computed commitment hash.
+    /// Expect that unused (zero-amount) input slots require a zero leaf,
+    /// matching the zeroed commitment hash `input_commitment_hashes` reveals
+    /// for them.
     #[test]
-    fn verify_input_commitments_ignores_unused_slots() {
+    fn verify_input_commitments_requires_zero_leaf_for_unused_slots() {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let op = Operation::<3, 3, 3>::default();
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
-        let mismatched_leaves: [FrVar; 3] =
-            std::array::from_fn(|_| FpVar::new_witness(cs.clone(), || Ok(Fr::from(1234))).unwrap());
+        let zero_leaves: [FrVar; 3] =
+            std::array::from_fn(|_| FpVar::new_witness(cs.clone(), || Ok(Fr::from(0))).unwrap());
 
-        let _ = var.verify_input_commitments(&mismatched_leaves).unwrap();
+        let _ = var.verify_input_commitments(&zero_leaves).unwrap();
         assert!(cs.is_satisfied().unwrap());
     }
 

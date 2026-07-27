@@ -101,8 +101,7 @@ impl JoinSplit {
         }
     }
 
-    /// Synthesizes the JoinSplit circuit, returning the public inputs (in
-    /// the order matching `ProofLib.toPublicSignals` / `N_PUB`).
+    /// Synthesizes the JoinSplit circuit, returning the public inputs.
     pub fn synthesize_public_inputs(&self) -> Result<Vec<Fr>, SynthesisError> {
         let cs = ConstraintSystem::new_ref();
         cs.set_optimization_goal(OptimizationGoal::Constraints);
@@ -110,8 +109,7 @@ impl JoinSplit {
         let _ = self.synthesize(cs.clone())?;
         cs.finalize();
 
-        // `instance_assignment()` leads with the implicit constant-1 term;
-        // callers (and `Groth16::verify`) only want the actual signals.
+        // `instance_assignment()` leads with the implicit constant-1 term.
         Ok(cs.instance_assignment()?[1..].to_vec())
     }
 

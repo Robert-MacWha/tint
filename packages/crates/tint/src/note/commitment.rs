@@ -171,16 +171,23 @@ impl SpendableCommitment {
 
 impl Default for SpendableCommitment {
     fn default() -> Self {
-        Self::new(
+        let nullifier_key = NullifierKey::default();
+        let base = BaseCommitment::new(
             AssetId::default(),
             0,
-            NullifierKey::default(),
-            Address::default(),
+            Fr::from(0),
+            nullifier_key.pub_key(),
             B256::default(),
-            Bytes::default(),
-            EncryptionPubKey::default(),
-            B256::default(),
-        )
+        );
+
+        SpendableCommitment {
+            base,
+            nullifier_key,
+            spendability_address: Address::default(),
+            spendability_witness: B256::default(),
+            spendability_input: Bytes::default(),
+            encryption_pub_key: EncryptionPubKey::default(),
+        }
     }
 }
 

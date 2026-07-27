@@ -25,7 +25,7 @@ async-trait = { workspace = true }
 ruint = { workspace = true, features = ["ark-ff-06"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-x25519-dalek = { workspace = true, features = ["static_secrets"] }
+x25519-dalek = { workspace = true, features = ["static_secrets", "serde"] }
 chacha20poly1305 = { workspace = true }
 hkdf = { workspace = true }
 sha2 = { workspace = true }

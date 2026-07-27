@@ -5,6 +5,10 @@ edition = "2024"
 
 [features]
 
+[[bin]]
+name = "tint-cli"
+path = "src/main.rs"
+
 [dependencies]
 anyhow = { workspace = true }
 openlv = { workspace = true, features = ["provider"] }
@@ -13,3 +17,12 @@ serde_json = { workspace = true }
 alloy = { workspace = true }
 serde = { workspace = true }
 rustls = { version = "0.23", features = ["ring"] }
+tint = { workspace = true }
+clap = { workspace = true }
+ark-bn254 = { workspace = true, default-features = false }
+ark-ff = { workspace = true, default-features = false }
+ark-groth16 = { workspace = true, default-features = false }
+ark-serialize = { workspace = true }
+brotli = { workspace = true }
+x25519-dalek = { workspace = true }
+rand_core = { workspace = true, features = ["getrandom"] }

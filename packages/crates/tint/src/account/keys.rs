@@ -26,7 +26,7 @@ pub struct NullifierPubKey(#[serde_as(as = "crate::serde::fr::FrAsBytes")] pub F
 #[derive(Clone)]
 pub struct EncryptionKey(pub StaticSecret);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct EncryptionPubKey(pub PublicKey);
 
 // Info strings used for HKDF key derivation.

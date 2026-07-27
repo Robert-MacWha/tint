@@ -47,7 +47,7 @@ mod tests {
             let inputs_var: [FrVar; 3] =
                 core::array::from_fn(|i| witness(cs.clone(), &inputs[i]).unwrap());
 
-            let reference = taceo_poseidon2::bn254::t3::permutation(&inputs)[0];
+            let reference = taceo_poseidon2::bn254::t3::permutation(&inputs)[0] + inputs[0];
             let native_hash = poseidon2_compress(&inputs);
             let gadget_hash = poseidon2_compress_gadget(&inputs_var).unwrap();
 

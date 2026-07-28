@@ -31,7 +31,7 @@ pub fn setup_circuits()
     let circuit = JoinSplit::default();
     let (proving_key, verifying_key) = Groth16::<Bn254>::circuit_specific_setup(circuit, &mut rng)?;
 
-    info!("Loaded proving & verifying keys");
+    info!("Circuit setup complete.");
     Ok((proving_key, verifying_key))
 }
 

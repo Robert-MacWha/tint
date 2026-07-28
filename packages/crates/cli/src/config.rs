@@ -101,6 +101,10 @@ pub fn load_or_generate_circuit_keys() -> anyhow::Result<(ProvingKey<Bn254>, Ver
     tracing::info!("Generating circuit keys (first run)...");
     let (proving_key, verifying_key) = tint::circuit::setup_circuits()?;
 
+    tracing::info!(
+        "Caching circuit keys to {}... this may take a while",
+        circuit_dir().display()
+    );
     std::fs::create_dir_all(circuit_dir())?;
     let pk_bytes =
         artifacts::serialize_proving_key(&proving_key).context("serializing proving key")?;

@@ -16,19 +16,21 @@ Run `just run help` or `cargo run --release -- help` to see the available comman
 ### Example
 
 ```bash
+export TOKEN=0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2
+
 # Fund EOA with 100 ETH and WETH
-just run set-balance --amount 100000000000000000000
-just run set-erc20-balance --token 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2 --amount 100000000000000000000
+just run set-balance 100000000000000000000
+just run set-erc20-balance $TOKEN 100000000000000000000
 
 # Create tint accounts
 just run create-account alice
 just run create-account bob
 
 # Shield into alice's account
-just run shield --to alice --token 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2 --amount 1000
-just run transfer --from alice --to bob --token 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2 --amount 500
-just run unshield --from alice --to 0x000000000000000000000000000000000000dead --token 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2 --amount 400
+just run shield alice $TOKEN 1000
+just run transfer alice bob $TOKEN 500
+just run unshield alice 0x000000000000000000000000000000000000dead $TOKEN 400
 
-just run balance --account alice
-just run balance --account bob
+just run balance alice
+just run balance bob
 ```

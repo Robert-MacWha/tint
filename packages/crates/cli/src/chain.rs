@@ -129,7 +129,7 @@ pub async fn shield(session: &mut Session, token: Address, amount: u128) -> anyh
     send(session, session.tint_address, call.abi_encode()).await?;
 
     session.tint_provider.sync().await?;
-    print_balance(session, asset);
+    print_balance(session);
     Ok(())
 }
 
@@ -163,7 +163,7 @@ pub async fn transfer(
 
     send(session, session.tint_address, call.abi_encode()).await?;
     session.tint_provider.sync().await?;
-    print_balance(session, asset);
+    print_balance(session);
     Ok(())
 }
 
@@ -196,7 +196,7 @@ pub async fn unshield(
 
     send(session, session.tint_address, call.abi_encode()).await?;
     session.tint_provider.sync().await?;
-    print_balance(session, asset);
+    print_balance(session);
     Ok(())
 }
 
@@ -223,19 +223,21 @@ fn pick_note(
 }
 
 /// Prints the shielded balance of `token` for the connected account.
-pub fn balance(session: &Session, token: Address) {
-    print_balance(session, AssetId::from(token));
-}
-
-fn print_balance(session: &Session, asset: AssetId) {
-    let total: u128 = session
+pub fn print_balance(session: &Session) {
+    let balances = session
         .tint_provider
         .spendable_notes(session.account.receiver())
         .iter()
-        .filter(|note| note.base.asset == asset)
-        .map(|note| note.base.amount)
-        .sum();
-    tracing::info!("Remaining shielded balance for this asset: {total}");
+        .fold(
+            std::collections::HashMap::<AssetId, u128>::new(),
+            |mut acc, note| {
+                *acc.entry(note.base.asset).or_default() += note.base.amount;
+                acc
+            },
+        );
+    for (asset, amount) in balances {
+        tracing::info!("Shielded balance for {asset}: {amount}");
+    }
 }
 
 /// Builds a bare (unsigned) provider connection for admin RPC calls that

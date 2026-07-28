@@ -1,3 +1,5 @@
+use std::fmt;
+
 use alloy_primitives::Address;
 use ark_bn254::Fr;
 use serde::{Deserialize, Serialize};
@@ -28,6 +30,12 @@ impl From<AssetId> for Fr {
 impl From<Fr> for AssetId {
     fn from(fr: Fr) -> Self {
         AssetId(fr_to_address(fr))
+    }
+}
+
+impl fmt::Display for AssetId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

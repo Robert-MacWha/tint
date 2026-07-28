@@ -20,12 +20,7 @@ enum Command {
     /// Print the shielded balance of a token for a local account
     Balance {
         /// The local account name to check the balance of
-        #[arg(long)]
         account: String,
-
-        /// The ERC20 token address to check the balance of
-        #[arg(long)]
-        token: Address,
         #[arg(long, env = "TINT_ADDRESS")]
         tint_address: Address,
         #[arg(long, env = "RPC_URL")]
@@ -36,15 +31,10 @@ enum Command {
     /// Shield (deposit) ERC20 funds into a shielded account, auto-approving the transfer
     Shield {
         /// The local account name to shield into
-        #[arg(long)]
         to: String,
-
         /// The ERC20 token address to shield
-        #[arg(long)]
         token: Address,
-
         /// The amount of the token to shield
-        #[arg(long)]
         amount: u128,
         #[arg(long, env = "TINT_ADDRESS")]
         tint_address: Address,
@@ -56,19 +46,12 @@ enum Command {
     /// Transfer shielded funds to another local account
     Transfer {
         /// The local account name to transfer from
-        #[arg(long)]
         from: String,
-
         /// The local account name to transfer to
-        #[arg(long)]
         to: String,
-
         /// The ERC20 token address to transfer
-        #[arg(long)]
         token: Address,
-
         /// The amount of the token to transfer
-        #[arg(long)]
         amount: u128,
         #[arg(long, env = "TINT_ADDRESS")]
         tint_address: Address,
@@ -80,19 +63,12 @@ enum Command {
     /// Unshield (withdraw) funds to a plain Ethereum address
     Unshield {
         /// The local account name to unshield from
-        #[arg(long)]
         from: String,
-
         /// The Ethereum address to unshield to
-        #[arg(long)]
         to: Address,
-
         /// The ERC20 token address to unshield
-        #[arg(long)]
         token: Address,
-
         /// The amount of the token to unshield
-        #[arg(long)]
         amount: u128,
         #[arg(long, env = "TINT_ADDRESS")]
         tint_address: Address,
@@ -110,11 +86,8 @@ enum Command {
     /// Overwrite an address's native balance via Tenderly's setBalance cheatcode (testnets only)
     SetBalance {
         /// The amount of ETH to set the balance to (in wei).
-        #[arg(long)]
         amount: u128,
-
         /// If provided, the address to set the balance of.
-        #[arg(long)]
         address: Option<Address>,
         #[arg(long, env = "RPC_URL")]
         rpc_url: String,
@@ -125,19 +98,13 @@ enum Command {
     /// Overwrite an address's ERC20 balance via Tenderly's setErc20Balance cheatcode (testnets only)
     SetErc20Balance {
         /// The ERC20 token address to set the balance of.
-        #[arg(long)]
         token: Address,
-
         /// The amount of the token to set the balance to (in wei).
-        #[arg(long)]
         amount: u128,
-
         /// If provided, the address to set the balance of.
-        #[arg(long)]
         address: Option<Address>,
         #[arg(long, env = "RPC_URL")]
         rpc_url: String,
-
         /// If provided, the private key for the address to set the balance of.
         #[arg(long, env = "PRIVATE_KEY")]
         private_key: B256,
@@ -167,14 +134,13 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Balance {
             account,
-            token,
             tint_address,
             rpc_url,
             private_key,
         } => {
             let account = config::load_account(&account)?;
             let session = chain::connect(account, tint_address, &rpc_url, private_key).await?;
-            chain::balance(&session, token);
+            chain::print_balance(&session);
         }
         Command::Shield {
             to,

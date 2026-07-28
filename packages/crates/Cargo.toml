@@ -34,7 +34,7 @@ tokio = { version = "1" }
 ark-std = "0.6.0"
 postcard = { version = "1.1.3" }
 serde = "1.0.228"
-taceo-poseidon2 = { path = "../../../eddsa-babyjubjub/poseidon2" }
+taceo-poseidon2 = { git = "https://github.com/Robert-MacWha/eddsa-babyjubjub" }
 serde_with = "3.21.0"
 ark-serialize = "0.6.0"
 brotli = "8.0.4"
@@ -48,4 +48,4 @@ criterion = "0.8.2"
 tracing-subscriber = { version = "0.3" }
 alloy-contract = "1.6.0"
 # openlv = "0.0.2"
-openlv = { path = "../../../openlv-rs/crates/openlv" }
+# openlv = { path = "../../../openlv-rs/crates/openlv" }

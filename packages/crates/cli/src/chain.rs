@@ -234,8 +234,9 @@ pub fn print_balance(session: &Session) {
                 acc
             },
         );
+    tracing::info!("Shielded balances:");
     for (asset, amount) in balances {
-        tracing::info!("Shielded balance for {asset}: {amount}");
+        tracing::info!("{asset}: {amount}");
     }
 }
 

@@ -1,19 +1,14 @@
-//! Compression + (de)serialization helpers for circuit artifacts (proving
-//! keys, verifying keys, precomputed constraint matrices), shared between
-//! `gen_artifacts` and any code that caches these artifacts to disk.
-
-use std::io::{Read, Write};
+//! Compression + (de)serialization helpers for circuit artifacts.
 
 use ark_bn254::Bn254;
 use ark_groth16::{ProvingKey, VerifyingKey};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use brotli::{CompressorWriter, Decompressor};
 
 use crate::circuit::matrices::Matrices;
 
-const BUFFER_SIZE: usize = 4096;
-const QUALITY: u32 = 11;
-const LGWIN: u32 = 22;
+// const BUFFER_SIZE: usize = 4096;
+// const QUALITY: u32 = 11;
+// const LGWIN: u32 = 22;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ArtifactError {
@@ -53,38 +48,36 @@ pub fn deserialize_matrices(bytes: &[u8]) -> Result<Matrices, ArtifactError> {
 fn serialize_canonical<T: CanonicalSerialize>(value: &T) -> Result<Vec<u8>, ArtifactError> {
     let mut bytes = Vec::new();
     value.serialize_uncompressed(&mut bytes)?;
-    compress(&bytes)
+    Ok(bytes)
 }
 
 /// Brotli-decompresses `bytes` and deserializes with `ark-serialize`.
 fn deserialize_canonical<T: CanonicalDeserialize>(bytes: &[u8]) -> Result<T, ArtifactError> {
-    let decompressed = decompress(bytes)?;
-    Ok(T::deserialize_uncompressed(&decompressed[..])?)
+    Ok(T::deserialize_uncompressed(&bytes[..])?)
 }
 
 /// Serializes `value` with `postcard` and brotli-compresses the result.
 fn serialize_postcard<T: serde::Serialize>(value: &T) -> Result<Vec<u8>, ArtifactError> {
     let bytes = postcard::to_stdvec(value)?;
-    compress(&bytes)
+    Ok(bytes)
 }
 
 /// Brotli-decompresses `bytes` and deserializes with `postcard`.
 fn deserialize_postcard<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, ArtifactError> {
-    let decompressed = decompress(bytes)?;
-    Ok(postcard::from_bytes(&decompressed)?)
+    Ok(postcard::from_bytes(&bytes)?)
 }
 
-fn compress(data: &[u8]) -> Result<Vec<u8>, ArtifactError> {
-    let mut compressed = Vec::new();
-    CompressorWriter::new(&mut compressed, BUFFER_SIZE, QUALITY, LGWIN).write_all(data)?;
-    Ok(compressed)
-}
+// fn compress(data: &[u8]) -> Result<Vec<u8>, ArtifactError> {
+//     let mut compressed = Vec::new();
+//     CompressorWriter::new(&mut compressed, BUFFER_SIZE, QUALITY, LGWIN).write_all(data)?;
+//     Ok(compressed)
+// }
 
-fn decompress(data: &[u8]) -> Result<Vec<u8>, ArtifactError> {
-    let mut decompressed = Vec::new();
-    Decompressor::new(data, BUFFER_SIZE).read_to_end(&mut decompressed)?;
-    Ok(decompressed)
-}
+// fn decompress(data: &[u8]) -> Result<Vec<u8>, ArtifactError> {
+//     let mut decompressed = Vec::new();
+//     Decompressor::new(data, BUFFER_SIZE).read_to_end(&mut decompressed)?;
+//     Ok(decompressed)
+// }
 
 #[cfg(test)]
 mod tests {

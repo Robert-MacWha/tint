@@ -16,10 +16,22 @@ A very simple toybox CLI.  Currently operating on a tenderly virtual testnet. De
 - [ ] Paymaster support
 - [ ] Custom spendability policies
 
+### Requirements
+
+**nix / nixos:** `nix develop`
+
+**manual:**
+    - [just](https://just.systems/man/en/)
+    - [rust](https://rust-lang.org/)
+    - [foundry](https://www.getfoundry.sh/)
+
 ### Usage
 
-1. Ask Robert to share the RPC_URL for the tenderly virtual testnet or add your key to the `.sops.yaml` file.
-2. Run `just run help` or `cargo run --release -- help` to see the available commands.
+1. Ensure you have installed the above requirements.
+2. Ask Robert to share the `RPC_URL` for the tenderly virtual testnet or add your key to the `.sops.yaml` file.
+3. Run `just run help` or `cargo run --release -- help` to see the available commands.
+
+The first run will take a while, since it builds the smart contracts, rust CLI, and arkworks circuits. Following runs will be much faster.
 
 ### Example
 

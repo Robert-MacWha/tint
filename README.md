@@ -41,6 +41,8 @@ export RPC_URL=...
 # Generate a random private key
 export PRIVATE_KEY=0x...
 
+export TOKEN=0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2
+
 # Fund EOA with 100 ETH and WETH
 just run set-balance 100000000000000000000
 just run set-erc20-balance $TOKEN 100000000000000000000

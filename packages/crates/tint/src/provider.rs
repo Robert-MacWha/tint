@@ -31,7 +31,7 @@ pub enum ProviderError {
     TooManySlots,
     #[error("input commitment not present in the tree — not yet synced, or already spent")]
     InputNotFound,
-    #[error("generated proof failed local verification")]
+    #[error("generated proof is invalid")]
     InvalidProof,
     #[error("indexer error: {0}")]
     Indexer(#[from] crate::indexer::IndexerError),
@@ -109,7 +109,6 @@ impl Provider {
         rng: &mut R,
     ) -> Result<Tint::operateCall, ProviderError> {
         let (operation, _public_inputs) = self.operation(inputs, outputs, withdrawals, rng)?;
-
         Ok(Tint::operateCall::new((operation,)))
     }
 

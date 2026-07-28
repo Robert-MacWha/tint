@@ -100,7 +100,10 @@ contract AggregationRingTests is Test {
         ring.commit(newCommitment);
 
         bytes32 expected = bytes32(
-            Poseidon2T2_BN254.compress([uint256(prevHash), uint256(newCommitment)], 0)
+            Poseidon2T2_BN254.compress(
+                [uint256(prevHash), uint256(newCommitment)],
+                0
+            )
         );
         assertEq(ring.aggregationHashRing(0), expected);
         assertFalse(ring.aggregationHashRing(0) == hashAtSlot0Before); // slot was overwritten

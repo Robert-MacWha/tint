@@ -11,7 +11,7 @@ alloy = "1.6"
 alloy-primitives = "1.6.0"
 alloy-provider = "1.6.0"
 alloy-rpc-types-eth = "1.6.0"
-alloy-sol-macro = { version = "1.6.0" }
+alloy-sol-macro = "1.6.0"
 alloy-sol-types = "1.6.0"
 ark-bn254 = { version = "0.6.0", default-features = false }
 ark-ff = { version = "0.6.0", default-features = false }

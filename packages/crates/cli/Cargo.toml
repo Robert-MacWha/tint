@@ -11,10 +11,11 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
-openlv = { workspace = true, features = ["provider"] }
 tokio = { workspace = true, features = ["full"] }
 serde_json = { workspace = true }
 alloy = { workspace = true }
+alloy-provider = { workspace = true, features = ["tenderly-admin-api"] }
+alloy-signer-local = { workspace = true }
 serde = { workspace = true }
 rustls = { version = "0.23", features = ["ring"] }
 tint = { workspace = true }

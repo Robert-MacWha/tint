@@ -2,16 +2,16 @@ use std::sync::Arc;
 
 use alloy::{
     network::TransactionBuilder,
-    primitives::{Address, U256},
+    primitives::{Address, B256, U256},
     providers::{DynProvider, Provider as AlloyProvider, ProviderBuilder},
     rpc::types::TransactionRequest,
     sol,
     sol_types::SolCall,
 };
+use alloy_provider::ext::TenderlyAdminApi;
+use alloy_signer_local::PrivateKeySigner;
 use anyhow::Context;
-use openlv::{SignalingProtocol, provider::rpc_client};
 use rand_core::OsRng;
-use serde_json::json;
 use tint::{
     account::{Account, receiver::Receiver},
     database::memory::MemoryDatabase,
@@ -28,7 +28,7 @@ sol! {
     }
 }
 
-/// An openlv-linked wallet connection plus the Tint state needed to shield,
+/// A signing provider connection plus the Tint state needed to shield,
 /// transfer, and unshield funds for a single local account.
 pub struct Session {
     provider: DynProvider,
@@ -38,41 +38,27 @@ pub struct Session {
     tint_provider: TintProvider,
 }
 
-/// Links with a wallet over openlv and bootstraps the Tint indexer/provider
+/// Signs with a local private key and bootstraps the Tint indexer/provider
 /// for `account`, mirroring the setup in `tint`'s shield/transfer/unshield
 /// integration tests.
 pub async fn connect(
     account: Account,
     tint_address: Address,
-    signaling_server: String,
+    rpc_url: &str,
+    private_key: B256,
 ) -> anyhow::Result<Session> {
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("failed to install rustls crypto provider");
 
-    println!("Linking with wallet via openlv...");
-    let session = openlv::dapp()
-        .protocol(SignalingProtocol::Mqtt)
-        .server(signaling_server)
-        .on_request(|msg| async move {
-            println!("Received request: {msg:?}");
-            Ok(json!({"result": "success"}))
-        })
-        .await?;
+    let signer = PrivateKeySigner::from_slice(private_key.as_slice())?;
+    let from = signer.address();
 
-    session.connect().await?;
-    println!("Open this in your wallet: {}", session.uri());
-    session.wait_for_link().await?;
-    println!("Linked!");
-
+    println!("Connecting to {rpc_url}...");
     let provider = ProviderBuilder::new()
-        .connect_client(rpc_client(session))
+        .wallet(signer)
+        .connect_http(rpc_url.parse().context("invalid RPC URL")?)
         .erased();
-
-    let accounts = provider.get_accounts().await?;
-    let from = *accounts
-        .first()
-        .ok_or_else(|| anyhow::anyhow!("wallet returned no accounts"))?;
 
     let syncer = Arc::new(RpcSyncer::new(provider.clone(), tint_address));
     let verifier = Arc::new(RpcVerifier::new(provider.clone(), tint_address));
@@ -93,6 +79,38 @@ pub async fn connect(
         account,
         tint_provider,
     })
+}
+
+/// Derives the Ethereum address for a private key.
+pub fn eth_address(private_key: B256) -> anyhow::Result<Address> {
+    let signer = PrivateKeySigner::from_slice(private_key.as_slice())?;
+    Ok(signer.address())
+}
+
+/// Overwrites `address`'s native balance via Tenderly's `tenderly_setBalance`
+/// admin cheatcode. Only works against a Tenderly virtual testnet.
+pub async fn set_balance(rpc_url: &str, address: Address, amount: U256) -> anyhow::Result<()> {
+    let provider = connect_admin(rpc_url)?;
+    let tx_hash = provider.tenderly_set_balance(address, amount).await?;
+    println!("tx {tx_hash} confirmed");
+    Ok(())
+}
+
+/// Overwrites `address`'s balance of `token` via Tenderly's
+/// `tenderly_setErc20Balance` admin cheatcode. Only works against a Tenderly
+/// virtual testnet.
+pub async fn set_erc20_balance(
+    rpc_url: &str,
+    token: Address,
+    address: Address,
+    amount: U256,
+) -> anyhow::Result<()> {
+    let provider = connect_admin(rpc_url)?;
+    let tx_hash = provider
+        .tenderly_set_erc20_balance(token, address, amount)
+        .await?;
+    println!("tx {tx_hash} confirmed");
+    Ok(())
 }
 
 /// Auto-approves `token` for `amount` and deposits it into Tint.
@@ -223,6 +241,18 @@ fn print_balance(session: &Session, asset: AssetId) {
         .map(|note| note.base.amount)
         .sum();
     println!("Remaining shielded balance for this asset: {total}");
+}
+
+/// Builds a bare (unsigned) provider connection for admin RPC calls that
+/// don't require a wallet, such as Tenderly's balance-override cheatcodes.
+fn connect_admin(rpc_url: &str) -> anyhow::Result<DynProvider> {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("failed to install rustls crypto provider");
+
+    Ok(ProviderBuilder::new()
+        .connect_http(rpc_url.parse().context("invalid RPC URL")?)
+        .erased())
 }
 
 async fn send(session: &Session, to: Address, data: Vec<u8>) -> anyhow::Result<()> {

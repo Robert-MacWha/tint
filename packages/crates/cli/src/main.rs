@@ -1,5 +1,4 @@
 mod chain;
-mod circuit;
 mod config;
 
 use alloy::primitives::{Address, B256, U256};
@@ -22,80 +21,105 @@ enum Command {
     Address { name: String },
     /// Shield (deposit) ERC20 funds into a shielded account, auto-approving the transfer
     Shield {
+        /// The local account name to shield into
         #[arg(long)]
         account: String,
+
+        /// The ERC20 token address to shield
         #[arg(long)]
         token: Address,
+
+        /// The amount of the token to shield
         #[arg(long)]
         amount: u128,
-        #[arg(long)]
+        #[arg(long, env = "TINT_ADDRESS")]
         tint_address: Option<Address>,
-        #[arg(long)]
+        #[arg(long, env = "RPC_URL")]
         rpc_url: Option<String>,
-        #[arg(long)]
+        #[arg(long, env = "PRIVATE_KEY")]
         private_key: Option<B256>,
     },
     /// Transfer shielded funds to a local account name or an exported shielded address
     Transfer {
+        /// The local account name to transfer from
         #[arg(long)]
         account: String,
+
+        /// The local account name to transfer to
         #[arg(long)]
         to: String,
+
+        /// The ERC20 token address to transfer
         #[arg(long)]
         token: Address,
+
+        /// The amount of the token to transfer
         #[arg(long)]
         amount: u128,
-        #[arg(long)]
+        #[arg(long, env = "TINT_ADDRESS")]
         tint_address: Option<Address>,
-        #[arg(long)]
+        #[arg(long, env = "RPC_URL")]
         rpc_url: Option<String>,
-        #[arg(long)]
+        #[arg(long, env = "PRIVATE_KEY")]
         private_key: Option<B256>,
     },
     /// Unshield (withdraw) funds to a plain Ethereum address
     Unshield {
+        /// The local account name to unshield from
         #[arg(long)]
         account: String,
+
+        /// The Ethereum address to unshield to
         #[arg(long)]
         to: Address,
+
+        /// The ERC20 token address to unshield
         #[arg(long)]
         token: Address,
+
+        /// The amount of the token to unshield
         #[arg(long)]
         amount: u128,
-        #[arg(long)]
+        #[arg(long, env = "TINT_ADDRESS")]
         tint_address: Option<Address>,
-        #[arg(long)]
+        #[arg(long, env = "RPC_URL")]
         rpc_url: Option<String>,
-        #[arg(long)]
-        private_key: Option<B256>,
-    },
-    /// Print the Ethereum address derived from a private key
-    EthAddress {
-        #[arg(long)]
+        #[arg(long, env = "PRIVATE_KEY")]
         private_key: Option<B256>,
     },
     /// Overwrite an address's native balance via Tenderly's setBalance cheatcode (testnets only)
     SetBalance {
-        #[arg(long)]
-        address: Option<Address>,
+        /// The amount of ETH to set the balance to (in wei).
         #[arg(long)]
         amount: u128,
+
+        /// If provided, the address to set the balance of.
         #[arg(long)]
+        address: Option<Address>,
+        #[arg(long, env = "RPC_URL")]
         rpc_url: Option<String>,
-        #[arg(long)]
+        /// If provided, the private key for the address to set the balance of.
+        #[arg(long, env = "PRIVATE_KEY")]
         private_key: Option<B256>,
     },
     /// Overwrite an address's ERC20 balance via Tenderly's setErc20Balance cheatcode (testnets only)
     SetErc20Balance {
+        /// The ERC20 token address to set the balance of.
         #[arg(long)]
         token: Address,
-        #[arg(long)]
-        address: Option<Address>,
+
+        /// The amount of the token to set the balance to (in wei).
         #[arg(long)]
         amount: u128,
+
+        /// If provided, the address to set the balance of.
         #[arg(long)]
+        address: Option<Address>,
+        #[arg(long, env = "RPC_URL")]
         rpc_url: Option<String>,
-        #[arg(long)]
+
+        /// If provided, the private key for the address to set the balance of.
+        #[arg(long, env = "PRIVATE_KEY")]
         private_key: Option<B256>,
     },
 }
@@ -166,10 +190,6 @@ async fn main() -> anyhow::Result<()> {
             let private_key = config::resolve_private_key(private_key)?;
             let mut session = chain::connect(account, tint_address, &rpc_url, private_key).await?;
             chain::unshield(&mut session, to, token, amount).await?;
-        }
-        Command::EthAddress { private_key } => {
-            let private_key = config::resolve_private_key(private_key)?;
-            println!("{}", chain::eth_address(private_key)?);
         }
         Command::SetBalance {
             address,

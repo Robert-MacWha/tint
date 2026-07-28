@@ -128,7 +128,7 @@ contract TintTests is Test {
 
     function test_operate_spentNullifier_reverts() public {
         bytes32[N_INPUTS] memory nullifiers;
-        nullifiers[0] = bytes32("nullifier");
+        nullifiers[0] = bytes32(uint256(123));
         tint.operate(_op(GENESIS_ROOT, nullifiers));
 
         tint.deposit(address(token), 1, bytes32(uint256(99)), "");
@@ -142,7 +142,7 @@ contract TintTests is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 Tint.NullifierAlreadySpent.selector,
-                bytes32("nullifier")
+                bytes32(uint256(123))
             )
         );
         tint.operate(op);
@@ -166,7 +166,7 @@ contract TintTests is Test {
     // ------- operate() — state transitions -------
 
     function test_nullify() public {
-        bytes32 nullifier = bytes32("nullifier");
+        bytes32 nullifier = bytes32(uint256(123));
         bytes32[N_INPUTS] memory nullifiers;
         nullifiers[0] = nullifier;
         vm.expectEmit(true, true, true, true);

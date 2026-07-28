@@ -4,6 +4,48 @@ Tint is an EVM-focused utxo-based proof-of-concept privacy protocol.  It's desig
 - Optimized gas usage, especially focused on cheap shielding.
 - Arbitrary note ownership rules.
 
+## Toybox CLI
+
+A very simple toybox CLI.  Currently operating on a tenderly virtual testnet. Demonstrates tint's basic features, including:
+
+- [x] ERC20 shields
+- [x] ERC20 internal transfers
+- [x] ERC20 unshields
+- [ ] Automatic multi-input note selection
+- [ ] 4337-relayed transfers and unshields
+- [ ] Paymaster support
+- [ ] Custom spendability policies
+
+### Usage
+
+1. Ask Robert to share the RPC_URL for the tenderly virtual testnet or add your key to the `.sops.yaml` file.
+2. Run `just run help` or `cargo run --release -- help` to see the available commands.
+
+### Example
+
+```bash
+# Obtain from Robert
+export RPC_URL=...
+# Generate a random private key
+export PRIVATE_KEY=0x...
+
+# Fund EOA with 100 ETH and WETH
+just run set-balance 100000000000000000000
+just run set-erc20-balance $TOKEN 100000000000000000000
+
+# Create tint accounts
+just run create-account alice
+just run create-account bob
+
+# Shield into alice's account
+just run shield alice $TOKEN 1000
+just run transfer alice bob $TOKEN 500
+just run unshield alice 0x000000000000000000000000000000000000dead $TOKEN 400
+
+just run balance alice
+just run balance bob
+```
+
 ## Gas Costs
 
 Tint is designed to be maximally gas efficient. It achieves this primarily by reducing the gas cost to commit notes to the merkle tree, which is generally the most expensive part of tornadocash/railgun/ppv1. Tint does this by deferring merkle tree updates to inside the circuit.
@@ -51,7 +93,9 @@ This allows for numerous spendability rules, including:
 
 To preserve privacy, spendability circuits will generally require a zk-proof.  This means spendability rules will generally cost an additional ~300k.
 
-[Spendability Docs](./docs/spendability.md)
+## Programmable Spendability
+
+Tint enables assigning arbitrary spendability rules to each note. These rules are enforced by the contracts when a note is spent and can be used to implement features like hardware wallet support, time locks, multi-sigs, p2p swaps, and more.  For more information, see the [Spendability Docs](./docs/spendability.md).
 
 ## Paymaster / Frame transaction compatibility
 

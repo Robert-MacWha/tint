@@ -92,7 +92,7 @@ contract TintGasReportTest is Test {
         tint.deposit(address(token), 1, bytes32(uint256(1)), "");
     }
 
-    function test_toPublicInputs_gas() public {
+    function test_toPublicInputs_gas() public view {
         bytes32 startAggregationHash = bytes32(uint256(1));
         bytes32 endAggregationHash = bytes32(uint256(2));
 
@@ -122,7 +122,7 @@ contract TintGasReportTest is Test {
 
     function test_operate_gas() public {
         tint.warmStorage();
-        token.transfer(address(tint), 1_000);
+        require(token.transfer(address(tint), 1_000), "Transfer failed");
 
         IPrivacyPool.Operation memory op;
         op.oldRoot = GENESIS_ROOT;
@@ -150,7 +150,7 @@ contract TintGasReportTest is Test {
 
     function test_operate_full_gas() public {
         tint.warmStorage();
-        token.transfer(address(tint), 1_000);
+        require(token.transfer(address(tint), 1_000), "Transfer failed");
 
         IPrivacyPool.Operation memory op;
         op.oldRoot = GENESIS_ROOT;
@@ -171,7 +171,7 @@ contract TintGasReportTest is Test {
                     BN254_FR_MODULUS
             );
         }
-        for (uint256 i = 0; i < N_WITHDRAWALS; i++) {
+        for (uint120 i = 0; i < N_WITHDRAWALS; i++) {
             op.unshieldAmounts[i] = 1;
             op.unshieldAssets[i] = address(token);
             op.context.unshieldRecipients[i] = address(uint160(i + 1));

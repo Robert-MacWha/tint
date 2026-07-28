@@ -1,6 +1,6 @@
 # Spendability
 
-One of tint's properties is the ability to assign custom spendability rules to notes. These rules are enforced by the contracts when a note is spent, and can be used to implement features like hardware wallet support, time locks, multi-sigs, p2p swaps, and more.
+Tint enables assigning arbitrary spendability rules to each note. These rules are enforced by the contracts when a note is spent and can be used to implement features like hardware wallet support, time locks, multi-sigs, p2p swaps, and more.
 
 ## Implementation
 

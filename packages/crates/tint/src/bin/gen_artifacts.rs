@@ -3,21 +3,13 @@
 //!
 //! Run with `cargo run --release --bin gen_artifacts`.
 
-use std::io::Write;
-
 use ark_bn254::Fr;
 use ark_relations::gr1cs::{
     ConstraintSynthesizer, ConstraintSystem, OptimizationGoal, SynthesisMode,
 };
-use ark_serialize::CanonicalSerialize;
-use brotli::CompressorWriter;
-use tint::circuit::{join_split::JoinSplit, matrices::Matrices, setup_circuits};
+use tint::circuit::{artifacts, join_split::JoinSplit, matrices::Matrices, setup_circuits};
 
 const ARTIFACTS_DIR: &str = "artifacts/";
-
-const BUFFER_SIZE: usize = 4096;
-const Q: u32 = 11;
-const LGWIN: u32 = 22;
 
 fn main() {
     println!("Generating proving and verifying keys");
@@ -33,23 +25,20 @@ fn main() {
     let matrices = Matrices::from_constraint_system(&cs).unwrap();
 
     println!("Serializing artifacts");
-    let mut pk_bytes = Vec::new();
-    let mut vk_bytes = Vec::new();
-
-    pk.serialize_uncompressed(&mut pk_bytes).unwrap();
-    vk.serialize_uncompressed(&mut vk_bytes).unwrap();
-    let matrices_bytes = postcard::to_stdvec(&matrices).unwrap();
+    let pk_bytes = artifacts::serialize_proving_key(&pk).unwrap();
+    let vk_bytes = artifacts::serialize_verifying_key(&vk).unwrap();
+    let matrices_bytes = artifacts::serialize_matrices(&matrices).unwrap();
 
     std::fs::create_dir_all(ARTIFACTS_DIR).unwrap();
-    write_compressed_to_file(
+    write_to_file(
         format!("{ARTIFACTS_DIR}proving_key.bin.br").as_str(),
         &pk_bytes,
     );
-    write_compressed_to_file(
+    write_to_file(
         format!("{ARTIFACTS_DIR}verifying_key.bin.br").as_str(),
         &vk_bytes,
     );
-    write_compressed_to_file(
+    write_to_file(
         format!("{ARTIFACTS_DIR}matrices.bin.br").as_str(),
         &matrices_bytes,
     );
@@ -57,12 +46,7 @@ fn main() {
     println!("Done generating artifacts");
 }
 
-fn write_compressed_to_file(path: &str, data: &[u8]) {
+fn write_to_file(path: &str, data: &[u8]) {
     println!("Writing compressed data to {}", path);
-
-    let mut compressed = Vec::new();
-    CompressorWriter::new(&mut compressed, BUFFER_SIZE, Q, LGWIN)
-        .write_all(data)
-        .unwrap();
-    std::fs::write(path, compressed).unwrap();
+    std::fs::write(path, data).unwrap();
 }

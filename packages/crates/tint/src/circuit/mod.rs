@@ -9,6 +9,7 @@ use tracing::{info, warn};
 
 use crate::circuit::join_split::JoinSplit;
 
+pub mod artifacts;
 pub mod commitment;
 pub mod join_split;
 pub mod matrices;

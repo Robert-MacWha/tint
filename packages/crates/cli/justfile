@@ -1,2 +1,0 @@
-run *ARGS:
-    cargo run --release -- {{ARGS}}

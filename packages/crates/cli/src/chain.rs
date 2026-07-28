@@ -14,7 +14,6 @@ use anyhow::Context;
 use rand_core::OsRng;
 use tint::{
     account::{Account, receiver::Receiver},
-    circuit::setup_circuits,
     database::memory::MemoryDatabase,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
     note::{asset::AssetId, commitment::SpendableCommitment},
@@ -62,7 +61,7 @@ pub async fn connect(
     let database = Arc::new(MemoryDatabase::default());
     let indexer = Indexer::new(syncer, verifier, database).await?;
 
-    let (proving_key, verifying_key) = setup_circuits()?;
+    let (proving_key, verifying_key) = config::load_or_generate_circuit_keys()?;
     let mut tint_provider = TintProvider::new(indexer, proving_key, verifying_key);
     tint_provider.add_account(account.clone()).await?;
 

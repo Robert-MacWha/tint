@@ -2,7 +2,11 @@ use alloy_sol_macro::sol;
 use ark_bn254::Bn254;
 use ark_groth16::Proof;
 
-sol!(Tint, "../../contracts/out/Tint.sol/Tint.json");
+sol!(
+    #[derive(Debug)]
+    Tint,
+    "../../contracts/out/Tint.sol/Tint.json"
+);
 
 impl From<Proof<Bn254>> for ProofLib::Proof {
     fn from(p: Proof<Bn254>) -> Self {

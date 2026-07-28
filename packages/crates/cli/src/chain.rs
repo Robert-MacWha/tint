@@ -48,14 +48,10 @@ pub async fn connect(
     rpc_url: &str,
     private_key: B256,
 ) -> anyhow::Result<Session> {
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .expect("failed to install rustls crypto provider");
-
     let signer = PrivateKeySigner::from_slice(private_key.as_slice())?;
     let from = signer.address();
 
-    println!("Connecting to {rpc_url}...");
+    tracing::info!("Connecting to {rpc_url}...");
     let provider = ProviderBuilder::new()
         .wallet(signer)
         .connect_http(rpc_url.parse().context("invalid RPC URL")?)
@@ -70,7 +66,7 @@ pub async fn connect(
     let mut tint_provider = TintProvider::new(indexer, proving_key, verifying_key);
     tint_provider.add_account(account.clone()).await?;
 
-    println!("Syncing with chain...");
+    tracing::info!("Syncing with chain...");
     tint_provider.sync().await?;
 
     Ok(Session {
@@ -93,7 +89,7 @@ pub fn eth_address(private_key: B256) -> anyhow::Result<Address> {
 pub async fn set_balance(rpc_url: &str, address: Address, amount: U256) -> anyhow::Result<()> {
     let provider = connect_admin(rpc_url)?;
     let tx_hash = provider.tenderly_set_balance(address, amount).await?;
-    println!("tx {tx_hash} confirmed");
+    tracing::info!("tx {tx_hash} confirmed");
     Ok(())
 }
 
@@ -110,7 +106,7 @@ pub async fn set_erc20_balance(
     let tx_hash = provider
         .tenderly_set_erc20_balance(token, address, amount)
         .await?;
-    println!("tx {tx_hash} confirmed");
+    tracing::info!("tx {tx_hash} confirmed");
     Ok(())
 }
 
@@ -118,14 +114,14 @@ pub async fn set_erc20_balance(
 pub async fn shield(session: &mut Session, token: Address, amount: u128) -> anyhow::Result<()> {
     let asset = AssetId::from(token);
 
-    println!("Approving Tint to spend {amount} of {token}...");
+    tracing::info!("Approving Tint to spend {amount} of {token}...");
     let approve_call = IERC20::approveCall {
         spender: session.tint_address,
         amount: U256::from(amount),
     };
     send(session, token, approve_call.abi_encode()).await?;
 
-    println!("Depositing...");
+    tracing::info!("Depositing...");
     let call =
         session
             .tint_provider
@@ -151,7 +147,7 @@ pub async fn transfer(
     let change = note.base.amount - amount;
     let sender = session.account.receiver();
 
-    println!("Building transfer proof...");
+    tracing::info!("Building transfer proof...");
     let call = if change > 0 {
         session.tint_provider.operate(
             [note],
@@ -184,7 +180,7 @@ pub async fn unshield(
     let change = note.base.amount - amount;
     let sender = session.account.receiver();
 
-    println!("Building unshield proof...");
+    tracing::info!("Building unshield proof...");
     let call = if change > 0 {
         session.tint_provider.operate(
             [note],
@@ -204,16 +200,9 @@ pub async fn unshield(
     Ok(())
 }
 
-/// Resolves a transfer recipient: a local account name if one matches,
-/// otherwise a hex-encoded exported shielded address.
+/// Resolves a transfer recipient to a local account's receiver.
 fn resolve_receiver(to: &str) -> anyhow::Result<Receiver> {
-    if let Ok(account) = config::load_account(to) {
-        return Ok(account.receiver());
-    }
-
-    let bytes = alloy::primitives::hex::decode(to)
-        .with_context(|| format!("\"{to}\" is not a known account name or a valid hex address"))?;
-    Ok(Receiver::from_address(&bytes)?)
+    Ok(config::load_account(to)?.receiver())
 }
 
 /// Picks a single spendable note covering `amount` of `asset`. Tint supports
@@ -233,6 +222,11 @@ fn pick_note(
         .ok_or_else(|| anyhow::anyhow!("no single spendable note covers {amount} of this asset"))
 }
 
+/// Prints the shielded balance of `token` for the connected account.
+pub fn balance(session: &Session, token: Address) {
+    print_balance(session, AssetId::from(token));
+}
+
 fn print_balance(session: &Session, asset: AssetId) {
     let total: u128 = session
         .tint_provider
@@ -241,7 +235,7 @@ fn print_balance(session: &Session, asset: AssetId) {
         .filter(|note| note.base.asset == asset)
         .map(|note| note.base.amount)
         .sum();
-    println!("Remaining shielded balance for this asset: {total}");
+    tracing::info!("Remaining shielded balance for this asset: {total}");
 }
 
 /// Builds a bare (unsigned) provider connection for admin RPC calls that
@@ -268,9 +262,10 @@ async fn send(session: &Session, to: Address, data: Vec<u8>) -> anyhow::Result<(
         .await?
         .get_receipt()
         .await?;
-    println!(
+    tracing::info!(
         "  tx {} confirmed (gas used: {})",
-        receipt.transaction_hash, receipt.gas_used
+        receipt.transaction_hash,
+        receipt.gas_used
     );
     Ok(())
 }

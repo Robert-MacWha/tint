@@ -5,7 +5,7 @@ use ark_r1cs_std::{GR1CSVar, alloc::AllocVar};
 use ark_snark::SNARK;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::circuit::join_split::JoinSplit;
 
@@ -30,6 +30,7 @@ pub fn setup_circuits()
     let circuit = JoinSplit::default();
     let (proving_key, verifying_key) = Groth16::<Bn254>::circuit_specific_setup(circuit, &mut rng)?;
 
+    info!("Loaded proving & verifying keys");
     Ok((proving_key, verifying_key))
 }
 

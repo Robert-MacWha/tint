@@ -5,7 +5,7 @@ use alloy_sol_types::SolEvent;
 
 use crate::abis::{self, tint::Tint};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Event {
     Deposit(abis::tint::Tint::Deposited),
     Committed(abis::tint::Tint::Committed),

@@ -20,6 +20,8 @@ serde = { workspace = true }
 rustls = { version = "0.23", features = ["ring"] }
 tint = { workspace = true }
 clap = { workspace = true, features = ["env"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
 ark-bn254 = { workspace = true, default-features = false }
 ark-ff = { workspace = true, default-features = false }
 ark-groth16 = { workspace = true, default-features = false }

@@ -63,6 +63,8 @@ pub enum IndexerError {
     Syncer(Box<dyn std::error::Error + Send + Sync + 'static>),
     #[error("verifier error: {0}")]
     Verifier(Box<dyn std::error::Error + Send + Sync + 'static>),
+    #[error("count too large for subtree append: {0}")]
+    SubtreeCountTooLarge(usize),
     #[error("insufficient staged commitments")]
     InsufficientStagedCommitments,
 }
@@ -178,19 +180,9 @@ impl Indexer {
     /// JoinSplit witness.
     pub fn commit(
         &mut self,
-    ) -> Result<SubtreeAppendProof<SUBTREE_PATH_LENGTH, SUBTREE_SIZE, K>, MerkleTreeError> {
+    ) -> Result<SubtreeAppendProof<SUBTREE_PATH_LENGTH, SUBTREE_SIZE, K>, IndexerError> {
         let count = SUBTREE_SIZE.min(self.state.staged_commitments.len());
-        let drained: Vec<Fr> = self.state.staged_commitments.drain(..count).collect();
-
-        let mut hash = self.state.posted_aggregation_hash;
-        for commitment in &drained {
-            hash = poseidon2_compress(&[hash, *commitment]);
-        }
-        self.state.posted_aggregation_hash = hash;
-
-        self.state
-            .tree
-            .append_subtree::<SUBTREE_PATH_LENGTH, SUBTREE_SIZE>(&drained)
+        self.advance(count)
     }
 
     fn apply_event(&mut self, event: Event) -> Result<(), IndexerError> {
@@ -202,7 +194,8 @@ impl Indexer {
                 self.stage(b256_to_fr(c.commitment));
             }
             Event::AdvanceAggregationRing(a) => {
-                self.advance(a.idx)?;
+                let count = a.idx - self.posted_aggregation_index();
+                let _ = self.advance(count as usize)?;
             }
             Event::Nullified(_) => {}
             Event::Withdrawn(_) => {}
@@ -221,20 +214,33 @@ impl Indexer {
         self.state.staged_commitments.push(commitment);
     }
 
-    /// Advance the aggregation ring to `idx`, inserting all staged commitments
+    /// Advance the aggregation ring by `count`, inserting all staged commitments
     /// up to that index into the tree.
-    fn advance(&mut self, idx: u128) -> Result<(), IndexerError> {
-        let stage_count = idx - self.posted_aggregation_index();
-
-        for _ in 0..stage_count {
-            if let Some(commitment) = self.state.staged_commitments.pop() {
-                self.state.tree.append(&[commitment]);
-            } else {
-                return Err(IndexerError::InsufficientStagedCommitments);
-            }
+    fn advance(
+        &mut self,
+        count: usize,
+    ) -> Result<SubtreeAppendProof<SUBTREE_PATH_LENGTH, SUBTREE_SIZE, K>, IndexerError> {
+        if count > SUBTREE_SIZE {
+            return Err(IndexerError::SubtreeCountTooLarge(count));
+        }
+        if count > self.state.staged_commitments.len() {
+            return Err(IndexerError::InsufficientStagedCommitments);
         }
 
-        Ok(())
+        let drained: Vec<Fr> = self.state.staged_commitments.drain(..count).collect();
+
+        let mut hash = self.state.posted_aggregation_hash;
+        for commitment in &drained {
+            hash = poseidon2_compress(&[hash, *commitment]);
+        }
+        self.state.posted_aggregation_hash = hash;
+
+        let proof = self
+            .state
+            .tree
+            .append_subtree::<SUBTREE_PATH_LENGTH, SUBTREE_SIZE>(&drained)?;
+
+        Ok(proof)
     }
 
     async fn save(&self) -> Result<(), DatabaseError> {

@@ -1,40 +1,9 @@
 use std::path::PathBuf;
 
-use alloy::primitives::{Address, B256};
+use alloy::primitives::Address;
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use tint::account::{Account, keys::Keys};
-
-/// Resolves the Tint contract address, preferring `override_address` (a CLI flag) over the
-/// `TINT_ADDRESS` env var. Errors with a helpful message if neither is set.
-pub fn resolve_tint_address(override_address: Option<Address>) -> anyhow::Result<Address> {
-    if let Some(address) = override_address {
-        return Ok(address);
-    }
-    let raw = std::env::var("TINT_ADDRESS").map_err(|_| {
-        anyhow::anyhow!("no tint contract address set; pass --tint-address or set TINT_ADDRESS")
-    })?;
-    raw.parse().context("invalid TINT_ADDRESS")
-}
-
-/// Resolves the JSON-RPC URL, preferring `override_url` (a CLI flag) over the `RPC_URL` env var.
-pub fn resolve_rpc_url(override_url: Option<String>) -> anyhow::Result<String> {
-    override_url
-        .or_else(|| std::env::var("RPC_URL").ok())
-        .ok_or_else(|| anyhow::anyhow!("no RPC URL set; pass --rpc-url or set RPC_URL"))
-}
-
-/// Resolves the signing private key, preferring `override_key` (a CLI flag) over the
-/// `PRIVATE_KEY` env var.
-pub fn resolve_private_key(override_key: Option<B256>) -> anyhow::Result<B256> {
-    if let Some(key) = override_key {
-        return Ok(key);
-    }
-    let raw = std::env::var("PRIVATE_KEY").map_err(|_| {
-        anyhow::anyhow!("no private key set; pass --private-key or set PRIVATE_KEY")
-    })?;
-    raw.parse().context("invalid PRIVATE_KEY")
-}
 
 #[derive(Serialize, Deserialize)]
 struct StoredAccount {
@@ -123,5 +92,4 @@ fn account_file(name: &str) -> PathBuf {
 
 fn base_dir() -> PathBuf {
     PathBuf::from(".tint-cli")
-    // PathBuf::from(std::env::var("HOME").expect("HOME must be set")).join(".tint-cli")
 }

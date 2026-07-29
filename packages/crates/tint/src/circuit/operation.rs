@@ -489,7 +489,7 @@ mod tests {
     /// matching the zeroed commitment hash `input_commitment_hashes` reveals
     /// for them.
     #[test]
-    fn verify_input_commitments_requires_zero_leaf_for_unused_slots() {
+    fn input_commitments_requires_zero_leaf_for_unused_slots() {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let op = Operation::<3, 3, 3>::default();
 
@@ -504,7 +504,7 @@ mod tests {
     /// Expect that used input slots still require their provided leaf to
     /// match the computed commitment hash.
     #[test]
-    fn verify_input_commitments_enforces_used_slots() {
+    fn input_commitments_enforces_used_slots() {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let mut op = Operation::<3, 3, 3>::default();
         op.inputs[0].inner.asset = DEAD_BEEF.into();

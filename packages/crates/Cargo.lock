@@ -4646,6 +4646,7 @@ dependencies = [
 [[package]]
 name = "taceo-poseidon2"
 version = "0.2.1"
+source = "git+https://github.com/Robert-MacWha/eddsa-babyjubjub#3eb7c6c8a7362d699edbc6e2c79c913f234e0a8f"
 dependencies = [
  "ark-bn254",
  "ark-ff 0.6.0",

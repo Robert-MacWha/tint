@@ -11,7 +11,7 @@ use rand_core::{CryptoRng, RngCore};
 
 use crate::{
     abis::tint::{IPrivacyPool, Tint},
-    account::{Account, receiver::Receiver},
+    account::{Account, keys::NullifierPubKey, receiver::Receiver},
     array::try_from_fn,
     circuit::join_split::{JoinSplit, K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, TREE_DEPTH},
     database::DatabaseError,
@@ -43,8 +43,13 @@ pub enum ProviderError {
     Commitment(#[from] crate::note::commitment::CommitmentError),
     #[error("spending account error: {0}")]
     Spending(#[from] crate::account::spending::SpendingAccountError),
-    #[error("no registered account authorizes spending this note")]
-    UnknownSpendingAccount,
+    #[error(
+        "no registered account authorizes spending note with nullifier pub key {nullifier_pub_key:?} and spendability hash {spendability_hash:?}"
+    )]
+    UnknownSpendingAccount {
+        nullifier_pub_key: NullifierPubKey,
+        spendability_hash: Fr,
+    },
 }
 
 /// Builds shield/transfer/unshield calls against a Tint deployment.
@@ -77,17 +82,6 @@ impl Provider {
             .await?;
         self.accounts.push(account);
         Ok(())
-    }
-
-    /// Finds the registered account whose viewing/spending identity matches `note`.
-    fn account_for(&self, note: &NullifiableCommitment) -> Result<&Account, ProviderError> {
-        self.accounts
-            .iter()
-            .find(|account| {
-                account.nullifying().pub_key() == note.inner.nullifier_pub_key
-                    && account.spending().spendability_hash() == note.spendability_hash()
-            })
-            .ok_or(ProviderError::UnknownSpendingAccount)
     }
 
     /// Returns the notes owned by `receiver`.
@@ -123,8 +117,7 @@ impl Provider {
 
     /// Builds a proven `operate` call spending `inputs` into `outputs`
     /// (new shielded notes) and `withdrawals` (unshields). Each input is
-    /// resolved against the accounts registered via [`Self::add_account`] —
-    /// a single operation may combine notes bound to different accounts/rules.
+    /// resolved against the accounts registered via [`Self::add_account`].
     pub async fn operate<const I: usize, const O: usize, const W: usize, R: RngCore + CryptoRng>(
         &mut self,
         inputs: [NullifiableCommitment; I],
@@ -205,13 +198,6 @@ impl Provider {
 
     /// Builds the `JoinSplit` circuit witnessing `inputs` spent into
     /// `outputs` + `withdrawals`.
-    ///
-    /// Builds a draft operation with each input's spendability left as an
-    /// unresolved placeholder, then resolves each input's spendability
-    /// against it and splices the result back in. `Operation::hash` only
-    /// depends on asset/amount/partial-commitment data, never on an input's
-    /// spendability address/witness/input, so it's unaffected by this
-    /// resolution — what a spending rule sees always matches what's proven.
     async fn build_circuit<
         const I: usize,
         const O: usize,
@@ -286,6 +272,20 @@ impl Provider {
         );
 
         Ok((circuit, context))
+    }
+
+    /// Finds the registered account whose viewing/spending identity matches `note`.
+    fn account_for(&self, note: &NullifiableCommitment) -> Result<&Account, ProviderError> {
+        self.accounts
+            .iter()
+            .find(|account| {
+                account.nullifying().pub_key() == note.inner.nullifier_pub_key
+                    && account.spending().spendability_hash() == note.spendability_hash()
+            })
+            .ok_or(ProviderError::UnknownSpendingAccount {
+                nullifier_pub_key: note.inner.nullifier_pub_key,
+                spendability_hash: note.spendability_hash(),
+            })
     }
 
     /// Returns the inclusion proofs for each of the given `inputs` in the current tree.

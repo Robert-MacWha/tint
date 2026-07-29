@@ -1,5 +1,5 @@
 use crate::{
-    account::Account,
+    account::keys::{EncryptionPubKey, NullifierPubKey},
     indexer::{IndexerState, indexed_account::IndexedAccountState},
 };
 
@@ -29,12 +29,14 @@ pub(crate) trait TintDatabase: Database {
 
     async fn set_indexed_account(
         &self,
-        account: &Account,
+        nullifier_pub: NullifierPubKey,
+        encryption_pub: EncryptionPubKey,
         state: &IndexedAccountState,
     ) -> Result<(), DatabaseError>;
     async fn load_indexed_account(
         &self,
-        account: &Account,
+        nullifier_pub: NullifierPubKey,
+        encryption_pub: EncryptionPubKey,
     ) -> Result<Option<IndexedAccountState>, DatabaseError>;
 }
 
@@ -60,23 +62,36 @@ impl<T: ?Sized + Database> TintDatabase for T {
 
     async fn set_indexed_account(
         &self,
-        account: &Account,
+        nullifier_pub: NullifierPubKey,
+        encryption_pub: EncryptionPubKey,
         state: &IndexedAccountState,
     ) -> Result<(), DatabaseError> {
+        let key = indexed_account_key(nullifier_pub, encryption_pub)?;
+
         let serialized = postcard::to_stdvec(state).map_err(DatabaseError::other)?;
-        let key = account.address();
         self.set(&key, &serialized).await
     }
 
     async fn load_indexed_account(
         &self,
-        account: &Account,
+        nullifier_pub: NullifierPubKey,
+        encryption_pub: EncryptionPubKey,
     ) -> Result<Option<IndexedAccountState>, DatabaseError> {
-        let key = account.address();
+        let key = indexed_account_key(nullifier_pub, encryption_pub)?;
+
         let Some(serialized) = self.get(&key).await? else {
             return Ok(None);
         };
         let state = postcard::from_bytes(&serialized).map_err(DatabaseError::other)?;
         Ok(Some(state))
     }
+}
+
+/// Derives the database key for an account's indexed state from its viewing
+/// and nullifying identity.
+fn indexed_account_key(
+    nullifier_pub_key: NullifierPubKey,
+    encryption_pub_key: EncryptionPubKey,
+) -> Result<Vec<u8>, DatabaseError> {
+    postcard::to_stdvec(&(nullifier_pub_key, encryption_pub_key)).map_err(DatabaseError::other)
 }

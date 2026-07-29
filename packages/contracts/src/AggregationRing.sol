@@ -33,7 +33,11 @@ contract AggregationRing {
             : bytes32(0);
 
         aggregationHashRing[totalStaged % AGGREGATION_RING_SIZE] = bytes32(
-            LibPoseidon2T2_BN254.compress(uint256(prevHash), uint256(commitment), 0)
+            LibPoseidon2T2_BN254.compress(
+                uint256(prevHash),
+                uint256(commitment),
+                0
+            )
         );
 
         totalStaged++;

@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use alloy_primitives::{Address, B256, U256};
+use alloy_primitives::U256;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{
-    account::{Account, keys::Keys},
+    account::{Account, keys::Keys, spending::NoopSpendingAccount},
     circuit::setup_circuits,
     database::memory::MemoryDatabase,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
@@ -40,8 +40,8 @@ async fn transfer() {
 
     // Setup tint provider
     info!("Setting up tint provider...");
-    let account_1 = Account::new(Keys::from_seed(&[11u8; 32]), Address::ZERO, B256::ZERO);
-    let account_2 = Account::new(Keys::from_seed(&[22u8; 32]), Address::ZERO, B256::ZERO);
+    let account_1 = Account::from_keys(Keys::from_seed(&[11u8; 32]), NoopSpendingAccount);
+    let account_2 = Account::from_keys(Keys::from_seed(&[22u8; 32]), NoopSpendingAccount);
 
     let syncer = Arc::new(RpcSyncer::new(provider.clone(), *tint.address()));
     let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
@@ -82,11 +82,11 @@ async fn transfer() {
 
     // Transfer to another account
     info!("Transferring to another account");
-    let notes = tint_provider.spendable_notes(account_1.receiver());
+    let notes = tint_provider.notes(account_1.receiver());
 
     assert_eq!(notes.len(), 1);
-    assert_eq!(notes[0].base.amount, amount);
-    assert_eq!(notes[0].base.asset, asset);
+    assert_eq!(notes[0].inner.amount, amount);
+    assert_eq!(notes[0].inner.asset, asset);
 
     let call = tint_provider
         .operate(
@@ -98,6 +98,7 @@ async fn transfer() {
             [],
             &mut rng,
         )
+        .await
         .unwrap();
 
     let transfer_receipt = tint
@@ -116,13 +117,13 @@ async fn transfer() {
     // Verify balances
     info!("Verifying balances");
 
-    let notes_1 = tint_provider.spendable_notes(account_1.receiver());
+    let notes_1 = tint_provider.notes(account_1.receiver());
     assert_eq!(notes_1.len(), 1);
-    assert_eq!(notes_1[0].base.amount, 100);
-    assert_eq!(notes_1[0].base.asset, asset);
+    assert_eq!(notes_1[0].inner.amount, 100);
+    assert_eq!(notes_1[0].inner.asset, asset);
 
-    let notes_2 = tint_provider.spendable_notes(account_2.receiver());
+    let notes_2 = tint_provider.notes(account_2.receiver());
     assert_eq!(notes_2.len(), 1);
-    assert_eq!(notes_2[0].base.amount, amount - 100);
-    assert_eq!(notes_2[0].base.asset, asset);
+    assert_eq!(notes_2[0].inner.amount, amount - 100);
+    assert_eq!(notes_2[0].inner.asset, asset);
 }

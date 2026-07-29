@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use alloy_primitives::{Address, B256, U256};
+use alloy_primitives::U256;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{
-    account::{Account, keys::Keys},
+    account::{Account, keys::Keys, spending::NoopSpendingAccount},
     circuit::setup_circuits,
     database::memory::MemoryDatabase,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
@@ -41,7 +41,7 @@ async fn shield() {
     // Setup tint provider
     info!("Setting up tint provider...");
     let keys = Keys::from_seed(&[11u8; 32]);
-    let account = Account::new(keys, Address::ZERO, B256::ZERO);
+    let account = Account::from_keys(keys, NoopSpendingAccount);
 
     let syncer = Arc::new(RpcSyncer::new(provider.clone(), *tint.address()));
     let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
@@ -88,8 +88,8 @@ async fn shield() {
         U256::from(amount)
     );
 
-    let notes = tint_provider.spendable_notes(account.receiver());
+    let notes = tint_provider.notes(account.receiver());
     assert_eq!(notes.len(), 1);
-    assert_eq!(notes[0].base.amount, amount);
-    assert_eq!(notes[0].base.asset, asset);
+    assert_eq!(notes[0].inner.amount, amount);
+    assert_eq!(notes[0].inner.asset, asset);
 }

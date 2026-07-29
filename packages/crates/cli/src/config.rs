@@ -1,12 +1,11 @@
 use std::path::PathBuf;
 
-use alloy::primitives::Address;
 use anyhow::Context;
 use ark_bn254::Bn254;
 use ark_groth16::{ProvingKey, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use tint::{
-    account::{Account, keys::Keys},
+    account::{Account, keys::Keys, spending::NoopSpendingAccount},
     circuit::artifacts,
 };
 
@@ -121,11 +120,7 @@ fn circuit_dir() -> PathBuf {
 }
 
 fn account_from_seed(seed: &[u8; 32]) -> Account {
-    Account::new(
-        Keys::from_seed(seed),
-        Address::ZERO,
-        alloy::primitives::B256::ZERO,
-    )
+    Account::from_keys(Keys::from_seed(seed), NoopSpendingAccount)
 }
 
 fn account_dir(name: &str) -> PathBuf {

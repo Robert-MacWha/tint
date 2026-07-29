@@ -130,10 +130,10 @@ impl AllocVar<SpendableCommitment, Fr> for SpendableCommitmentVar {
         let value = f()?;
         let value = value.borrow();
 
-        let asset = variable(cs.clone(), &value.base.asset_fr(), mode)?;
-        let amount = variable(cs.clone(), &value.base.amount_fr(), mode)?;
-        let spendability_hash = variable(cs.clone(), &value.base.spendability_hash(), mode)?;
-        let random = variable(cs.clone(), &value.base.random_fr(), mode)?;
+        let asset = variable(cs.clone(), &value.inner.asset_fr(), mode)?;
+        let amount = variable(cs.clone(), &value.inner.amount_fr(), mode)?;
+        let spendability_hash = variable(cs.clone(), &value.inner.spendability_hash(), mode)?;
+        let random = variable(cs.clone(), &value.inner.random_fr(), mode)?;
         let nullifying_key = variable(cs.clone(), &value.nullifier_key.0, mode)?;
         let spendability_address = variable(cs.clone(), &value.spendability_address_fr(), mode)?;
         let spendability_witness = variable(cs.clone(), &value.spendability_witness_fr(), mode)?;

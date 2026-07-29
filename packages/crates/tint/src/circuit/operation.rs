@@ -322,12 +322,12 @@ mod tests {
 
     fn default_operation() -> Operation<3, 3, 3> {
         let mut op = Operation::<3, 3, 3>::default();
-        op.inputs[0].base.asset = DEAD_BEEF.into();
-        op.inputs[0].base.amount = 10;
-        op.inputs[1].base.asset = DEAD_BEEF.into();
-        op.inputs[1].base.amount = 10;
-        op.inputs[2].base.asset = C0FFEE.into();
-        op.inputs[2].base.amount = 10;
+        op.inputs[0].inner.asset = DEAD_BEEF.into();
+        op.inputs[0].inner.amount = 10;
+        op.inputs[1].inner.asset = DEAD_BEEF.into();
+        op.inputs[1].inner.amount = 10;
+        op.inputs[2].inner.asset = C0FFEE.into();
+        op.inputs[2].inner.amount = 10;
         op
     }
 
@@ -396,12 +396,12 @@ mod tests {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let mut op = Operation::<3, 3, 3>::default();
 
-        op.inputs[0].base.asset = DEAD_BEEF.into();
-        op.inputs[0].base.amount = 10;
-        op.inputs[1].base.asset = DEAD_BEEF.into();
-        op.inputs[1].base.amount = 10;
-        op.inputs[2].base.asset = C0FFEE.into();
-        op.inputs[2].base.amount = 10;
+        op.inputs[0].inner.asset = DEAD_BEEF.into();
+        op.inputs[0].inner.amount = 10;
+        op.inputs[1].inner.asset = DEAD_BEEF.into();
+        op.inputs[1].inner.amount = 10;
+        op.inputs[2].inner.asset = C0FFEE.into();
+        op.inputs[2].inner.amount = 10;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
 
@@ -454,8 +454,8 @@ mod tests {
     fn nullifiers_zero_for_unused_inputs() {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let mut op = Operation::<3, 3, 3>::default();
-        op.inputs[0].base.asset = DEAD_BEEF.into();
-        op.inputs[0].base.amount = 10;
+        op.inputs[0].inner.asset = DEAD_BEEF.into();
+        op.inputs[0].inner.amount = 10;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
         let input_base_hashes: [FrVar; 3] = std::array::from_fn(|i| var.inputs[i].hash().unwrap());
@@ -507,8 +507,8 @@ mod tests {
     fn verify_input_commitments_enforces_used_slots() {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let mut op = Operation::<3, 3, 3>::default();
-        op.inputs[0].base.asset = DEAD_BEEF.into();
-        op.inputs[0].base.amount = 10;
+        op.inputs[0].inner.asset = DEAD_BEEF.into();
+        op.inputs[0].inner.amount = 10;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
         let wrong_leaves: [FrVar; 3] =

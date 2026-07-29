@@ -1,22 +1,22 @@
 use std::{collections::HashSet, sync::Arc};
 
-use alloy_primitives::Bytes;
 use ark_bn254::Fr;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    account::{Account, receiver::Receiver},
+    account::{nullifying::NullifyingAccount, receiver::Receiver, viewing::ViewingAccount},
     database::{Database, DatabaseError, TintDatabase},
     indexer::{b256_to_fr, syncer::Event},
-    note::commitment::{BaseCommitment, SpendableCommitment},
+    note::commitment::{BaseCommitment, NullifiableCommitment},
 };
 
 pub struct IndexedAccount {
-    account: Account,
+    viewing: ViewingAccount,
+    nullifying: NullifyingAccount,
     database: Arc<dyn Database>,
 
     /// Set of notes owned by this account.
-    spendable_notes: Vec<SpendableCommitment>,
+    notes: Vec<NullifiableCommitment>,
     /// Set of nullifiers which have been spent.
     nullifiers: HashSet<Fr>,
     /// Set of nullifiers for observed commitments. Used to determine whether a
@@ -35,41 +35,40 @@ pub struct IndexedAccountState {
 }
 
 impl IndexedAccount {
-    pub async fn new(account: Account, database: Arc<dyn Database>) -> Result<Self, DatabaseError> {
+    pub async fn new(
+        viewing: ViewingAccount,
+        nullifying: NullifyingAccount,
+        database: Arc<dyn Database>,
+    ) -> Result<Self, DatabaseError> {
         let state = database
-            .load_indexed_account(&account)
+            .load_indexed_account(nullifying.pub_key(), viewing.pub_key())
             .await?
             .unwrap_or_default();
 
-        let spendable_notes = state
+        let notes = state
             .notes
             .into_iter()
-            .map(|c: BaseCommitment| {
-                c.as_spendable(
-                    account.keys().nullifier_key.clone(),
-                    account.spendability_address,
-                    account.spendability_witness,
-                    Bytes::new(), // TODO: Rohbust
-                    account.keys().encryption_pub_key(),
-                )
-            })
+            .map(|c: BaseCommitment| nullifying.into_nullifiable(c))
             .collect();
 
         Ok(Self {
-            account,
+            viewing,
+            nullifying,
             database,
-            spendable_notes,
+            notes,
             nullifiers: state.nullifiers.into_iter().collect(),
             note_nullifiers: state.note_nullifiers.into_iter().collect(),
         })
     }
 
-    pub fn receiver(&self) -> Receiver {
-        self.account.receiver()
+    /// Returns `true` if `query` identifies this account.
+    pub fn matches(&self, query: &Receiver) -> bool {
+        self.nullifying.pub_key() == query.nullifier_pub_key
+            && self.viewing.pub_key() == query.encryption_pub_key
     }
 
-    pub fn spendable_notes(&self) -> Vec<&SpendableCommitment> {
-        self.spendable_notes
+    pub fn notes(&self) -> Vec<&NullifiableCommitment> {
+        self.notes
             .iter()
             .filter(|c| !self.nullifiers.contains(&c.nullifier()))
             .collect()
@@ -96,34 +95,26 @@ impl IndexedAccount {
     }
 
     fn decrypt_commitment(&mut self, encrypted: &[u8]) {
-        let Ok(commitment) =
-            BaseCommitment::from_encrypted(encrypted, &self.account.keys().encryption_key)
-        else {
+        let Ok(commitment) = self.viewing.decrypt(encrypted) else {
             return;
         };
 
-        let spendable_commitment = commitment.as_spendable(
-            self.account.keys().nullifier_key.clone(),
-            self.account.spendability_address,
-            self.account.spendability_witness,
-            Bytes::new(), // TODO: Rohbust spendability
-            self.account.keys().encryption_pub_key(),
-        );
+        let nullifiable_commitment = self.nullifying.into_nullifiable(commitment);
 
         self.note_nullifiers
-            .insert(spendable_commitment.nullifier());
-        self.spendable_notes.push(spendable_commitment);
+            .insert(nullifiable_commitment.nullifier());
+        self.notes.push(nullifiable_commitment);
     }
 
     pub async fn save(&self) -> Result<(), DatabaseError> {
         let state = IndexedAccountState {
-            notes: self.spendable_notes.iter().map(|c| c.base).collect(),
+            notes: self.notes.iter().map(|c| c.inner).collect(),
             nullifiers: self.nullifiers.iter().copied().collect(),
             note_nullifiers: self.note_nullifiers.iter().copied().collect(),
         };
 
         self.database
-            .set_indexed_account(&self.account, &state)
+            .set_indexed_account(self.nullifying.pub_key(), self.viewing.pub_key(), &state)
             .await
     }
 }

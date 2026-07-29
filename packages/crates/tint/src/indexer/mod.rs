@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::{
-    account::{Account, receiver::Receiver},
+    account::{nullifying::NullifyingAccount, receiver::Receiver, viewing::ViewingAccount},
     circuit::{
         join_split::{K, SUBTREE_PATH_LENGTH, SUBTREE_SIZE, TREE_DEPTH},
         poseidon2::poseidon2_compress,
@@ -23,7 +23,7 @@ use crate::{
         syncer::{Event, Syncer},
         verifier::Verifier,
     },
-    note::commitment::SpendableCommitment,
+    note::commitment::NullifiableCommitment,
 };
 
 /// Indexes on-chain `Tint` events.
@@ -111,11 +111,11 @@ impl Indexer {
         self.state.staged_commitments.len() as u128
     }
 
-    /// Returns the notes spendable by `receiver`.
-    pub fn spendable_notes(&self, receiver: Receiver) -> Vec<&SpendableCommitment> {
+    /// Returns the notes owned by `receiver`.
+    pub fn notes(&self, receiver: Receiver) -> Vec<&NullifiableCommitment> {
         for account in &self.accounts {
-            if account.receiver() == receiver {
-                return account.spendable_notes();
+            if account.matches(&receiver) {
+                return account.notes();
             }
         }
 
@@ -123,8 +123,12 @@ impl Indexer {
     }
 
     /// Adds an account which will be indexed.
-    pub async fn add_account(&mut self, account: Account) -> Result<(), DatabaseError> {
-        let account = IndexedAccount::new(account, self.database.clone()).await?;
+    pub async fn add_account(
+        &mut self,
+        viewing: ViewingAccount,
+        nullifying: NullifyingAccount,
+    ) -> Result<(), DatabaseError> {
+        let account = IndexedAccount::new(viewing, nullifying, self.database.clone()).await?;
         self.accounts.push(account);
         Ok(())
     }

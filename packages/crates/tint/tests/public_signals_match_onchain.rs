@@ -8,13 +8,13 @@ mod common;
 
 use std::sync::Arc;
 
-use alloy_primitives::{Address, B256, U256};
+use alloy_primitives::{Address, U256};
 use ark_bn254::Fr;
 use ark_ff::PrimeField;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{
-    account::{Account, keys::Keys},
+    account::{Account, keys::Keys, spending::NoopSpendingAccount},
     circuit::setup_circuits,
     database::memory::MemoryDatabase,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
@@ -49,7 +49,7 @@ async fn public_signals_match_onchain() {
     // Setup tint provider
     info!("Setting up tint provider...");
     let keys = Keys::from_seed(&[11u8; 32]);
-    let account = Account::new(keys, Address::ZERO, B256::ZERO);
+    let account = Account::from_keys(keys, NoopSpendingAccount);
 
     let syncer = Arc::new(RpcSyncer::new(provider.clone(), *tint.address()));
     let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
@@ -94,10 +94,10 @@ async fn public_signals_match_onchain() {
         U256::from(amount)
     );
 
-    let notes = tint_provider.spendable_notes(account.receiver());
+    let notes = tint_provider.notes(account.receiver());
     assert_eq!(notes.len(), 1);
-    assert_eq!(notes[0].base.amount, amount);
-    assert_eq!(notes[0].base.asset, asset);
+    assert_eq!(notes[0].inner.amount, amount);
+    assert_eq!(notes[0].inner.asset, asset);
 
     let (call, local_signals) = tint_provider
         .public_inputs(
@@ -106,6 +106,7 @@ async fn public_signals_match_onchain() {
             [(Address::new([2; 20]), asset, 100)],
             &mut rng,
         )
+        .await
         .unwrap();
 
     let onchain_signals = tint.call_builder(&call).call().await.unwrap();

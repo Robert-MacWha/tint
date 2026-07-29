@@ -19,7 +19,7 @@ use crate::{
     indexer::{Indexer, merkle_tree::InclusionProof},
     note::{
         asset::AssetId,
-        commitment::{BaseCommitment, Commitment, SpendableCommitment},
+        commitment::{BaseCommitment, Commitment, NullifiableCommitment, SpendableCommitment},
         withdrawal::Withdrawal,
     },
     operation::Operation,
@@ -41,11 +41,16 @@ pub enum ProviderError {
     Synthesis(#[from] ark_relations::gr1cs::SynthesisError),
     #[error("commitment error: {0}")]
     Commitment(#[from] crate::note::commitment::CommitmentError),
+    #[error("spending account error: {0}")]
+    Spending(#[from] crate::account::spending::SpendingAccountError),
+    #[error("no registered account authorizes spending this note")]
+    UnknownSpendingAccount,
 }
 
 /// Builds shield/transfer/unshield calls against a Tint deployment.
 pub struct Provider {
     pub indexer: Indexer,
+    accounts: Vec<Account>,
     proving_key: ProvingKey<Bn254>,
     verifying_key: VerifyingKey<Bn254>,
 }
@@ -58,19 +63,36 @@ impl Provider {
     ) -> Self {
         Self {
             indexer,
+            accounts: Vec::new(),
             proving_key,
             verifying_key,
         }
     }
 
-    /// Adds an account which will be indexed.
+    /// Adds an account which will be indexed and made available to authorize
+    /// spending its own notes in [`Self::operate`]/[`Self::public_inputs`].
     pub async fn add_account(&mut self, account: Account) -> Result<(), DatabaseError> {
-        self.indexer.add_account(account).await
+        self.indexer
+            .add_account(account.viewing().clone(), account.nullifying().clone())
+            .await?;
+        self.accounts.push(account);
+        Ok(())
     }
 
-    /// Returns the notes spendable by `receiver`.
-    pub fn spendable_notes(&self, receiver: Receiver) -> Vec<&SpendableCommitment> {
-        self.indexer.spendable_notes(receiver)
+    /// Finds the registered account whose viewing/spending identity matches `note`.
+    fn account_for(&self, note: &NullifiableCommitment) -> Result<&Account, ProviderError> {
+        self.accounts
+            .iter()
+            .find(|account| {
+                account.nullifying().pub_key() == note.inner.nullifier_pub_key
+                    && account.spending().spendability_hash() == note.spendability_hash()
+            })
+            .ok_or(ProviderError::UnknownSpendingAccount)
+    }
+
+    /// Returns the notes owned by `receiver`.
+    pub fn notes(&self, receiver: Receiver) -> Vec<&NullifiableCommitment> {
+        self.indexer.notes(receiver)
     }
 
     /// Synchronize the indexer with the on-chain state.
@@ -100,28 +122,35 @@ impl Provider {
     }
 
     /// Builds a proven `operate` call spending `inputs` into `outputs`
-    /// (new shielded notes) and `withdrawals` (unshields).
-    pub fn operate<const I: usize, const O: usize, const W: usize, R: RngCore + CryptoRng>(
+    /// (new shielded notes) and `withdrawals` (unshields). Each input is
+    /// resolved against the accounts registered via [`Self::add_account`] —
+    /// a single operation may combine notes bound to different accounts/rules.
+    pub async fn operate<const I: usize, const O: usize, const W: usize, R: RngCore + CryptoRng>(
         &mut self,
-        inputs: [SpendableCommitment; I],
+        inputs: [NullifiableCommitment; I],
         outputs: [(Receiver, AssetId, u128); O],
         withdrawals: [(Address, AssetId, u128); W],
         rng: &mut R,
     ) -> Result<Tint::operateCall, ProviderError> {
-        let (operation, _public_inputs) = self.operation(inputs, outputs, withdrawals, rng)?;
+        let (operation, _public_inputs) = self.operation(inputs, outputs, withdrawals, rng).await?;
         Ok(Tint::operateCall::new((operation,)))
     }
 
     /// Computes the public-input vector and on-chain `Operation` for
     /// this operation without generating a Groth16 proof.
-    pub fn public_inputs<const I: usize, const O: usize, const W: usize, R: RngCore + CryptoRng>(
+    pub async fn public_inputs<
+        const I: usize,
+        const O: usize,
+        const W: usize,
+        R: RngCore + CryptoRng,
+    >(
         &mut self,
-        inputs: [SpendableCommitment; I],
+        inputs: [NullifiableCommitment; I],
         outputs: [(Receiver, AssetId, u128); O],
         withdrawals: [(Address, AssetId, u128); W],
         rng: &mut R,
     ) -> Result<(Tint::computePublicSignalsCall, Vec<Fr>), ProviderError> {
-        let (operation, public_inputs) = self.operation(inputs, outputs, withdrawals, rng)?;
+        let (operation, public_inputs) = self.operation(inputs, outputs, withdrawals, rng).await?;
 
         Ok((
             Tint::computePublicSignalsCall::new((operation,)),
@@ -131,14 +160,16 @@ impl Provider {
 
     /// Computes the public-input vector and on-chain `Operation` for
     /// this operation.
-    fn operation<const I: usize, const O: usize, const W: usize, R: RngCore + CryptoRng>(
+    async fn operation<const I: usize, const O: usize, const W: usize, R: RngCore + CryptoRng>(
         &mut self,
-        inputs: [SpendableCommitment; I],
+        inputs: [NullifiableCommitment; I],
         outputs: [(Receiver, AssetId, u128); O],
         withdrawals: [(Address, AssetId, u128); W],
         rng: &mut R,
     ) -> Result<(IPrivacyPool::Operation, Vec<Fr>), ProviderError> {
-        let (circuit, context) = self.build_circuit(&inputs, &outputs, &withdrawals, rng)?;
+        let (circuit, context) = self
+            .build_circuit(inputs, &outputs, &withdrawals, rng)
+            .await?;
 
         let old_root = circuit.old_root;
         let start_aggregation_index = circuit.start_aggregation_index;
@@ -174,9 +205,21 @@ impl Provider {
 
     /// Builds the `JoinSplit` circuit witnessing `inputs` spent into
     /// `outputs` + `withdrawals`.
-    fn build_circuit<const I: usize, const O: usize, const W: usize, R: RngCore + CryptoRng>(
+    ///
+    /// Builds a draft operation with each input's spendability left as an
+    /// unresolved placeholder, then resolves each input's spendability
+    /// against it and splices the result back in. `Operation::hash` only
+    /// depends on asset/amount/partial-commitment data, never on an input's
+    /// spendability address/witness/input, so it's unaffected by this
+    /// resolution — what a spending rule sees always matches what's proven.
+    async fn build_circuit<
+        const I: usize,
+        const O: usize,
+        const W: usize,
+        R: RngCore + CryptoRng,
+    >(
         &mut self,
-        inputs: &[SpendableCommitment; I],
+        inputs: [NullifiableCommitment; I],
         outputs: &[(Receiver, AssetId, u128); O],
         withdrawals: &[(Address, AssetId, u128); W],
         rng: &mut R,
@@ -186,11 +229,29 @@ impl Provider {
         let start_aggregation_hash = self.indexer.posted_aggregation_hash();
 
         let subtree_append = self.indexer.commit()?;
-        let commitment_inclusion_proofs = self.commitment_inclusion_proofs(inputs)?;
-        let operation = self.build_operation(inputs, outputs, withdrawals, rng)?;
+
+        let (output_commitments, output_withdrawals) = build_outputs(outputs, withdrawals, rng)?;
+
+        let placeholder_inputs: [SpendableCommitment; I] =
+            inputs.map(|note| note.as_pending_spendable());
+        let mut operation =
+            assemble_operation(&placeholder_inputs, output_commitments, output_withdrawals)?;
+
+        let mut resolved_inputs: [SpendableCommitment; I] = repeat(SpendableCommitment::default());
+        for (i, note) in inputs.iter().enumerate() {
+            let account = self.account_for(note)?;
+            let resolved = account
+                .spending()
+                .into_spendable(*note, operation.clone())
+                .await?;
+            operation.inputs[i] = resolved.clone();
+            resolved_inputs[i] = resolved;
+        }
+
+        let commitment_inclusion_proofs = self.commitment_inclusion_proofs(&resolved_inputs)?;
 
         let unshield_recipients = unshield_recipients(withdrawals);
-        let spendability_inputs = spendability_inputs(inputs);
+        let spendability_inputs = spendability_inputs(&resolved_inputs);
         let ciphertexts = try_from_fn(|i| {
             let output = &operation.output_commitments[i];
             let Some((receiver, _, _)) = outputs.get(i) else {
@@ -243,44 +304,56 @@ impl Provider {
 
         Ok(commitment_inclusion_proofs)
     }
+}
 
-    /// Builds an `Operation` from the given inputs, outputs, and withdrawals.
-    fn build_operation<const I: usize, const O: usize, const W: usize, R: RngCore + CryptoRng>(
-        &self,
-        inputs: &[SpendableCommitment; I],
-        outputs: &[(Receiver, AssetId, u128); O],
-        withdrawals: &[(Address, AssetId, u128); W],
-        rng: &mut R,
-    ) -> Result<Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>, ProviderError> {
-        const {
-            assert!(I <= N_INPUTS, "too many inputs");
-            assert!(O <= N_OUTPUTS, "too many outputs");
-            assert!(W <= N_WITHDRAWALS, "too many withdrawals");
-        }
-
-        let mut input_commitments = repeat(SpendableCommitment::default());
-        for (i, input) in inputs.iter().enumerate() {
-            input_commitments[i] = input.clone();
-        }
-
-        let mut output_commitments = repeat(BaseCommitment::default());
-        for (i, (receiver, asset, amount)) in outputs.iter().enumerate() {
-            let random = B256::new(rng.r#gen());
-            let commitment = receiver.commitment(*asset, amount.clone(), random);
-            output_commitments[i] = commitment;
-        }
-
-        let mut output_withdrawals = repeat(Withdrawal::default());
-        for (i, (_, asset, amount)) in withdrawals.iter().enumerate() {
-            output_withdrawals[i] = Withdrawal::new(*asset, amount.clone());
-        }
-
-        Ok(Operation::new(
-            input_commitments,
-            output_commitments,
-            output_withdrawals,
-        ))
+/// Builds the padded (real) output commitments and withdrawals for an
+/// operation, consuming `rng`. Called exactly once per `operate`/`public_inputs`
+/// call so a draft and its final operation always share the same outputs.
+fn build_outputs<const O: usize, const W: usize, R: RngCore + CryptoRng>(
+    outputs: &[(Receiver, AssetId, u128); O],
+    withdrawals: &[(Address, AssetId, u128); W],
+    rng: &mut R,
+) -> Result<([BaseCommitment; N_OUTPUTS], [Withdrawal; N_WITHDRAWALS]), ProviderError> {
+    const {
+        assert!(O <= N_OUTPUTS, "too many outputs");
+        assert!(W <= N_WITHDRAWALS, "too many withdrawals");
     }
+
+    let mut output_commitments = repeat(BaseCommitment::default());
+    for (i, (receiver, asset, amount)) in outputs.iter().enumerate() {
+        let random = B256::new(rng.r#gen());
+        output_commitments[i] = receiver.commitment(*asset, *amount, random);
+    }
+
+    let mut output_withdrawals = repeat(Withdrawal::default());
+    for (i, (_, asset, amount)) in withdrawals.iter().enumerate() {
+        output_withdrawals[i] = Withdrawal::new(*asset, *amount);
+    }
+
+    Ok((output_commitments, output_withdrawals))
+}
+
+/// Pads `inputs` up to the circuit's fixed slot count and assembles an `Operation`
+/// from them and already-built outputs/withdrawals.
+fn assemble_operation<const I: usize>(
+    inputs: &[SpendableCommitment; I],
+    output_commitments: [BaseCommitment; N_OUTPUTS],
+    output_withdrawals: [Withdrawal; N_WITHDRAWALS],
+) -> Result<Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>, ProviderError> {
+    const {
+        assert!(I <= N_INPUTS, "too many inputs");
+    }
+
+    let mut input_commitments = repeat(SpendableCommitment::default());
+    for (i, input) in inputs.iter().enumerate() {
+        input_commitments[i] = input.clone();
+    }
+
+    Ok(Operation::new(
+        input_commitments,
+        output_commitments,
+        output_withdrawals,
+    ))
 }
 
 fn spendability_inputs<const I: usize>(inputs: &[SpendableCommitment; I]) -> [Bytes; N_INPUTS] {

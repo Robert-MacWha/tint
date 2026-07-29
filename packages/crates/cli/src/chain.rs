@@ -16,7 +16,7 @@ use tint::{
     account::{Account, receiver::Receiver},
     database::memory::MemoryDatabase,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
-    note::{asset::AssetId, commitment::SpendableCommitment},
+    note::{asset::AssetId, commitment::NullifiableCommitment},
     provider::Provider as TintProvider,
 };
 
@@ -143,21 +143,25 @@ pub async fn transfer(
     let asset = AssetId::from(token);
     let recipient = resolve_receiver(to)?;
     let note = pick_note(session, asset, amount)?;
-    let change = note.base.amount - amount;
+    let change = note.inner.amount - amount;
     let sender = session.account.receiver();
 
     tracing::info!("Building transfer proof...");
     let call = if change > 0 {
-        session.tint_provider.operate(
-            [note],
-            [(recipient, asset, amount), (sender, asset, change)],
-            [],
-            &mut OsRng,
-        )?
+        session
+            .tint_provider
+            .operate(
+                [note],
+                [(recipient, asset, amount), (sender, asset, change)],
+                [],
+                &mut OsRng,
+            )
+            .await?
     } else {
         session
             .tint_provider
-            .operate([note], [(recipient, asset, amount)], [], &mut OsRng)?
+            .operate([note], [(recipient, asset, amount)], [], &mut OsRng)
+            .await?
     };
 
     send(session, session.tint_address, call.abi_encode()).await?;
@@ -176,21 +180,25 @@ pub async fn unshield(
 ) -> anyhow::Result<()> {
     let asset = AssetId::from(token);
     let note = pick_note(session, asset, amount)?;
-    let change = note.base.amount - amount;
+    let change = note.inner.amount - amount;
     let sender = session.account.receiver();
 
     tracing::info!("Building unshield proof...");
     let call = if change > 0 {
-        session.tint_provider.operate(
-            [note],
-            [(sender, asset, change)],
-            [(to, asset, amount)],
-            &mut OsRng,
-        )?
+        session
+            .tint_provider
+            .operate(
+                [note],
+                [(sender, asset, change)],
+                [(to, asset, amount)],
+                &mut OsRng,
+            )
+            .await?
     } else {
         session
             .tint_provider
-            .operate([note], [], [(to, asset, amount)], &mut OsRng)?
+            .operate([note], [], [(to, asset, amount)], &mut OsRng)
+            .await?
     };
 
     send(session, session.tint_address, call.abi_encode()).await?;
@@ -211,13 +219,13 @@ fn pick_note(
     session: &Session,
     asset: AssetId,
     amount: u128,
-) -> anyhow::Result<SpendableCommitment> {
+) -> anyhow::Result<NullifiableCommitment> {
     session
         .tint_provider
-        .spendable_notes(session.account.receiver())
+        .notes(session.account.receiver())
         .into_iter()
-        .find(|note| note.base.asset == asset && note.base.amount >= amount)
-        .cloned()
+        .find(|note| note.inner.asset == asset && note.inner.amount >= amount)
+        .copied()
         .ok_or_else(|| anyhow::anyhow!("no single spendable note covers {amount} of this asset"))
 }
 
@@ -225,12 +233,12 @@ fn pick_note(
 pub fn print_balance(session: &Session) {
     let balances = session
         .tint_provider
-        .spendable_notes(session.account.receiver())
+        .notes(session.account.receiver())
         .iter()
         .fold(
             std::collections::HashMap::<AssetId, u128>::new(),
             |mut acc, note| {
-                *acc.entry(note.base.asset).or_default() += note.base.amount;
+                *acc.entry(note.inner.asset).or_default() += note.inner.amount;
                 acc
             },
         );

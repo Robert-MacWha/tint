@@ -46,16 +46,21 @@ pub struct BaseCommitment {
     pub nullifier_pub_key: NullifierPubKey,
 }
 
-/// A commitment that can be spent, including its nullifier key.
-#[derive(Debug, Clone)]
+/// A commitment that can be nullified.
+#[derive(Copy, Clone, Debug)]
+pub struct NullifiableCommitment {
+    pub inner: BaseCommitment,
+    pub nullifier_key: NullifierKey,
+}
+
+/// A commitment that can be spent and nullified.
+#[derive(Clone, Debug)]
 pub struct SpendableCommitment {
-    pub base: BaseCommitment,
+    pub inner: BaseCommitment,
     pub nullifier_key: NullifierKey,
     pub spendability_address: Address,
     pub spendability_witness: B256,
     pub spendability_input: Bytes,
-
-    pub encryption_pub_key: EncryptionPubKey,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, thiserror::Error)]
@@ -92,26 +97,6 @@ impl BaseCommitment {
         Ok(postcard::from_bytes(&plaintext)?)
     }
 
-    pub fn as_spendable(
-        &self,
-        nullifier_key: NullifierKey,
-        spendability_address: Address,
-        spendability_witness: B256,
-        spendability_input: Bytes,
-        encryption_pub_key: EncryptionPubKey,
-    ) -> SpendableCommitment {
-        SpendableCommitment::new(
-            self.asset,
-            self.amount,
-            nullifier_key,
-            spendability_address,
-            spendability_witness,
-            spendability_input,
-            encryption_pub_key,
-            self.random,
-        )
-    }
-
     pub fn nullifier(&self, nullifier_key: &NullifierKey) -> Fr {
         poseidon2_compress(&[nullifier_key.0, self.hash()])
     }
@@ -127,6 +112,31 @@ impl BaseCommitment {
     }
 }
 
+impl NullifiableCommitment {
+    pub fn new(inner: BaseCommitment, nullifier_key: NullifierKey) -> Self {
+        NullifiableCommitment {
+            inner,
+            nullifier_key,
+        }
+    }
+
+    pub fn nullifier(&self) -> Fr {
+        self.inner.nullifier(&self.nullifier_key)
+    }
+
+    /// Builds a [`SpendableCommitment`] carrying this note's real
+    /// committed data but no resolved spendability rule.
+    pub fn as_pending_spendable(&self) -> SpendableCommitment {
+        SpendableCommitment {
+            inner: self.inner,
+            nullifier_key: self.nullifier_key,
+            spendability_address: Address::default(),
+            spendability_witness: B256::default(),
+            spendability_input: Bytes::default(),
+        }
+    }
+}
+
 impl SpendableCommitment {
     pub fn new(
         asset: AssetId,
@@ -135,7 +145,6 @@ impl SpendableCommitment {
         spendability_address: Address,
         spendability_witness: B256,
         spendability_input: Bytes,
-        encryption_pub_key: EncryptionPubKey,
         random: B256,
     ) -> Self {
         let base = BaseCommitment::new(
@@ -147,12 +156,11 @@ impl SpendableCommitment {
         );
 
         SpendableCommitment {
-            base,
+            inner: base,
             nullifier_key,
             spendability_address,
             spendability_witness,
             spendability_input,
-            encryption_pub_key,
         }
     }
 
@@ -165,7 +173,7 @@ impl SpendableCommitment {
     }
 
     pub fn nullifier(&self) -> Fr {
-        self.base.nullifier(&self.nullifier_key)
+        self.inner.nullifier(&self.nullifier_key)
     }
 }
 
@@ -181,12 +189,11 @@ impl Default for SpendableCommitment {
         );
 
         SpendableCommitment {
-            base,
+            inner: base,
             nullifier_key,
             spendability_address: Address::default(),
             spendability_witness: B256::default(),
             spendability_input: Bytes::default(),
-            encryption_pub_key: EncryptionPubKey::default(),
         }
     }
 }
@@ -213,25 +220,47 @@ impl Commitment for BaseCommitment {
     }
 }
 
-impl Commitment for SpendableCommitment {
+impl Commitment for NullifiableCommitment {
     fn asset_fr(&self) -> Fr {
-        self.base.asset_fr()
+        self.inner.asset_fr()
     }
 
     fn amount_fr(&self) -> Fr {
-        self.base.amount_fr()
+        self.inner.amount_fr()
     }
 
     fn spendability_hash(&self) -> Fr {
-        self.base.spendability_hash()
+        self.inner.spendability_hash()
     }
 
     fn random_fr(&self) -> Fr {
-        self.base.random_fr()
+        self.inner.random_fr()
     }
 
     fn nullifier_pub_key(&self) -> NullifierPubKey {
-        self.base.nullifier_pub_key()
+        self.inner.nullifier_pub_key()
+    }
+}
+
+impl Commitment for SpendableCommitment {
+    fn asset_fr(&self) -> Fr {
+        self.inner.asset_fr()
+    }
+
+    fn amount_fr(&self) -> Fr {
+        self.inner.amount_fr()
+    }
+
+    fn spendability_hash(&self) -> Fr {
+        self.inner.spendability_hash()
+    }
+
+    fn random_fr(&self) -> Fr {
+        self.inner.random_fr()
+    }
+
+    fn nullifier_pub_key(&self) -> NullifierPubKey {
+        self.inner.nullifier_pub_key()
     }
 }
 
@@ -253,10 +282,9 @@ mod tests {
             Address::new([2; 20]),
             B256::new([3; 32]),
             Bytes::default(),
-            EncryptionPubKey::default(),
             B256::new([5; 32]),
         );
-        let base_commitment = spendable_commitment.base.clone();
+        let base_commitment = spendable_commitment.inner.clone();
 
         assert_eq!(base_commitment.hash(), spendable_commitment.hash());
         assert_snapshot!(base_commitment.hash().to_string(), @"17640475429295364107359838331529334780077059090612734967321040506786550571143");
@@ -273,17 +301,16 @@ mod tests {
             Address::new([2; 20]),
             B256::new([3; 32]),
             Bytes::default(),
-            EncryptionPubKey::default(),
             B256::new([5; 32]),
         );
 
         let mut rng = rand_core::OsRng;
         let encrypted = spendable_commitment
-            .base
+            .inner
             .encrypt(&[keys.encryption_pub_key()], &mut rng)
             .unwrap();
         let decrypted = BaseCommitment::from_encrypted(&encrypted, &keys.encryption_key).unwrap();
 
-        assert_eq!(decrypted, spendable_commitment.base);
+        assert_eq!(decrypted, spendable_commitment.inner);
     }
 }

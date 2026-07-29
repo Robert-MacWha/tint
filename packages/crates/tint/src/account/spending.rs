@@ -1,0 +1,69 @@
+use alloy_primitives::{Address, B256, Bytes};
+use ark_bn254::Fr;
+
+use crate::{
+    circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
+    note::commitment::{NullifiableCommitment, SpendableCommitment},
+    operation::Operation,
+};
+
+#[derive(Debug, thiserror::Error)]
+#[error("spending account error: {inner}")]
+pub struct SpendingAccountError {
+    inner: Box<dyn std::error::Error + Send + Sync>,
+}
+
+/// Accounts that can authorize the spending of their own notes.
+///
+/// A note is bound to a particular spending account by the spendability hash.
+/// Bound notes can only be spent if the contract at their spendability address
+/// authorizes spending of the note. Authorization logic may be configured
+/// at the time of note creation by specifying a spendability witness.
+#[async_trait::async_trait]
+pub trait SpendingAccount: std::fmt::Debug {
+    fn spendability_address(&self) -> Address;
+    fn spendability_witness(&self) -> B256;
+
+    fn spendability_hash(&self) -> Fr {
+        crate::account::spendability_hash(self.spendability_address(), self.spendability_witness())
+    }
+
+    async fn into_spendable(
+        &self,
+        base: NullifiableCommitment,
+        operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+    ) -> Result<SpendableCommitment, SpendingAccountError>;
+}
+
+/// A noop spending account that does not enforce any spendability rules. Notes
+/// with this account type can be spent by anyone that knows the note's encryption
+/// and nullifying keys.
+#[derive(Clone, Debug, Default)]
+pub struct NoopSpendingAccount;
+
+#[async_trait::async_trait]
+impl SpendingAccount for NoopSpendingAccount {
+    fn spendability_address(&self) -> Address {
+        Address::ZERO
+    }
+
+    fn spendability_witness(&self) -> B256 {
+        B256::ZERO
+    }
+
+    async fn into_spendable(
+        &self,
+        base: NullifiableCommitment,
+        _operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+    ) -> Result<SpendableCommitment, SpendingAccountError> {
+        Ok(SpendableCommitment::new(
+            base.inner.asset,
+            base.inner.amount,
+            base.nullifier_key,
+            self.spendability_address(),
+            self.spendability_witness(),
+            Bytes::new(),
+            base.inner.random,
+        ))
+    }
+}

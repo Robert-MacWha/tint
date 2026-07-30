@@ -14,6 +14,7 @@ use anyhow::Context;
 use rand_core::OsRng;
 use tint::{
     account::{Account, receiver::Receiver},
+    circuit::join_split::JoinSplit,
     database::memory::MemoryDatabase,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
     note::{asset::AssetId, commitment::NullifiableCommitment},
@@ -61,8 +62,8 @@ pub async fn connect(
     let database = Arc::new(MemoryDatabase::default());
     let indexer = Indexer::new(syncer, verifier, database).await?;
 
-    let (proving_key, verifying_key) = config::load_or_generate_circuit_keys()?;
-    let mut tint_provider = TintProvider::new(indexer, proving_key, verifying_key);
+    let (pk, vk) = config::load_circuit::<JoinSplit>("join_split")?;
+    let mut tint_provider = TintProvider::new(indexer, pk, vk);
     tint_provider.add_account(account.clone()).await?;
 
     tracing::info!("Syncing with chain...");
@@ -207,9 +208,11 @@ pub async fn unshield(
     Ok(())
 }
 
-/// Resolves a transfer recipient to a local account's receiver.
+/// Resolves a transfer recipient to a local account's receiver. This doesn't
+/// require the recipient's password, since receiving funds doesn't require
+/// spending capability.
 fn resolve_receiver(to: &str) -> anyhow::Result<Receiver> {
-    Ok(config::load_account(to)?.receiver())
+    config::load_receiver(to)
 }
 
 /// Picks a single spendable note covering `amount` of `asset`. Tint supports

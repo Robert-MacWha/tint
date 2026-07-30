@@ -8,6 +8,7 @@ use ark_groth16::{Groth16, ProvingKey, VerifyingKey};
 use ark_snark::SNARK;
 use ark_std::rand::Rng;
 use rand_core::{CryptoRng, RngCore};
+use tracing::info;
 
 use crate::{
     abis::tint::{IPrivacyPool, Tint},
@@ -168,6 +169,7 @@ impl Provider {
         let start_aggregation_index = circuit.start_aggregation_index;
         let end_aggregation_index = self.indexer.posted_aggregation_index();
 
+        info!("Proving operation...");
         let public_inputs = circuit.synthesize_public_inputs()?;
         let outputs = circuit.synthesize_outputs()?;
         let proof = Groth16::<Bn254>::prove(&self.proving_key, circuit, rng)?;
@@ -176,6 +178,7 @@ impl Provider {
         if !Groth16::<Bn254>::verify(&self.verifying_key, &public_inputs, &proof)? {
             return Err(ProviderError::InvalidProof);
         }
+        info!("Operation proof verified");
 
         Ok((
             IPrivacyPool::Operation {

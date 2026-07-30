@@ -16,13 +16,23 @@ enum Command {
     /// Lists all local accounts.
     ListAccounts,
     /// Create a new named account
-    CreateAccount { name: String },
+    CreateAccount {
+        name: String,
+        /// The spendability rule for this account
+        #[arg(long, value_enum, default_value = "noop")]
+        spendability: config::AccountSpendability,
+        /// The on-chain PasswordSpendability contract address (required only for --spendability password)
+        #[arg(long, env = "SPENDABILITY_ADDRESS")]
+        spendability_address: Option<Address>,
+    },
     /// Print the shielded balance of a token for a local account
     Balance {
         /// The local account name to check the balance of
         account: String,
         #[arg(long, env = "TINT_ADDRESS")]
         tint_address: Address,
+        #[arg(long, env = "SPENDABILITY_ADDRESS")]
+        spendability_address: Option<Address>,
         #[arg(long, env = "RPC_URL")]
         rpc_url: String,
         #[arg(long, env = "PRIVATE_KEY")]
@@ -38,6 +48,8 @@ enum Command {
         amount: u128,
         #[arg(long, env = "TINT_ADDRESS")]
         tint_address: Address,
+        #[arg(long, env = "SPENDABILITY_ADDRESS")]
+        spendability_address: Option<Address>,
         #[arg(long, env = "RPC_URL")]
         rpc_url: String,
         #[arg(long, env = "PRIVATE_KEY")]
@@ -55,6 +67,8 @@ enum Command {
         amount: u128,
         #[arg(long, env = "TINT_ADDRESS")]
         tint_address: Address,
+        #[arg(long, env = "SPENDABILITY_ADDRESS")]
+        spendability_address: Option<Address>,
         #[arg(long, env = "RPC_URL")]
         rpc_url: String,
         #[arg(long, env = "PRIVATE_KEY")]
@@ -72,6 +86,8 @@ enum Command {
         amount: u128,
         #[arg(long, env = "TINT_ADDRESS")]
         tint_address: Address,
+        #[arg(long, env = "SPENDABILITY_ADDRESS")]
+        spendability_address: Option<Address>,
         #[arg(long, env = "RPC_URL")]
         rpc_url: String,
         #[arg(long, env = "PRIVATE_KEY")]
@@ -128,17 +144,22 @@ async fn main() -> anyhow::Result<()> {
                 tracing::info!("{}", account)
             }
         }
-        Command::CreateAccount { name } => {
-            config::create_account(&name)?;
+        Command::CreateAccount {
+            name,
+            spendability,
+            spendability_address,
+        } => {
+            config::create_account(&name, spendability, spendability_address)?;
             tracing::info!("Created account \"{name}\"");
         }
         Command::Balance {
             account,
             tint_address,
+            spendability_address,
             rpc_url,
             private_key,
         } => {
-            let account = config::load_account(&account)?;
+            let account = config::load_account(&account, spendability_address)?;
             let session = chain::connect(account, tint_address, &rpc_url, private_key).await?;
             chain::print_balance(&session);
         }
@@ -147,10 +168,11 @@ async fn main() -> anyhow::Result<()> {
             token,
             amount,
             tint_address,
+            spendability_address,
             rpc_url,
             private_key,
         } => {
-            let to = config::load_account(&to)?;
+            let to = config::load_account(&to, spendability_address)?;
             let mut session = chain::connect(to, tint_address, &rpc_url, private_key).await?;
             chain::shield(&mut session, token, amount).await?;
         }
@@ -160,10 +182,11 @@ async fn main() -> anyhow::Result<()> {
             token,
             amount,
             tint_address,
+            spendability_address,
             rpc_url,
             private_key,
         } => {
-            let from = config::load_account(&from)?;
+            let from = config::load_account(&from, spendability_address)?;
             let mut session = chain::connect(from, tint_address, &rpc_url, private_key).await?;
             chain::transfer(&mut session, &to, token, amount).await?;
         }
@@ -173,10 +196,11 @@ async fn main() -> anyhow::Result<()> {
             token,
             amount,
             tint_address,
+            spendability_address,
             rpc_url,
             private_key,
         } => {
-            let from = config::load_account(&from)?;
+            let from = config::load_account(&from, spendability_address)?;
             let mut session = chain::connect(from, tint_address, &rpc_url, private_key).await?;
             chain::unshield(&mut session, to, token, amount).await?;
         }

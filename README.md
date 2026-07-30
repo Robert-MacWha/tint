@@ -35,6 +35,8 @@ The first run will take a while, since it builds the smart contracts, rust CLI, 
 
 ### Example
 
+**Environment Variables**
+
 ```bash
 # Obtain from Robert
 export RPC_URL=...
@@ -42,7 +44,11 @@ export RPC_URL=...
 export PRIVATE_KEY=0x...
 
 export TOKEN=0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2
+```
 
+**Shield**
+
+```bash
 # Fund EOA with 100 ETH and WETH
 just run set-balance 100000000000000000000
 just run set-erc20-balance $TOKEN 100000000000000000000
@@ -53,11 +59,33 @@ just run create-account bob
 
 # Shield into alice's account
 just run shield alice $TOKEN 1000
+
+just run balance alice
+```
+
+**Transfer**
+```bash
 just run transfer alice bob $TOKEN 500
-just run unshield alice 0x000000000000000000000000000000000000dead $TOKEN 400
 
 just run balance alice
 just run balance bob
+```
+
+**Unshield**
+```bash
+just run unshield alice 0x000000000000000000000000000000000000dead $TOKEN 400
+
+just run balance alice
+```
+
+**Password Spendability**
+```bash
+just run create-account charlie --spendability password
+# > enter password when prompted
+
+just run shield charlie $TOKEN 1000
+just run transfer charlie alice $TOKEN 500
+# > enter password when prompted
 ```
 
 ## Gas Costs

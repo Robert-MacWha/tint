@@ -14,6 +14,7 @@ use tint::{
     note::commitment::{NullifiableCommitment, SpendableCommitment},
     operation::Operation,
 };
+use tracing::info;
 
 use crate::{abis::ProofLib, circuit::password::PasswordSpendability};
 
@@ -76,6 +77,7 @@ impl SpendingAccount for PasswordSpendingAccount {
             secret,
         );
 
+        info!("Proving spendability...");
         let public_inputs = circuit
             .synthesize_public_inputs()
             .map_err(SpendingAccountError::new)?;
@@ -88,6 +90,7 @@ impl SpendingAccount for PasswordSpendingAccount {
             Ok(false) => return Err(SpendingAccountError::from_str("invalid proof")),
             Err(e) => return Err(SpendingAccountError::new(e)),
         }
+        info!("Spendability proof verified");
 
         let spendability_input = ProofLib::Proof::from(proof).abi_encode();
         Ok(SpendableCommitment::new(

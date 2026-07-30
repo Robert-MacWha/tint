@@ -1,5 +1,5 @@
 [workspace]
-members = ["cli", "tint", "circuit-profiler"]
+members = ["cli", "tint", "circuit-profiler", "tint-spendability"]
 resolver = "3"
 
 [workspace.lints.clippy]

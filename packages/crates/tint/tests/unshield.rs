@@ -5,7 +5,7 @@ use ark_std::rand::{Rng, rngs::StdRng};
 use rand_core::SeedableRng;
 use tint::{
     account::{Account, keys::Keys, spending::NoopSpendingAccount},
-    circuit::setup_circuits,
+    circuit::{join_split::JoinSplit, setup_circuit},
     database::memory::MemoryDatabase,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
     note::asset::AssetId,
@@ -36,7 +36,7 @@ async fn unshield() {
 
     // Setup circuits
     info!("Setting up circuits...");
-    let (proving_key, verifying_key) = setup_circuits().unwrap();
+    let (proving_key, verifying_key) = setup_circuit::<JoinSplit>().unwrap();
 
     // Setup tint provider
     info!("Setting up tint provider...");

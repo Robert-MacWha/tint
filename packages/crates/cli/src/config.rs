@@ -6,7 +6,7 @@ use ark_groth16::{ProvingKey, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use tint::{
     account::{Account, keys::Keys, spending::NoopSpendingAccount},
-    circuit::artifacts,
+    circuit::{artifacts, join_split::JoinSplit, setup_circuit},
 };
 
 #[derive(Serialize, Deserialize)]
@@ -98,7 +98,7 @@ pub fn load_or_generate_circuit_keys() -> anyhow::Result<(ProvingKey<Bn254>, Ver
     }
 
     tracing::info!("Generating circuit keys (first run)...");
-    let (proving_key, verifying_key) = tint::circuit::setup_circuits()?;
+    let (proving_key, verifying_key) = setup_circuit::<JoinSplit>()?;
 
     tracing::info!(
         "Caching circuit keys to {}... this may take a while",

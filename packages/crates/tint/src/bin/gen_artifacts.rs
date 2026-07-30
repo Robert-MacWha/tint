@@ -7,13 +7,13 @@ use ark_bn254::Fr;
 use ark_relations::gr1cs::{
     ConstraintSynthesizer, ConstraintSystem, OptimizationGoal, SynthesisMode,
 };
-use tint::circuit::{artifacts, join_split::JoinSplit, matrices::Matrices, setup_circuits};
+use tint::circuit::{artifacts, join_split::JoinSplit, matrices::Matrices, setup_circuit};
 
 const ARTIFACTS_DIR: &str = "artifacts/";
 
 fn main() {
     println!("Generating proving and verifying keys");
-    let (pk, vk) = setup_circuits().unwrap();
+    let (pk, vk) = setup_circuit::<JoinSplit>().unwrap();
 
     println!("Generating constraint matrices");
     let circuit = JoinSplit::default();

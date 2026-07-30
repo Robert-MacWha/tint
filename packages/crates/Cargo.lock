@@ -4787,6 +4787,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "tint-spendability"
+version = "0.1.0"
+dependencies = [
+ "alloy-contract",
+ "alloy-node-bindings",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-signer-local",
+ "alloy-sol-macro",
+ "alloy-sol-types",
+ "anyhow",
+ "ark-bn254",
+ "ark-ff 0.6.0",
+ "ark-groth16",
+ "ark-r1cs-std",
+ "ark-relations",
+ "ark-snark",
+ "ark-std 0.6.0",
+ "async-trait",
+ "rand_core 0.6.4",
+ "tint",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "tinystr"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

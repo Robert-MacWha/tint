@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use alloy_primitives::{Address, B256};
+use alloy_primitives::Address;
 use ark_bn254::Fr;
 
 use crate::{
@@ -9,7 +9,7 @@ use crate::{
         viewing::ViewingAccount,
     },
     circuit::poseidon2::poseidon2_compress,
-    fr::b256_to_fr,
+    fr::address_to_fr,
 };
 
 pub mod keys;
@@ -73,8 +73,7 @@ impl Account {
     }
 }
 
-pub fn spendability_hash(address: Address, witness: B256) -> Fr {
-    let address = b256_to_fr(address.into_word());
-    let witness = b256_to_fr(witness);
+pub fn spendability_hash(address: Address, witness: Fr) -> Fr {
+    let address = address_to_fr(address);
     poseidon2_compress(&[address, witness])
 }

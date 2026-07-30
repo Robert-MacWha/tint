@@ -1,7 +1,7 @@
 use std::ops::Add;
 
 use ark_bn254::Fr;
-use ark_ff::Field;
+use ark_ff::{AdditiveGroup, Field};
 use ark_r1cs_std::fields::FieldVar;
 use ark_relations::gr1cs::SynthesisError;
 
@@ -11,6 +11,7 @@ use crate::circuit::FrVar;
 pub trait PoseidonElement: Sized + Clone + Add<Self, Output = Self> {
     type Error;
 
+    fn zero() -> Self;
     fn add_constant(&mut self, constant: Fr);
     fn pow_alpha(&self, alpha: u64) -> Result<Self, Self::Error>;
     fn mul_constant(&self, constant: Fr) -> Self;
@@ -18,6 +19,10 @@ pub trait PoseidonElement: Sized + Clone + Add<Self, Output = Self> {
 
 impl PoseidonElement for Fr {
     type Error = ();
+
+    fn zero() -> Self {
+        Fr::ZERO
+    }
 
     fn add_constant(&mut self, constant: Fr) {
         *self += constant;
@@ -34,6 +39,10 @@ impl PoseidonElement for Fr {
 
 impl PoseidonElement for FrVar {
     type Error = SynthesisError;
+
+    fn zero() -> Self {
+        FrVar::Constant(Fr::ZERO)
+    }
 
     fn add_constant(&mut self, constant: Fr) {
         *self += constant;

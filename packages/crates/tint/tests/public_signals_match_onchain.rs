@@ -10,7 +10,6 @@ use std::sync::Arc;
 
 use alloy_primitives::{Address, U256};
 use ark_bn254::Fr;
-use ark_ff::PrimeField;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{

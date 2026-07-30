@@ -59,7 +59,7 @@ pub struct SpendableCommitment {
     pub inner: BaseCommitment,
     pub nullifier_key: NullifierKey,
     pub spendability_address: Address,
-    pub spendability_witness: B256,
+    pub spendability_witness: Fr,
     pub spendability_input: Bytes,
 }
 
@@ -131,7 +131,7 @@ impl NullifiableCommitment {
             inner: self.inner,
             nullifier_key: self.nullifier_key,
             spendability_address: Address::default(),
-            spendability_witness: B256::default(),
+            spendability_witness: Fr::default(),
             spendability_input: Bytes::default(),
         }
     }
@@ -143,7 +143,7 @@ impl SpendableCommitment {
         amount: u128,
         nullifier_key: NullifierKey,
         spendability_address: Address,
-        spendability_witness: B256,
+        spendability_witness: Fr,
         spendability_input: Bytes,
         random: B256,
     ) -> Self {
@@ -169,7 +169,7 @@ impl SpendableCommitment {
     }
 
     pub fn spendability_witness_fr(&self) -> Fr {
-        b256_to_fr(self.spendability_witness)
+        self.spendability_witness
     }
 
     pub fn nullifier(&self) -> Fr {
@@ -192,7 +192,7 @@ impl Default for SpendableCommitment {
             inner: base,
             nullifier_key,
             spendability_address: Address::default(),
-            spendability_witness: B256::default(),
+            spendability_witness: Fr::default(),
             spendability_input: Bytes::default(),
         }
     }
@@ -280,14 +280,14 @@ mod tests {
             100,
             NullifierKey::default(),
             Address::new([2; 20]),
-            B256::new([3; 32]),
+            Fr::from(3),
             Bytes::default(),
             B256::new([5; 32]),
         );
         let base_commitment = spendable_commitment.inner.clone();
 
         assert_eq!(base_commitment.hash(), spendable_commitment.hash());
-        assert_snapshot!(base_commitment.hash().to_string(), @"17640475429295364107359838331529334780077059090612734967321040506786550571143");
+        assert_snapshot!(base_commitment.hash().to_string(), @"151122391010099193331386929876946401472211150702802670594863584012381564898");
     }
 
     #[test]
@@ -299,7 +299,7 @@ mod tests {
             100,
             NullifierKey::default(),
             Address::new([2; 20]),
-            B256::new([3; 32]),
+            Fr::from(3),
             Bytes::default(),
             B256::new([5; 32]),
         );

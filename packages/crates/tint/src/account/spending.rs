@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, B256, Bytes};
+use alloy_primitives::{Address, Bytes};
 use ark_bn254::Fr;
 
 use crate::{
@@ -16,7 +16,7 @@ use crate::{
 #[async_trait::async_trait]
 pub trait SpendingAccount: std::fmt::Debug {
     fn spendability_address(&self) -> Address;
-    fn spendability_witness(&self) -> B256;
+    fn spendability_witness(&self) -> Fr;
 
     fn spendability_hash(&self) -> Fr {
         crate::account::spendability_hash(self.spendability_address(), self.spendability_witness())
@@ -49,8 +49,8 @@ impl SpendingAccount for NoopSpendingAccount {
         Address::ZERO
     }
 
-    fn spendability_witness(&self) -> B256 {
-        B256::ZERO
+    fn spendability_witness(&self) -> Fr {
+        Fr::from(0)
     }
 
     async fn into_spendable(

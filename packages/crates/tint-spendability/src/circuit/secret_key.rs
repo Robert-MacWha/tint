@@ -8,6 +8,7 @@ use tint::{
         FrVar, input,
         join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
         operation::OperationVar,
+        poseidon2::poseidon2_compress_gadget,
         variable, witness,
     },
     operation::Operation,
@@ -118,9 +119,10 @@ impl SecretKeySpendabilityVar {
         for input in &self.operation.inputs {
             let spendability_addresses_eq =
                 input.spendability_address.is_eq(spendability_address)?;
+            let expected_witness = poseidon2_compress_gadget(&[self.secret.clone()])?;
             input
                 .spendability_witness
-                .conditional_enforce_equal(&self.secret, &spendability_addresses_eq)?;
+                .conditional_enforce_equal(&expected_witness, &spendability_addresses_eq)?;
         }
         Ok(())
     }
@@ -128,9 +130,9 @@ impl SecretKeySpendabilityVar {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::{B256, U256, address};
+    use alloy_primitives::address;
     use ark_relations::gr1cs::trace::{ConstraintLayer, TracingMode};
-    use tint::fr::{address_to_fr, b256_to_fr};
+    use tint::{circuit::poseidon2::poseidon2_compress, fr::address_to_fr};
     use tracing_subscriber::layer::SubscriberExt;
 
     use super::*;
@@ -147,11 +149,12 @@ mod tests {
         let cs = ConstraintSystem::<Fr>::new_ref();
 
         let spendability_address = address!("0x1234567890abcdef1234567890abcdef12345678");
-        let secret: B256 = U256::from(12345).into();
+        let secret = Fr::from(12345);
+        let witness = poseidon2_compress(&[secret]);
 
         let mut operation = Operation::default();
         operation.inputs[0].spendability_address = spendability_address;
-        operation.inputs[0].spendability_witness = secret;
+        operation.inputs[0].spendability_witness = witness;
 
         let operation_hash = operation.hash();
 
@@ -159,7 +162,7 @@ mod tests {
             address_to_fr(spendability_address),
             operation_hash,
             operation,
-            b256_to_fr(secret),
+            secret,
         );
         circuit.synthesize(cs.clone()).unwrap();
         assert!(cs.is_satisfied().unwrap())
@@ -170,13 +173,14 @@ mod tests {
         let cs = ConstraintSystem::<Fr>::new_ref();
 
         let spendability_address = address!("0x1234567890abcdef1234567890abcdef12345678");
-        let secret: B256 = U256::from(12345).into();
+        let secret = Fr::from(12345);
+        let witness = poseidon2_compress(&[secret]);
 
         let mut operation = Operation::default();
         operation.inputs[0].spendability_address = spendability_address;
-        operation.inputs[0].spendability_witness = secret;
+        operation.inputs[0].spendability_witness = witness;
         operation.inputs[1].spendability_address = spendability_address;
-        operation.inputs[1].spendability_witness = secret;
+        operation.inputs[1].spendability_witness = witness;
 
         let operation_hash = operation.hash();
 
@@ -184,7 +188,7 @@ mod tests {
             address_to_fr(spendability_address),
             operation_hash,
             operation,
-            b256_to_fr(secret),
+            secret,
         );
         circuit.synthesize(cs.clone()).unwrap();
         assert!(cs.is_satisfied().unwrap())
@@ -196,12 +200,13 @@ mod tests {
         let cs = ConstraintSystem::<Fr>::new_ref();
 
         let spendability_address = address!("0x1234567890abcdef1234567890abcdef12345678");
-        let secret: B256 = U256::from(12345).into();
-        let invalid_secret: B256 = U256::from(54321).into();
+        let secret = Fr::from(12345);
+        let witness = poseidon2_compress(&[secret]);
+        let invalid_secret = Fr::from(54321);
 
         let mut operation = Operation::default();
         operation.inputs[0].spendability_address = spendability_address;
-        operation.inputs[0].spendability_witness = secret;
+        operation.inputs[0].spendability_witness = witness;
 
         let operation_hash = operation.hash();
 
@@ -209,7 +214,7 @@ mod tests {
             address_to_fr(spendability_address),
             operation_hash,
             operation,
-            b256_to_fr(invalid_secret),
+            invalid_secret,
         );
         circuit.synthesize(cs.clone()).unwrap();
 
@@ -229,14 +234,15 @@ mod tests {
         let cs = ConstraintSystem::<Fr>::new_ref();
 
         let spendability_address = address!("0x1234567890abcdef1234567890abcdef12345678");
-        let secret: B256 = U256::from(12345).into();
-        let other_secret: B256 = U256::from(54321).into();
+        let secret = Fr::from(12345);
+        let witness = poseidon2_compress(&[secret]);
+        let other_witness = poseidon2_compress(&[Fr::from(54321)]);
 
         let mut operation = Operation::default();
         operation.inputs[0].spendability_address = spendability_address;
-        operation.inputs[0].spendability_witness = secret;
+        operation.inputs[0].spendability_witness = witness;
         operation.inputs[1].spendability_address = spendability_address;
-        operation.inputs[1].spendability_witness = other_secret;
+        operation.inputs[1].spendability_witness = other_witness;
 
         let operation_hash = operation.hash();
 
@@ -244,7 +250,7 @@ mod tests {
             address_to_fr(spendability_address),
             operation_hash,
             operation,
-            b256_to_fr(secret),
+            secret,
         );
         circuit.synthesize(cs.clone()).unwrap();
 
@@ -264,11 +270,12 @@ mod tests {
         let cs = ConstraintSystem::<Fr>::new_ref();
 
         let spendability_address = address!("0x1234567890abcdef1234567890abcdef12345678");
-        let secret: B256 = U256::from(12345).into();
+        let secret = Fr::from(12345);
+        let witness = poseidon2_compress(&[secret]);
 
         let mut operation = Operation::default();
         operation.inputs[0].spendability_address = spendability_address;
-        operation.inputs[0].spendability_witness = secret;
+        operation.inputs[0].spendability_witness = witness;
 
         let operation_hash = operation.hash();
         let invalid_operation_hash = operation_hash + Fr::from(1);
@@ -277,7 +284,7 @@ mod tests {
             address_to_fr(spendability_address),
             invalid_operation_hash,
             operation,
-            b256_to_fr(secret),
+            secret,
         );
         circuit.synthesize(cs.clone()).unwrap();
 

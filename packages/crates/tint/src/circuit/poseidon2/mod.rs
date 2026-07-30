@@ -13,6 +13,13 @@ use crate::circuit::{FrVar, poseidon2::element::PoseidonElement};
 /// Compresses `T` field elements into one using the Poseidon2 permutation.
 /// Supported: `T` = 2, 3, 4, 8.
 pub fn poseidon2_compress<const T: usize>(input: &[Fr; T]) -> Fr {
+    const {
+        assert!(
+            matches!(T, 1 | 2 | 3 | 8),
+            "poseidon2: unsupported width (must be 1, 2, 3, or 8)"
+        )
+    };
+
     let mut state = *input;
     //? permute cannot fail for native field elements
     permute(&mut state).expect("Poseidon2 permutation failed");
@@ -26,6 +33,13 @@ pub fn poseidon2_compress<const T: usize>(input: &[Fr; T]) -> Fr {
 pub fn poseidon2_compress_gadget<const T: usize>(
     input: &[FrVar; T],
 ) -> Result<FrVar, SynthesisError> {
+    const {
+        assert!(
+            matches!(T, 1 | 2 | 3 | 8),
+            "poseidon2: unsupported width (must be 1, 2, 3, or 8)"
+        )
+    };
+
     let mut state = input.clone();
     permute(&mut state)?;
 
@@ -34,14 +48,13 @@ pub fn poseidon2_compress_gadget<const T: usize>(
 }
 
 fn permute<E: PoseidonElement, const T: usize>(state: &mut [E; T]) -> Result<(), E::Error> {
-    const {
-        assert!(
-            matches!(T, 2 | 3 | 8),
-            "poseidon2: unsupported width (must be 2, 3, or 8)"
-        )
-    };
-
     match T {
+        1 => {
+            let mut buf = [state[0].clone(), E::zero()];
+            common::permute::<t2::T2, E, 2>(&mut buf)?;
+            state[0] = buf[0].clone();
+            Ok(())
+        }
         2 => common::permute::<t2::T2, E, 2>((&mut state[..]).try_into().unwrap()),
         3 => common::permute::<t3::T3, E, 3>((&mut state[..]).try_into().unwrap()),
         // 4 => common::permute::<t4::T4, E, 4>((&mut state[..]).try_into().unwrap()),

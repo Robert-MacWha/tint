@@ -2,7 +2,8 @@ mod common;
 
 use std::sync::Arc;
 
-use alloy_primitives::{B256, U256};
+use alloy_primitives::U256;
+use ark_bn254::Fr;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{
@@ -49,7 +50,7 @@ async fn spend() {
     info!("Setting up spendability account...");
     let spending = SecretKeySpendingAccount::new(
         spendability.address().clone(),
-        B256::new([7u8; 32]),
+        Fr::from(1234),
         spendability_proving_key,
         spendability_verifying_key,
     );

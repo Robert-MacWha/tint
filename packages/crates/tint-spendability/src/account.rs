@@ -1,13 +1,16 @@
-use alloy_primitives::{Address, B256, Bytes};
+use alloy_primitives::{Address, Bytes};
 use alloy_sol_types::SolValue;
-use ark_bn254::Bn254;
+use ark_bn254::{Bn254, Fr};
 use ark_groth16::{Groth16, ProvingKey, VerifyingKey};
 use ark_snark::SNARK;
 use rand_core::OsRng;
 use tint::{
     account::spending::{SpendingAccount, SpendingAccountError},
-    circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
-    fr::{address_to_fr, b256_to_fr},
+    circuit::{
+        join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
+        poseidon2::poseidon2_compress,
+    },
+    fr::address_to_fr,
     note::commitment::{NullifiableCommitment, SpendableCommitment},
     operation::Operation,
 };
@@ -18,7 +21,7 @@ use crate::{abis::ProofLib, circuit::secret_key::SecretKeySpendability};
 #[derive(Clone)]
 pub struct SecretKeySpendingAccount {
     contract_address: Address,
-    secret: B256,
+    secret: Fr,
     pk: ProvingKey<Bn254>,
     vk: VerifyingKey<Bn254>,
 }
@@ -26,7 +29,7 @@ pub struct SecretKeySpendingAccount {
 impl SecretKeySpendingAccount {
     pub fn new(
         contract_address: Address,
-        secret: B256,
+        secret: Fr,
         pk: ProvingKey<Bn254>,
         vk: VerifyingKey<Bn254>,
     ) -> Self {
@@ -53,8 +56,8 @@ impl SpendingAccount for SecretKeySpendingAccount {
         self.contract_address
     }
 
-    fn spendability_witness(&self) -> B256 {
-        self.secret
+    fn spendability_witness(&self) -> Fr {
+        poseidon2_compress(&[self.secret])
     }
 
     /// Proves knowledge of `secret`
@@ -64,7 +67,7 @@ impl SpendingAccount for SecretKeySpendingAccount {
         operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
     ) -> Result<SpendableCommitment, SpendingAccountError> {
         let operation_hash = operation.hash();
-        let secret = b256_to_fr(self.secret);
+        let secret = self.secret;
 
         let circuit = SecretKeySpendability::new(
             address_to_fr(self.contract_address),

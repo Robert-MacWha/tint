@@ -16,7 +16,7 @@ use tint::{
 };
 use tracing::info;
 
-use crate::{password::abis::ProofLib, password::circuit::PasswordSpendability};
+use crate::{abis::ProofLib, circuit::PasswordSpendability};
 
 /// A [`SpendingAccount`] for notes using the [`PasswordSpendability`] circuit.
 #[derive(Clone)]

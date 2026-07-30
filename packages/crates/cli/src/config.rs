@@ -21,9 +21,7 @@ use tint::{
         setup_circuit,
     },
 };
-use tint_spendability::{
-    password::account::PasswordSpendingAccount, password::circuit::PasswordSpendability,
-};
+use tint_password_spendability::{account::PasswordSpendingAccount, circuit::PasswordSpendability};
 use tracing::info;
 
 #[derive(Serialize, Deserialize)]

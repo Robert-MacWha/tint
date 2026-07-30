@@ -14,9 +14,7 @@ use tint::{
     note::asset::AssetId,
     provider::Provider,
 };
-use tint_spendability::{
-    password::account::PasswordSpendingAccount, password::circuit::PasswordSpendability,
-};
+use tint_password_spendability::{account::PasswordSpendingAccount, circuit::PasswordSpendability};
 use tracing::info;
 
 use crate::common::anvil;

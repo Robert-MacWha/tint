@@ -1096,6 +1096,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-secp256k1"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a41b34e9124731f4834db5a8f92ce085a47cd6f006fdb50359ea508d6256341d"
+dependencies = [
+ "ark-ec",
+ "ark-ff 0.6.0",
+ "ark-std 0.6.0",
+]
+
+[[package]]
 name = "ark-serialize"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1729,7 +1740,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tint",
- "tint-spendability",
+ "tint-password-spendability",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -4789,7 +4800,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tint-spendability"
+name = "tint-password-spendability"
 version = "0.1.0"
 dependencies = [
  "alloy-contract",
@@ -4801,13 +4812,16 @@ dependencies = [
  "alloy-sol-types",
  "anyhow",
  "ark-bn254",
+ "ark-ec",
  "ark-ff 0.6.0",
  "ark-groth16",
  "ark-r1cs-std",
  "ark-relations",
+ "ark-secp256k1",
  "ark-snark",
  "ark-std 0.6.0",
  "async-trait",
+ "num-bigint",
  "rand_core 0.6.4",
  "tint",
  "tokio",

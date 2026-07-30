@@ -1,5 +1,5 @@
 [workspace]
-members = ["cli", "tint", "circuit-profiler", "tint-spendability"]
+members = ["cli", "tint", "circuit-profiler", "tint-password-spendability"]
 resolver = "3"
 
 [workspace.lints.clippy]
@@ -7,7 +7,7 @@ pedantic = { level = "warn", priority = -1 }
 
 [workspace.dependencies]
 tint = { path = "./tint" }
-tint-spendability = { path = "./tint-spendability" }
+tint-password-spendability = { path = "./tint-password-spendability" }
 alloy = "1.6"
 alloy-primitives = "1.6.0"
 alloy-provider = "1.6.0"

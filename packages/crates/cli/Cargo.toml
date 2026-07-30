@@ -30,4 +30,4 @@ brotli = { workspace = true }
 x25519-dalek = { workspace = true }
 rand_core = { workspace = true, features = ["getrandom"] }
 ark-relations = { workspace = true, default-features = false }
-tint-spendability = { workspace = true }
+tint-password-spendability = { workspace = true }

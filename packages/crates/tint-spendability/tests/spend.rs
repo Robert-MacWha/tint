@@ -15,7 +15,7 @@ use tint::{
     provider::Provider,
 };
 use tint_spendability::{
-    account::PasswordSpendingAccount, circuit::secret_key::PasswordSpendability,
+    account::PasswordSpendingAccount, circuit::password::PasswordSpendability,
 };
 use tracing::info;
 

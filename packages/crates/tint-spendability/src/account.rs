@@ -15,7 +15,7 @@ use tint::{
     operation::Operation,
 };
 
-use crate::{abis::ProofLib, circuit::secret_key::PasswordSpendability};
+use crate::{abis::ProofLib, circuit::password::PasswordSpendability};
 
 /// A [`SpendingAccount`] for notes using the [`PasswordSpendability`] circuit.
 #[derive(Clone)]

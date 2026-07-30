@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use tint::{circuit::setup_circuit, codegen};
-use tint_spendability::circuit::password::PasswordSpendability;
+use tint_spendability::password::circuit::PasswordSpendability;
 
 fn main() {
     let (_pk, vk) = setup_circuit::<PasswordSpendability>().unwrap();

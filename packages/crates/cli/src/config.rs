@@ -22,7 +22,7 @@ use tint::{
     },
 };
 use tint_spendability::{
-    account::PasswordSpendingAccount, circuit::password::PasswordSpendability,
+    password::account::PasswordSpendingAccount, password::circuit::PasswordSpendability,
 };
 use tracing::info;
 

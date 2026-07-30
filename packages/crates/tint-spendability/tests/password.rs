@@ -15,7 +15,7 @@ use tint::{
     provider::Provider,
 };
 use tint_spendability::{
-    account::PasswordSpendingAccount, circuit::password::PasswordSpendability,
+    password::account::PasswordSpendingAccount, password::circuit::PasswordSpendability,
 };
 use tracing::info;
 
@@ -24,7 +24,7 @@ use crate::common::anvil;
 /// Test that we can spend a note using the `PasswordSpendability` circuit.
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
-async fn spend() {
+async fn password() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
         .add_directive("gr1cs=off".parse().unwrap())

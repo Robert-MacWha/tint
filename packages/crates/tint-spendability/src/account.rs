@@ -15,18 +15,18 @@ use tint::{
     operation::Operation,
 };
 
-use crate::{abis::ProofLib, circuit::secret_key::SecretKeySpendability};
+use crate::{abis::ProofLib, circuit::secret_key::PasswordSpendability};
 
-/// A [`SpendingAccount`] for notes using the [`SecretKeySpendability`] circuit.
+/// A [`SpendingAccount`] for notes using the [`PasswordSpendability`] circuit.
 #[derive(Clone)]
-pub struct SecretKeySpendingAccount {
+pub struct PasswordSpendingAccount {
     contract_address: Address,
     secret: Fr,
     pk: ProvingKey<Bn254>,
     vk: VerifyingKey<Bn254>,
 }
 
-impl SecretKeySpendingAccount {
+impl PasswordSpendingAccount {
     pub fn new(
         contract_address: Address,
         secret: Fr,
@@ -42,16 +42,16 @@ impl SecretKeySpendingAccount {
     }
 }
 
-impl std::fmt::Debug for SecretKeySpendingAccount {
+impl std::fmt::Debug for PasswordSpendingAccount {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SecretKeySpendingAccount")
+        f.debug_struct("PasswordSpendingAccount")
             .field("contract_address", &self.contract_address)
             .finish_non_exhaustive()
     }
 }
 
 #[async_trait::async_trait]
-impl SpendingAccount for SecretKeySpendingAccount {
+impl SpendingAccount for PasswordSpendingAccount {
     fn spendability_address(&self) -> Address {
         self.contract_address
     }
@@ -69,7 +69,7 @@ impl SpendingAccount for SecretKeySpendingAccount {
         let operation_hash = operation.hash();
         let secret = self.secret;
 
-        let circuit = SecretKeySpendability::new(
+        let circuit = PasswordSpendability::new(
             address_to_fr(self.contract_address),
             operation_hash,
             operation,

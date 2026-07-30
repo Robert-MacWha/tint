@@ -5,16 +5,14 @@ import {ISpendability} from "../interfaces/ISpendability.sol";
 import {IPrivacyPool} from "../interfaces/IPrivacyPool.sol";
 import {ProofLib} from "../lib/ProofLib.sol";
 import {N_INPUTS} from "../lib/Constants.sol";
-import {
-    SecretKeySpendabilityVerifier
-} from "./SecretKeySpendabilityVerifier.sol";
+import {PasswordSpendabilityVerifier} from "./PasswordSpendabilityVerifier.sol";
 
-/// @notice Secret key spendability rule that verifies knowledge of a secret
-/// key when spending a note.
-contract SecretKeySpendability is ISpendability {
-    SecretKeySpendabilityVerifier public immutable VERIFIER;
+/// @notice Password spendability rule that verifies knowledge of a password
+/// when spending a note.
+contract PasswordSpendability is ISpendability {
+    PasswordSpendabilityVerifier public immutable VERIFIER;
 
-    constructor(SecretKeySpendabilityVerifier verifier) {
+    constructor(PasswordSpendabilityVerifier verifier) {
         VERIFIER = verifier;
     }
 

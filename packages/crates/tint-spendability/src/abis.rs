@@ -4,8 +4,8 @@ use ark_groth16::Proof;
 
 sol!(
     #[sol(rpc)]
-    SecretKeySpendability,
-    "../../contracts/out/SecretKeySpendability.sol/SecretKeySpendability.json"
+    PasswordSpendability,
+    "../../contracts/out/PasswordSpendability.sol/PasswordSpendability.json"
 );
 
 impl From<Proof<Bn254>> for ProofLib::Proof {

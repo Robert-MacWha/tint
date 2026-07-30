@@ -14,24 +14,24 @@ use tint::{
     operation::Operation,
 };
 
-/// Spendability circuit for the "Secret Key" rule, which proves knowledge of a
+/// Spendability circuit for the "Password" rule, which proves knowledge of a
 /// private key bound to a note's spendability hash for a given operation.
 #[derive(Clone, Default)]
-pub struct SecretKeySpendability {
+pub struct PasswordSpendability {
     pub spendability_address: Fr,
     pub operation_hash: Fr,
 
     // Witnessed values
     pub operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
-    pub secret: Fr,
+    pub password: Fr,
 }
 
-pub struct SecretKeySpendabilityVar {
+pub struct PasswordSpendabilityVar {
     pub operation: OperationVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
     pub secret: FrVar,
 }
 
-impl SecretKeySpendability {
+impl PasswordSpendability {
     pub fn new(
         spendability_address: Fr,
         operation_hash: Fr,
@@ -42,7 +42,7 @@ impl SecretKeySpendability {
             spendability_address,
             operation_hash,
             operation,
-            secret,
+            password: secret,
         }
     }
 
@@ -63,21 +63,21 @@ impl SecretKeySpendability {
         let operation_hash: FrVar = input(cs.clone(), &self.operation_hash)?;
 
         // Witnessed values
-        let secret_key_spendability_var: SecretKeySpendabilityVar = witness(cs.clone(), self)?;
-        secret_key_spendability_var.verify(&operation_hash, &spendability_address)?;
+        let password_spendability_var: PasswordSpendabilityVar = witness(cs.clone(), self)?;
+        password_spendability_var.verify(&operation_hash, &spendability_address)?;
 
         Ok(())
     }
 }
 
-impl ConstraintSynthesizer<Fr> for SecretKeySpendability {
+impl ConstraintSynthesizer<Fr> for PasswordSpendability {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
         self.synthesize(cs)
     }
 }
 
-impl AllocVar<SecretKeySpendability, Fr> for SecretKeySpendabilityVar {
-    fn new_variable<T: std::borrow::Borrow<SecretKeySpendability>>(
+impl AllocVar<PasswordSpendability, Fr> for PasswordSpendabilityVar {
+    fn new_variable<T: std::borrow::Borrow<PasswordSpendability>>(
         cs: impl Into<ark_relations::gr1cs::Namespace<Fr>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: ark_r1cs_std::prelude::AllocationMode,
@@ -87,12 +87,12 @@ impl AllocVar<SecretKeySpendability, Fr> for SecretKeySpendabilityVar {
         let value = value.borrow();
 
         let operation = variable(cs.clone(), &value.operation, mode)?;
-        let secret = variable(cs.clone(), &value.secret, mode)?;
+        let secret = variable(cs.clone(), &value.password, mode)?;
         Ok(Self { operation, secret })
     }
 }
 
-impl SecretKeySpendabilityVar {
+impl PasswordSpendabilityVar {
     #[tracing::instrument(target = "gr1cs", skip_all)]
     pub fn verify(
         &self,
@@ -158,7 +158,7 @@ mod tests {
 
         let operation_hash = operation.hash();
 
-        let circuit = SecretKeySpendability::new(
+        let circuit = PasswordSpendability::new(
             address_to_fr(spendability_address),
             operation_hash,
             operation,
@@ -184,7 +184,7 @@ mod tests {
 
         let operation_hash = operation.hash();
 
-        let circuit = SecretKeySpendability::new(
+        let circuit = PasswordSpendability::new(
             address_to_fr(spendability_address),
             operation_hash,
             operation,
@@ -210,7 +210,7 @@ mod tests {
 
         let operation_hash = operation.hash();
 
-        let circuit = SecretKeySpendability::new(
+        let circuit = PasswordSpendability::new(
             address_to_fr(spendability_address),
             operation_hash,
             operation,
@@ -246,7 +246,7 @@ mod tests {
 
         let operation_hash = operation.hash();
 
-        let circuit = SecretKeySpendability::new(
+        let circuit = PasswordSpendability::new(
             address_to_fr(spendability_address),
             operation_hash,
             operation,
@@ -280,7 +280,7 @@ mod tests {
         let operation_hash = operation.hash();
         let invalid_operation_hash = operation_hash + Fr::from(1);
 
-        let circuit = SecretKeySpendability::new(
+        let circuit = PasswordSpendability::new(
             address_to_fr(spendability_address),
             invalid_operation_hash,
             operation,

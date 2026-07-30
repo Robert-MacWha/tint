@@ -15,13 +15,13 @@ use tint::{
     provider::Provider,
 };
 use tint_spendability::{
-    account::SecretKeySpendingAccount, circuit::secret_key::SecretKeySpendability,
+    account::PasswordSpendingAccount, circuit::secret_key::PasswordSpendability,
 };
 use tracing::info;
 
 use crate::common::anvil;
 
-/// Test that we can spend a note using the `SecretKeySpendability` circuit.
+/// Test that we can spend a note using the `PasswordSpendability` circuit.
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
 async fn spend() {
@@ -44,11 +44,11 @@ async fn spend() {
     info!("Setting up circuits...");
     let (proving_key, verifying_key) = setup_circuit::<JoinSplit>().unwrap();
     let (spendability_proving_key, spendability_verifying_key) =
-        setup_circuit::<SecretKeySpendability>().unwrap();
+        setup_circuit::<PasswordSpendability>().unwrap();
 
     // Setup spendability account
     info!("Setting up spendability account...");
-    let spending = SecretKeySpendingAccount::new(
+    let spending = PasswordSpendingAccount::new(
         spendability.address().clone(),
         Fr::from(1234),
         spendability_proving_key,
@@ -99,7 +99,7 @@ async fn spend() {
 
     let notes = tint_provider.notes(account_1.receiver());
 
-    // Spend the note, which is only spendable using the `SecretKeySpendability` contract / circuit.
+    // Spend the note, which is only spendable using the `PasswordSpendability` contract / circuit.
     info!("Spending note");
     let call = tint_provider
         .operate(

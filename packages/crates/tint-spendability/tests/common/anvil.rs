@@ -6,7 +6,7 @@ use tracing::info;
 
 use crate::common::anvil::{
     MockToken::MockTokenInstance, Tint::TintInstance,
-    spendability::SecretKeySpendability::SecretKeySpendabilityInstance,
+    spendability::PasswordSpendability::PasswordSpendabilityInstance,
 };
 
 #[allow(dead_code)]
@@ -17,7 +17,7 @@ pub struct Instance {
     pub provider: DynProvider,
     pub tint: TintInstance<DynProvider>,
     pub token: MockTokenInstance<DynProvider>,
-    pub spendability: SecretKeySpendabilityInstance<DynProvider>,
+    pub spendability: PasswordSpendabilityInstance<DynProvider>,
 }
 
 sol!(
@@ -43,19 +43,19 @@ pub mod spendability {
 
     sol!(
         #[sol(rpc)]
-        SecretKeySpendabilityVerifier,
-        "../../contracts/out/SecretKeySpendabilityVerifier.sol/SecretKeySpendabilityVerifier.json"
+        PasswordSpendabilityVerifier,
+        "../../contracts/out/PasswordSpendabilityVerifier.sol/PasswordSpendabilityVerifier.json"
     );
 
     sol!(
         #[sol(rpc)]
-        SecretKeySpendability,
-        "../../contracts/out/SecretKeySpendability.sol/SecretKeySpendability.json"
+        PasswordSpendability,
+        "../../contracts/out/PasswordSpendability.sol/PasswordSpendability.json"
     );
 }
 
 /// Sets up an anvil instance for testing, deploying Tint, a mock ERC20, and
-/// the SecretKeySpendability contracts.
+/// the PasswordSpendability contracts.
 #[allow(dead_code)]
 pub async fn setup() -> anyhow::Result<Instance> {
     let anvil = Anvil::new().spawn();
@@ -72,8 +72,8 @@ pub async fn setup() -> anyhow::Result<Instance> {
     let token = MockToken::deploy(provider.clone()).await?;
 
     let spendability_verifier =
-        spendability::SecretKeySpendabilityVerifier::deploy(provider.clone()).await?;
-    let spendability = spendability::SecretKeySpendability::deploy(
+        spendability::PasswordSpendabilityVerifier::deploy(provider.clone()).await?;
+    let spendability = spendability::PasswordSpendability::deploy(
         provider.clone(),
         *spendability_verifier.address(),
     )

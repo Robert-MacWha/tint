@@ -34,30 +34,10 @@ pub fn setup_circuit<C: ConstraintSynthesizer<Fr> + Default>()
     Ok((proving_key, verifying_key))
 }
 
-/// Helper to create a new variable in the constraint system with the given
-/// value and allocation mode.
-fn variable<T, F: Field, TVar: AllocVar<T, F>>(
-    cs: impl Into<ark_relations::gr1cs::Namespace<F>>,
-    value: &T,
-    mode: ark_r1cs_std::prelude::AllocationMode,
-) -> Result<TVar, ark_relations::gr1cs::SynthesisError> {
-    TVar::new_variable(cs, || Ok(value), mode)
-}
-
-/// Helper to create a new witness variable in the constraint system with the given
-/// value.
-#[allow(dead_code)]
-fn witness<T, F: Field, TVar: AllocVar<T, F>>(
-    cs: impl Into<ark_relations::gr1cs::Namespace<F>>,
-    value: &T,
-) -> Result<TVar, ark_relations::gr1cs::SynthesisError> {
-    variable(cs, value, ark_r1cs_std::prelude::AllocationMode::Witness)
-}
-
 /// Helper to create a new constant variable in the constraint system with the given
 /// value.
 #[allow(dead_code)]
-fn constant<T, F: Field, TVar: AllocVar<T, F>>(
+pub fn constant<T, F: Field, TVar: AllocVar<T, F>>(
     cs: impl Into<ark_relations::gr1cs::Namespace<F>>,
     value: &T,
 ) -> Result<TVar, ark_relations::gr1cs::SynthesisError> {
@@ -66,7 +46,7 @@ fn constant<T, F: Field, TVar: AllocVar<T, F>>(
 
 /// Helper to create a new public input variable in the constraint system
 /// with the given value.
-fn input<T, F: Field, TVar: AllocVar<T, F>>(
+pub fn input<T, F: Field, TVar: AllocVar<T, F>>(
     cs: impl Into<ark_relations::gr1cs::Namespace<F>>,
     value: &T,
 ) -> Result<TVar, ark_relations::gr1cs::SynthesisError> {
@@ -77,7 +57,7 @@ fn input<T, F: Field, TVar: AllocVar<T, F>>(
 ///
 /// Public outputs are emulated by creating a new public input variable and
 /// enforcing that it is equal to the value computed in-circuit.
-fn output<F, T>(
+pub fn output<F, T>(
     cs: impl Into<ark_relations::gr1cs::Namespace<F>>,
     value: &T,
 ) -> Result<(), ark_relations::gr1cs::SynthesisError>
@@ -88,4 +68,24 @@ where
     let out = T::new_input(cs, || value.value())?;
     out.enforce_equal(value)?;
     Ok(())
+}
+
+/// Helper to create a new witness variable in the constraint system with the given
+/// value.
+#[allow(dead_code)]
+pub fn witness<T, F: Field, TVar: AllocVar<T, F>>(
+    cs: impl Into<ark_relations::gr1cs::Namespace<F>>,
+    value: &T,
+) -> Result<TVar, ark_relations::gr1cs::SynthesisError> {
+    variable(cs, value, ark_r1cs_std::prelude::AllocationMode::Witness)
+}
+
+/// Helper to create a new variable in the constraint system with the given
+/// value and allocation mode.
+pub fn variable<T, F: Field, TVar: AllocVar<T, F>>(
+    cs: impl Into<ark_relations::gr1cs::Namespace<F>>,
+    value: &T,
+    mode: ark_r1cs_std::prelude::AllocationMode,
+) -> Result<TVar, ark_relations::gr1cs::SynthesisError> {
+    TVar::new_variable(cs, || Ok(value), mode)
 }

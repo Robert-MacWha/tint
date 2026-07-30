@@ -17,6 +17,7 @@ use tint::{
     account::{Account, keys::Keys, spending::NoopSpendingAccount},
     circuit::{join_split::JoinSplit, setup_circuit},
     database::memory::MemoryDatabase,
+    fr::u256_to_fr,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
     note::asset::AssetId,
     provider::Provider,
@@ -134,8 +135,4 @@ fn public_signal_diff(local: &[Fr], onchain: &[U256]) {
     } else {
         info!("All public signals match between local and on-chain computation.");
     }
-}
-
-fn u256_to_fr(u: U256) -> Fr {
-    Fr::from_le_bytes_mod_order(&u.as_le_bytes())
 }

@@ -1,69 +1,4 @@
-use alloy_primitives::U256;
-use ark_bn254::Bn254;
-use ark_groth16::VerifyingKey;
-
-/// Generates the Solidity source for a Groth16 verifier contract from a
-/// verifying key.
-///
-/// `implements_i_verifier` controls whether the contract declares `is IVerifier`
-/// (and imports it) -- only valid when the verifying key's public input count
-/// matches `IVerifier`'s `N_PUB`-sized `verifyProof` signature.
-///
-/// Based on SnarkJS's groth16 verifier contract, remixed to use string formatting
-/// instead of EJS.
-pub fn groth16_verifier_solidity(
-    vk: &VerifyingKey<Bn254>,
-    contract_name: &str,
-    implements_i_verifier: bool,
-) -> String {
-    let n_public = vk.gamma_abc_g1.len() - 1;
-
-    let (alphax, alphay) = g1(&vk.alpha_g1);
-    let (betax1, betax2, betay1, betay2) = g2(&vk.beta_g2);
-    let (gammax1, gammax2, gammay1, gammay2) = g2(&vk.gamma_g2);
-    let (deltax1, deltax2, deltay1, deltay2) = g2(&vk.delta_g2);
-
-    let ic_constants: String = vk
-        .gamma_abc_g1
-        .iter()
-        .enumerate()
-        .map(|(i, p)| {
-            let (x, y) = g1(p);
-            format!("    uint256 constant IC{i}x = {x};\n    uint256 constant IC{i}y = {y};\n")
-        })
-        .collect();
-
-    let check_field_loop: String = (0..n_public)
-        .map(|i| {
-            format!(
-                "            checkField(calldataload(add(_pubSignals, {})))\n",
-                i * 32
-            )
-        })
-        .collect();
-
-    let mul_acc_loop: String = (1..=n_public)
-        .map(|i| {
-            format!(
-                "                g1_mulAccC(_pVk, IC{i}x, IC{i}y, calldataload(add(pubSignals, {})))\n",
-                (i - 1) * 32
-            )
-        })
-        .collect();
-
-    let import_line = if implements_i_verifier {
-        "import {IVerifier} from \"./interfaces/IVerifier.sol\";\n\n"
-    } else {
-        ""
-    };
-    let interface_suffix = if implements_i_verifier {
-        " is IVerifier"
-    } else {
-        ""
-    };
-
-    format!(
-        r#"// SPDX-License-Identifier: GPL-3.0
+// SPDX-License-Identifier: GPL-3.0
 /*
     Copyright 2021 0KIMS association.
 
@@ -86,46 +21,52 @@ pub fn groth16_verifier_solidity(
 
 pragma solidity ^0.8.24;
 
-{import_line}contract {contract_name}{interface_suffix} {{
+contract SecretKeySpendabilityVerifier {
     // Scalar field size
     uint256 constant r    = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
     // Base field size
     uint256 constant q   = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
 
     // Verification Key data
-    uint256 constant alphax  = {alphax};
-    uint256 constant alphay  = {alphay};
-    uint256 constant betax1  = {betax1};
-    uint256 constant betax2  = {betax2};
-    uint256 constant betay1  = {betay1};
-    uint256 constant betay2  = {betay2};
-    uint256 constant gammax1 = {gammax1};
-    uint256 constant gammax2 = {gammax2};
-    uint256 constant gammay1 = {gammay1};
-    uint256 constant gammay2 = {gammay2};
-    uint256 constant deltax1 = {deltax1};
-    uint256 constant deltax2 = {deltax2};
-    uint256 constant deltay1 = {deltay1};
-    uint256 constant deltay2 = {deltay2};
+    uint256 constant alphax  = 10314683402145919335415264089338013869151872735661243528435829273762895412475;
+    uint256 constant alphay  = 15311410802386913807174485311770598542990692773058369166097347676916826427424;
+    uint256 constant betax1  = 8742476040979126669529512667270167370972734897784767815803986702043271844587;
+    uint256 constant betax2  = 21546977338313367449764778081974431327514198880463503495700342085596869133184;
+    uint256 constant betay1  = 9289809140465907199790286310535739942219483053026485452107542051245760617369;
+    uint256 constant betay2  = 10645240371221413259645920038475973272479052146228783657329287031421083633145;
+    uint256 constant gammax1 = 19786488175694835941529082486176010093671788452701050737945948286615958246569;
+    uint256 constant gammax2 = 20330634461338860209244322586166193708999379153762374339780730602203574324967;
+    uint256 constant gammay1 = 5928072313096986966179943778308363878908435360419431578510684278352903202909;
+    uint256 constant gammay2 = 2797341508826357269065116312229379096387363396018049448422156015279464026096;
+    uint256 constant deltax1 = 15931872898476652233416341120558294461206602664690427226190761090136039762594;
+    uint256 constant deltax2 = 486543185197210868010625674188217166207603296241821390928288273180909083262;
+    uint256 constant deltay1 = 8810824702403597757041960647441338188287452861929357829520560151016180636116;
+    uint256 constant deltay2 = 20423055301853288990931997049485455849638502515255059322630657921443113246087;
 
-{ic_constants}
+    uint256 constant IC0x = 14944637184140485467728033176242251921471908279679051402058198149152151757222;
+    uint256 constant IC0y = 1326157122701833048482307638983292494637303947507758238289547570058915376278;
+    uint256 constant IC1x = 2266982288890623552818834079214449165637728196335075848474023106903162128188;
+    uint256 constant IC1y = 1349728939875214828944113754680260181873627084929859424105195641634253270298;
+    uint256 constant IC2x = 15944140552166485431898038163132457451883734644406839390566220902102626080488;
+    uint256 constant IC2y = 19188634832250148982101398294032922325536286110740291831772776562369946495440;
+
     // Memory data
     uint16 constant pVk = 0;
     uint16 constant pPairing = 128;
 
     uint16 constant pLastMem = 896;
 
-    function verifyProof(uint[2] calldata _pA, uint[2][2] calldata _pB, uint[2] calldata _pC, uint[{n_public}] calldata _pubSignals) public view returns (bool) {{
-        assembly {{
-            function checkField(v) {{
-                if iszero(lt(v, r)) {{
+    function verifyProof(uint[2] calldata _pA, uint[2][2] calldata _pB, uint[2] calldata _pC, uint[2] calldata _pubSignals) public view returns (bool) {
+        assembly {
+            function checkField(v) {
+                if iszero(lt(v, r)) {
                     mstore(0, 0)
                     return(0, 0x20)
-                }}
-            }}
+                }
+            }
 
             // G1 function to multiply a G1 value(x,y) to value in an address
-            function g1_mulAccC(pR, x, y, s) {{
+            function g1_mulAccC(pR, x, y, s) {
                 let success
                 let mIn := mload(0x40)
                 mstore(mIn, x)
@@ -134,23 +75,23 @@ pragma solidity ^0.8.24;
 
                 success := staticcall(sub(gas(), 2000), 7, mIn, 96, mIn, 64)
 
-                if iszero(success) {{
+                if iszero(success) {
                     mstore(0, 0)
                     return(0, 0x20)
-                }}
+                }
 
                 mstore(add(mIn, 64), mload(pR))
                 mstore(add(mIn, 96), mload(add(pR, 32)))
 
                 success := staticcall(sub(gas(), 2000), 6, mIn, 128, pR, 64)
 
-                if iszero(success) {{
+                if iszero(success) {
                     mstore(0, 0)
                     return(0, 0x20)
-                }}
-            }}
+                }
+            }
 
-            function checkPairing(pA, pB, pC, pubSignals, pMem) -> isOk {{
+            function checkPairing(pA, pB, pC, pubSignals, pMem) -> isOk {
                 let _pPairing := add(pMem, pPairing)
                 let _pVk := add(pMem, pVk)
 
@@ -158,7 +99,9 @@ pragma solidity ^0.8.24;
                 mstore(add(_pVk, 32), IC0y)
 
                 // Compute the linear combination vk_x
-{mul_acc_loop}
+                g1_mulAccC(_pVk, IC1x, IC1y, calldataload(add(pubSignals, 0)))
+                g1_mulAccC(_pVk, IC2x, IC2y, calldataload(add(pubSignals, 32)))
+
                 // -A
                 mstore(_pPairing, calldataload(pA))
                 mstore(add(_pPairing, 32), mod(sub(q, calldataload(add(pA, 32))), q))
@@ -204,43 +147,20 @@ pragma solidity ^0.8.24;
                 let success := staticcall(sub(gas(), 2000), 8, _pPairing, 768, _pPairing, 0x20)
 
                 isOk := and(success, mload(_pPairing))
-            }}
+            }
 
             let pMem := mload(0x40)
             mstore(0x40, add(pMem, pLastMem))
 
             // Validate that all evaluations ∈ F
-{check_field_loop}
+            checkField(calldataload(add(_pubSignals, 0)))
+            checkField(calldataload(add(_pubSignals, 32)))
+
             // Validate all evaluations
             let isValid := checkPairing(_pA, _pB, _pC, _pubSignals, pMem)
 
             mstore(0, isValid)
              return(0, 0x20)
-         }}
-     }}
- }}
-"#
-    )
-}
-
-/// Per EIP-197, G1 coordinates map directly: `(x, y)`.
-fn g1(p: &ark_bn254::G1Affine) -> (String, String) {
-    let x: U256 = p.x.into();
-    let y: U256 = p.y.into();
-    (x.to_string(), y.to_string())
-}
-
-/// Per EIP-197, the `ecPairing` precompile wants each G2 coordinate as
-/// `(c1, c0)`, not the natural `(c0, c1)` ark/mathematical order.
-fn g2(p: &ark_bn254::G2Affine) -> (String, String, String, String) {
-    let x_c1: U256 = p.x.c1.into();
-    let x_c0: U256 = p.x.c0.into();
-    let y_c1: U256 = p.y.c1.into();
-    let y_c0: U256 = p.y.c0.into();
-    (
-        x_c1.to_string(),
-        x_c0.to_string(),
-        y_c1.to_string(),
-        y_c0.to_string(),
-    )
-}
+         }
+     }
+ }

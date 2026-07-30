@@ -60,7 +60,7 @@ async fn shield() {
         .await
         .unwrap();
 
-    // Deposit into Tint
+    // Deposit into Tint.
     info!("Depositing into Tint");
     let asset = AssetId::from(*token.address());
     let amount = 1_000u128;

@@ -1,7 +1,7 @@
 //! Various conversion utilities for working with [`ark_bn254::Fr`] and
 //! other types.
 
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, B256, U256};
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 
@@ -18,6 +18,14 @@ pub fn fr_to_b256(fr: Fr) -> B256 {
 
 pub fn b256_to_fr(bytes: B256) -> Fr {
     Fr::from_be_bytes_mod_order(bytes.as_slice())
+}
+
+pub fn fr_to_u256(fr: Fr) -> U256 {
+    fr_to_b256(fr).into()
+}
+
+pub fn u256_to_fr(u256: alloy_primitives::U256) -> Fr {
+    b256_to_fr(u256.into())
 }
 
 pub fn fr_to_address(fr: Fr) -> Address {
@@ -55,6 +63,14 @@ mod tests {
         let fr_value = b256_to_fr(bytes);
         let bytes_back = fr_to_b256(fr_value);
         assert_eq!(bytes, bytes_back);
+    }
+
+    #[test]
+    fn test_u256_to_fr() {
+        let u256_value = U256::from(123456789u128);
+        let fr_value = u256_to_fr(u256_value);
+        let u256_back = fr_to_u256(fr_value);
+        assert_eq!(u256_value, u256_back);
     }
 
     #[test]

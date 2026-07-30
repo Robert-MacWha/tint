@@ -7,12 +7,6 @@ use crate::{
     operation::Operation,
 };
 
-#[derive(Debug, thiserror::Error)]
-#[error("spending account error: {inner}")]
-pub struct SpendingAccountError {
-    inner: Box<dyn std::error::Error + Send + Sync>,
-}
-
 /// Accounts that can authorize the spending of their own notes.
 ///
 /// A note is bound to a particular spending account by the spendability hash.
@@ -28,6 +22,8 @@ pub trait SpendingAccount: std::fmt::Debug {
         crate::account::spendability_hash(self.spendability_address(), self.spendability_witness())
     }
 
+    /// Converts a nullifiable commitment into a spendable commitment by
+    /// generating the `spendability_input`.
     async fn into_spendable(
         &self,
         base: NullifiableCommitment,
@@ -40,6 +36,12 @@ pub trait SpendingAccount: std::fmt::Debug {
 /// and nullifying keys.
 #[derive(Clone, Debug, Default)]
 pub struct NoopSpendingAccount;
+
+#[derive(Debug, thiserror::Error)]
+#[error("spending account error: {inner}")]
+pub struct SpendingAccountError {
+    inner: Box<dyn std::error::Error + Send + Sync>,
+}
 
 #[async_trait::async_trait]
 impl SpendingAccount for NoopSpendingAccount {
@@ -65,5 +67,19 @@ impl SpendingAccount for NoopSpendingAccount {
             Bytes::new(),
             base.inner.random,
         ))
+    }
+}
+
+impl SpendingAccountError {
+    pub fn new(inner: impl std::error::Error + Send + Sync + 'static) -> Self {
+        Self {
+            inner: Box::new(inner),
+        }
+    }
+
+    pub fn from_str(inner: impl Into<String>) -> Self {
+        Self {
+            inner: Box::new(std::io::Error::new(std::io::ErrorKind::Other, inner.into())),
+        }
     }
 }

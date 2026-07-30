@@ -1,0 +1,293 @@
+use ark_bn254::Fr;
+use ark_r1cs_std::{alloc::AllocVar, eq::EqGadget};
+use ark_relations::gr1cs::{
+    ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, OptimizationGoal, SynthesisError,
+};
+use tint::{
+    circuit::{
+        FrVar, input,
+        join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
+        operation::OperationVar,
+        variable, witness,
+    },
+    operation::Operation,
+};
+
+/// Spendability circuit for the "Secret Key" rule, which proves knowledge of a
+/// private key bound to a note's spendability hash for a given operation.
+#[derive(Clone, Default)]
+pub struct SecretKeySpendability {
+    pub spendability_address: Fr,
+    pub operation_hash: Fr,
+
+    // Witnessed values
+    pub operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+    pub secret: Fr,
+}
+
+pub struct SecretKeySpendabilityVar {
+    pub operation: OperationVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+    pub secret: FrVar,
+}
+
+impl SecretKeySpendability {
+    pub fn new(
+        spendability_address: Fr,
+        operation_hash: Fr,
+        operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+        secret: Fr,
+    ) -> Self {
+        Self {
+            spendability_address,
+            operation_hash,
+            operation,
+            secret,
+        }
+    }
+
+    pub fn synthesize_public_inputs(&self) -> Result<Vec<Fr>, SynthesisError> {
+        let cs = ConstraintSystem::new_ref();
+        cs.set_optimization_goal(OptimizationGoal::Constraints);
+
+        let _ = self.synthesize(cs.clone())?;
+        cs.finalize();
+
+        // `instance_assignment()` leads with the implicit constant-1 term.
+        Ok(cs.instance_assignment()?[1..].to_vec())
+    }
+
+    fn synthesize(&self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+        // Public inputs
+        let spendability_address: FrVar = input(cs.clone(), &self.spendability_address)?;
+        let operation_hash: FrVar = input(cs.clone(), &self.operation_hash)?;
+
+        // Witnessed values
+        let secret_key_spendability_var: SecretKeySpendabilityVar = witness(cs.clone(), self)?;
+        secret_key_spendability_var.verify(&operation_hash, &spendability_address)?;
+
+        Ok(())
+    }
+}
+
+impl ConstraintSynthesizer<Fr> for SecretKeySpendability {
+    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+        self.synthesize(cs)
+    }
+}
+
+impl AllocVar<SecretKeySpendability, Fr> for SecretKeySpendabilityVar {
+    fn new_variable<T: std::borrow::Borrow<SecretKeySpendability>>(
+        cs: impl Into<ark_relations::gr1cs::Namespace<Fr>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: ark_r1cs_std::prelude::AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let cs = cs.into();
+        let value = f()?;
+        let value = value.borrow();
+
+        let operation = variable(cs.clone(), &value.operation, mode)?;
+        let secret = variable(cs.clone(), &value.secret, mode)?;
+        Ok(Self { operation, secret })
+    }
+}
+
+impl SecretKeySpendabilityVar {
+    #[tracing::instrument(target = "gr1cs", skip_all)]
+    pub fn verify(
+        &self,
+        operation_hash: &FrVar,
+        spendability_address: &FrVar,
+    ) -> Result<(), SynthesisError> {
+        self.verify_operation_hash(operation_hash)?;
+        self.verify_spendability_witnesses(spendability_address)?;
+
+        Ok(())
+    }
+
+    #[tracing::instrument(target = "gr1cs", skip_all)]
+    fn verify_operation_hash(&self, operation_hash: &FrVar) -> Result<(), SynthesisError> {
+        let computed_operation_hash = self.operation.hash()?;
+        computed_operation_hash.enforce_equal(operation_hash)
+    }
+
+    #[tracing::instrument(target = "gr1cs", skip_all)]
+    fn verify_spendability_witnesses(
+        &self,
+        spendability_address: &FrVar,
+    ) -> Result<(), SynthesisError> {
+        for input in &self.operation.inputs {
+            let spendability_addresses_eq =
+                input.spendability_address.is_eq(spendability_address)?;
+            input
+                .spendability_witness
+                .conditional_enforce_equal(&self.secret, &spendability_addresses_eq)?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::{B256, U256, address};
+    use ark_relations::gr1cs::trace::{ConstraintLayer, TracingMode};
+    use tint::fr::{address_to_fr, b256_to_fr};
+    use tracing_subscriber::layer::SubscriberExt;
+
+    use super::*;
+
+    fn setup_constraint_tracing() -> tracing::subscriber::DefaultGuard {
+        let mut layer = ConstraintLayer::default();
+        layer.mode = TracingMode::OnlyConstraints;
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        tracing::subscriber::set_default(subscriber)
+    }
+
+    #[test]
+    fn valid_circuit() {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+
+        let spendability_address = address!("0x1234567890abcdef1234567890abcdef12345678");
+        let secret: B256 = U256::from(12345).into();
+
+        let mut operation = Operation::default();
+        operation.inputs[0].spendability_address = spendability_address;
+        operation.inputs[0].spendability_witness = secret;
+
+        let operation_hash = operation.hash();
+
+        let circuit = SecretKeySpendability::new(
+            address_to_fr(spendability_address),
+            operation_hash,
+            operation,
+            b256_to_fr(secret),
+        );
+        circuit.synthesize(cs.clone()).unwrap();
+        assert!(cs.is_satisfied().unwrap())
+    }
+
+    #[test]
+    fn multiple_inputs() {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+
+        let spendability_address = address!("0x1234567890abcdef1234567890abcdef12345678");
+        let secret: B256 = U256::from(12345).into();
+
+        let mut operation = Operation::default();
+        operation.inputs[0].spendability_address = spendability_address;
+        operation.inputs[0].spendability_witness = secret;
+        operation.inputs[1].spendability_address = spendability_address;
+        operation.inputs[1].spendability_witness = secret;
+
+        let operation_hash = operation.hash();
+
+        let circuit = SecretKeySpendability::new(
+            address_to_fr(spendability_address),
+            operation_hash,
+            operation,
+            b256_to_fr(secret),
+        );
+        circuit.synthesize(cs.clone()).unwrap();
+        assert!(cs.is_satisfied().unwrap())
+    }
+
+    #[test]
+    fn invalid_secret() {
+        let _guard = setup_constraint_tracing();
+        let cs = ConstraintSystem::<Fr>::new_ref();
+
+        let spendability_address = address!("0x1234567890abcdef1234567890abcdef12345678");
+        let secret: B256 = U256::from(12345).into();
+        let invalid_secret: B256 = U256::from(54321).into();
+
+        let mut operation = Operation::default();
+        operation.inputs[0].spendability_address = spendability_address;
+        operation.inputs[0].spendability_witness = secret;
+
+        let operation_hash = operation.hash();
+
+        let circuit = SecretKeySpendability::new(
+            address_to_fr(spendability_address),
+            operation_hash,
+            operation,
+            b256_to_fr(invalid_secret),
+        );
+        circuit.synthesize(cs.clone()).unwrap();
+
+        let failed = cs
+            .which_is_unsatisfied()
+            .unwrap()
+            .expect("expected some unsatisfied constraints");
+        assert!(
+            failed.contains("verify_spendability_witnesses"),
+            "expected failure in verify_spendability_witnesses, got:\n{failed}"
+        );
+    }
+
+    #[test]
+    fn multiple_inputs_invalid_secret() {
+        let _guard = setup_constraint_tracing();
+        let cs = ConstraintSystem::<Fr>::new_ref();
+
+        let spendability_address = address!("0x1234567890abcdef1234567890abcdef12345678");
+        let secret: B256 = U256::from(12345).into();
+        let other_secret: B256 = U256::from(54321).into();
+
+        let mut operation = Operation::default();
+        operation.inputs[0].spendability_address = spendability_address;
+        operation.inputs[0].spendability_witness = secret;
+        operation.inputs[1].spendability_address = spendability_address;
+        operation.inputs[1].spendability_witness = other_secret;
+
+        let operation_hash = operation.hash();
+
+        let circuit = SecretKeySpendability::new(
+            address_to_fr(spendability_address),
+            operation_hash,
+            operation,
+            b256_to_fr(secret),
+        );
+        circuit.synthesize(cs.clone()).unwrap();
+
+        let failed = cs
+            .which_is_unsatisfied()
+            .unwrap()
+            .expect("expected some unsatisfied constraints");
+        assert!(
+            failed.contains("verify_spendability_witnesses"),
+            "expected failure in verify_spendability_witnesses, got:\n{failed}"
+        );
+    }
+
+    #[test]
+    fn invalid_operation_hash() {
+        let _guard = setup_constraint_tracing();
+        let cs = ConstraintSystem::<Fr>::new_ref();
+
+        let spendability_address = address!("0x1234567890abcdef1234567890abcdef12345678");
+        let secret: B256 = U256::from(12345).into();
+
+        let mut operation = Operation::default();
+        operation.inputs[0].spendability_address = spendability_address;
+        operation.inputs[0].spendability_witness = secret;
+
+        let operation_hash = operation.hash();
+        let invalid_operation_hash = operation_hash + Fr::from(1);
+
+        let circuit = SecretKeySpendability::new(
+            address_to_fr(spendability_address),
+            invalid_operation_hash,
+            operation,
+            b256_to_fr(secret),
+        );
+        circuit.synthesize(cs.clone()).unwrap();
+
+        let failed = cs
+            .which_is_unsatisfied()
+            .unwrap()
+            .expect("expected some unsatisfied constraints");
+        assert!(
+            failed.contains("verify_operation_hash"),
+            "expected failure in verify_operation_hash, got:\n{failed}"
+        );
+    }
+}

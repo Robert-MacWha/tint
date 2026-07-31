@@ -1,0 +1,19 @@
+[package]
+name = "tint-multisig-spendability"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+
+[dependencies]
+ark-bn254 = { workspace = true, features = ["scalar_field"] }
+ark-ff = { workspace = true }
+
+[dev-dependencies]
+tint = { workspace = true }
+ark-ec = { workspace = true }
+ark-r1cs-std = { workspace = true }
+ark-relations = { workspace = true, features = ["std"] }
+ark-secp256k1 = "0.6.0"
+ark-std = { workspace = true }
+num-bigint = "0.4.8"

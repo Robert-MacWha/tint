@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -32,6 +32,10 @@
         ];
       };
 
+      # noir = pkgs.callPackage ./nix/noir/package.nix { };
+      # barretenberg = pkgs.callPackage ./nix/barretenberg/package.nix { };
+      # provekit = pkgs.callPackage ./nix/provekit/package.nix { };
+
     in
     {
       devShells.${system}.default = pkgs.mkShell {
@@ -44,6 +48,13 @@
           pkgs.cargo-insta
           pkgs.bacon
           pkgs.wasm-pack
+
+          pkgs.go
+          pkgs.gopls
+
+          # noir
+          # barretenberg
+          # provekit
         ];
       };
     };

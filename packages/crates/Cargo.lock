@@ -4800,6 +4800,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "tint-multisig-spendability"
+version = "0.1.0"
+dependencies = [
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff 0.6.0",
+ "ark-r1cs-std",
+ "ark-relations",
+ "ark-secp256k1",
+ "ark-std 0.6.0",
+ "num-bigint",
+ "tint",
+]
+
+[[package]]
 name = "tint-password-spendability"
 version = "0.1.0"
 dependencies = [

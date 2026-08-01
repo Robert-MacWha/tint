@@ -45,6 +45,10 @@
           pkgs.foundry
 
           rustToolchain
+          # required for bindgen
+          # https://wiki.nixos.org/wiki/Rust#Installating_with_bindgen_support
+          pkgs.rustPlatform.bindgenHook
+
           pkgs.cargo-insta
           pkgs.bacon
           pkgs.wasm-pack
@@ -52,9 +56,6 @@
           pkgs.go
           pkgs.gopls
 
-          # noir
-          # barretenberg
-          # provekit
         ];
       };
     };

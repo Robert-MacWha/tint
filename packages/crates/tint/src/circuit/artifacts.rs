@@ -1,6 +1,7 @@
 //! Compression + (de)serialization helpers for circuit artifacts.
 
 use ark_bn254::Bn254;
+use ark_ff::PrimeField;
 use ark_groth16::{ProvingKey, VerifyingKey};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
@@ -36,11 +37,11 @@ pub fn deserialize_verifying_key(bytes: &[u8]) -> Result<VerifyingKey<Bn254>, Ar
     deserialize_canonical(bytes)
 }
 
-pub fn serialize_matrices(matrices: &Matrices) -> Result<Vec<u8>, ArtifactError> {
+pub fn serialize_matrices<F: PrimeField>(matrices: &Matrices<F>) -> Result<Vec<u8>, ArtifactError> {
     serialize_postcard(matrices)
 }
 
-pub fn deserialize_matrices(bytes: &[u8]) -> Result<Matrices, ArtifactError> {
+pub fn deserialize_matrices<F: PrimeField>(bytes: &[u8]) -> Result<Matrices<F>, ArtifactError> {
     deserialize_postcard(bytes)
 }
 

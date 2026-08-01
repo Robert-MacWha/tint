@@ -189,7 +189,7 @@ fn decode_seed(name: &str, seed: &str) -> anyhow::Result<[u8; 32]> {
 /// caching them on first use.
 pub fn load_circuit<C: ConstraintSynthesizer<Fr> + Default>(
     dir: impl AsRef<Path>,
-) -> anyhow::Result<(Matrices, ProvingKey<Bn254>, VerifyingKey<Bn254>)> {
+) -> anyhow::Result<(Matrices<Fr>, ProvingKey<Bn254>, VerifyingKey<Bn254>)> {
     let circuit_dir = circuit_dir().join(&dir);
 
     let matrices_path = circuit_dir.join("matrices.bin.br");

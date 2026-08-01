@@ -60,7 +60,7 @@ pub enum ProviderError {
 pub struct Provider {
     pub indexer: Indexer,
     accounts: Vec<Account>,
-    matrices: Matrices,
+    matrices: Matrices<Fr>,
     proving_key: ProvingKey<Bn254>,
     verifying_key: VerifyingKey<Bn254>,
 }
@@ -68,7 +68,7 @@ pub struct Provider {
 impl Provider {
     pub fn new(
         indexer: Indexer,
-        matrices: Matrices,
+        matrices: Matrices<Fr>,
         proving_key: ProvingKey<Bn254>,
         verifying_key: VerifyingKey<Bn254>,
     ) -> Self {

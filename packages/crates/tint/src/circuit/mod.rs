@@ -26,9 +26,10 @@ pub type FrVar = ark_r1cs_std::fields::fp::FpVar<ark_bn254::Fr>;
 ///
 /// This circuit setup is deterministic using a fixed seed. It is not cryptographically
 /// secure and should only be used for testing and development.
-pub fn generate_artifacts<C: ConstraintSynthesizer<Fr> + Default>()
--> Result<(Matrices, ProvingKey<Bn254>, VerifyingKey<Bn254>), ark_relations::gr1cs::SynthesisError>
-{
+pub fn generate_artifacts<C: ConstraintSynthesizer<Fr> + Default>() -> Result<
+    (Matrices<Fr>, ProvingKey<Bn254>, VerifyingKey<Bn254>),
+    ark_relations::gr1cs::SynthesisError,
+> {
     let mut rng = StdRng::seed_from_u64(42);
 
     // Generate proving and verifying keys
@@ -44,7 +45,8 @@ pub fn generate_artifacts<C: ConstraintSynthesizer<Fr> + Default>()
 }
 
 /// Generates the constraint matrices for the circuit `C`.
-fn generate_matrices<C: ConstraintSynthesizer<Fr> + Default>() -> Result<Matrices, SynthesisError> {
+fn generate_matrices<C: ConstraintSynthesizer<Fr> + Default>()
+-> Result<Matrices<Fr>, SynthesisError> {
     let cs = ConstraintSystem::new_ref();
     cs.set_optimization_goal(ark_relations::gr1cs::OptimizationGoal::Constraints);
     cs.set_mode(ark_relations::gr1cs::SynthesisMode::Prove {

@@ -3,42 +3,20 @@
 //! Compares the performance of Groth16 proving using the arkworks baseline
 //! implementation against pre-computed matrices for the JoinSplit circuit.
 
-use std::io::Read;
 use std::time::Instant;
 
 use ark_bn254::Bn254;
-use ark_groth16::{Groth16, ProvingKey};
-use ark_serialize::CanonicalDeserialize;
+use ark_groth16::Groth16;
 use ark_snark::SNARK;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
+use tint::circuit::generate_artifacts;
 use tint::circuit::join_split::JoinSplit;
-use tint::circuit::matrices::{Matrices, prove_with_matrices};
-
-const PK_PATH: &str = "artifacts/proving_key.bin.br";
-const MATRICES_PATH: &str = "artifacts/matrices.bin.br";
-const BUFFER_SIZE: usize = 4096;
+use tint::circuit::matrices::prove_with_matrices;
 
 fn main() {
     let mut rng = StdRng::seed_from_u64(42);
 
-    let pk_compressed = std::fs::read(PK_PATH).unwrap();
-    let matrices_compressed = std::fs::read(MATRICES_PATH).unwrap();
-
-    assert!(pk_compressed.len() > 0, "Proving key file is empty");
-    assert!(matrices_compressed.len() > 0, "Matrices file is empty");
-
-    let mut pk_bytes = Vec::new();
-    brotli::Decompressor::new(&pk_compressed[..], BUFFER_SIZE)
-        .read_to_end(&mut pk_bytes)
-        .unwrap();
-
-    let mut matrices_bytes = Vec::new();
-    brotli::Decompressor::new(&matrices_compressed[..], BUFFER_SIZE)
-        .read_to_end(&mut matrices_bytes)
-        .unwrap();
-
-    let pk = ProvingKey::<Bn254>::deserialize_uncompressed_unchecked(&pk_bytes[..]).unwrap();
-    let matrices: Matrices = postcard::from_bytes(&matrices_bytes).unwrap();
+    let (matrices, pk, _vk) = generate_artifacts::<JoinSplit>().unwrap();
 
     let circuit = JoinSplit::default();
 

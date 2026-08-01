@@ -14,7 +14,7 @@ use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{
     account::{Account, keys::Keys, spending::NoopSpendingAccount},
-    circuit::{generate_artifacts, join_split::JoinSplit, matrices::Matrices},
+    circuit::{generate_artifacts, join_split::JoinSplit},
     database::memory::MemoryDatabase,
     fr::u256_to_fr,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},

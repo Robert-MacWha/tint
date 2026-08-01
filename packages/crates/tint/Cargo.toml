@@ -15,12 +15,14 @@ alloy-provider = { workspace = true }
 alloy-rpc-types-eth = { workspace = true }
 alloy-sol-macro = { workspace = true, features = ["json"] }
 alloy-sol-types = { workspace = true }
-ark-bn254 = { workspace = true, default-features = false }
-ark-ff = { workspace = true, default-features = false }
-ark-groth16 = { workspace = true, default-features = false }
-ark-snark = { workspace = true, default-features = false }
-ark-r1cs-std = { workspace = true, default-features = false }
-ark-relations = { workspace = true, default-features = false }
+ark-bn254 = { workspace = true }
+ark-ff = { workspace = true }
+ark-groth16 = { workspace = true }
+ark-snark = { workspace = true }
+ark-ec = { workspace = true }
+ark-r1cs-std = { workspace = true }
+ark-relations = { workspace = true }
+ark-poly = { workspace = true }
 async-trait = { workspace = true }
 ruint = { workspace = true, features = ["ark-ff-06"] }
 thiserror = { workspace = true }
@@ -38,6 +40,8 @@ taceo-poseidon2 = { workspace = true, features = ["t2", "t3", "t8"] }
 serde_with = { workspace = true }
 ark-serialize = { workspace = true }
 brotli = { workspace = true }
+anyhow = { workspace = true }
+rayon = "1.8"
 
 [dev-dependencies]
 circuit-profiler = { workspace = true }

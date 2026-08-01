@@ -6,6 +6,7 @@ pub mod codegen;
 mod crypto;
 pub mod database;
 pub mod fr;
+mod groth16;
 pub mod indexer;
 pub mod note;
 pub mod operation;

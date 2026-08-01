@@ -24,7 +24,7 @@ use crate::{abis::ProofLib, circuit::PasswordSpendability};
 pub struct PasswordSpendingAccount {
     contract_address: Address,
     secret: Fr,
-    matrices: Matrices,
+    matrices: Matrices<Fr>,
     pk: ProvingKey<Bn254>,
     vk: VerifyingKey<Bn254>,
 }
@@ -33,7 +33,7 @@ impl PasswordSpendingAccount {
     pub fn new(
         contract_address: Address,
         secret: Fr,
-        matrices: Matrices,
+        matrices: Matrices<Fr>,
         pk: ProvingKey<Bn254>,
         vk: VerifyingKey<Bn254>,
     ) -> Self {

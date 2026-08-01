@@ -21,7 +21,7 @@ pub struct NullifierKey(pub Fr);
 
 #[serde_with::serde_as]
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct NullifierPubKey(#[serde_as(as = "crate::serde::fr::FrAsBytes")] pub Fr);
+pub struct NullifierPubKey(#[serde_as(as = "crate::serde::field::FieldAsBytes")] pub Fr);
 
 #[derive(Clone)]
 pub struct EncryptionKey(pub StaticSecret);

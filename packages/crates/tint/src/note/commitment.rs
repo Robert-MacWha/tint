@@ -40,7 +40,7 @@ pub trait Commitment {
 pub struct BaseCommitment {
     pub asset: AssetId,
     pub amount: u128,
-    #[serde_as(as = "crate::serde::fr::FrAsBytes")]
+    #[serde_as(as = "crate::serde::field::FieldAsBytes")]
     pub spendability_hash: Fr,
     pub random: B256,
     pub nullifier_pub_key: NullifierPubKey,

@@ -45,9 +45,9 @@ pub struct IndexerState {
     tree: IncrementalMerkleTree<TREE_DEPTH, K>,
 
     total_staged: u64,
-    #[serde_as(as = "Vec<crate::serde::fr::FrAsBytes>")]
+    #[serde_as(as = "Vec<crate::serde::field::FieldAsBytes>")]
     staged_commitments: Vec<Fr>,
-    #[serde_as(as = "crate::serde::fr::FrAsBytes")]
+    #[serde_as(as = "crate::serde::field::FieldAsBytes")]
     posted_aggregation_hash: Fr,
 
     last_synced_block: u64,

@@ -28,9 +28,9 @@ pub struct IndexedAccount {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct IndexedAccountState {
     pub notes: Vec<BaseCommitment>,
-    #[serde_as(as = "Vec<crate::serde::fr::FrAsBytes>")]
+    #[serde_as(as = "Vec<crate::serde::field::FieldAsBytes>")]
     pub nullifiers: Vec<Fr>,
-    #[serde_as(as = "Vec<crate::serde::fr::FrAsBytes>")]
+    #[serde_as(as = "Vec<crate::serde::field::FieldAsBytes>")]
     pub note_nullifiers: Vec<Fr>,
 }
 

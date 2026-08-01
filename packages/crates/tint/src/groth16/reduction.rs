@@ -1,7 +1,6 @@
 use ark_ec::pairing::Pairing;
 use ark_ff::{FftField, Field, One};
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
-// use ark_relations::r1cs::{ConstraintMatrices, Matrix};
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
 };

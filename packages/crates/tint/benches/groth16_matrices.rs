@@ -21,11 +21,11 @@ fn main() {
     let circuit = JoinSplit::default();
 
     let baseline_prove_start = Instant::now();
-    let _baseline_proof = Groth16::<Bn254>::prove(&pk, circuit.clone(), &mut rng).unwrap();
+    let _ = Groth16::<Bn254>::prove(&pk, circuit.clone(), &mut rng).unwrap();
     let baseline_prove_time = baseline_prove_start.elapsed();
 
     let matrices_prove_start = Instant::now();
-    let _matrices_proof = prove_with_matrices(&matrices, &pk, circuit.clone(), &mut rng).unwrap();
+    let _ = prove_with_matrices(&matrices, &pk, circuit.clone(), &mut rng).unwrap();
     let matrices_prove_time = matrices_prove_start.elapsed();
 
     println!("groth16 prove (baseline): {:?}", baseline_prove_time);

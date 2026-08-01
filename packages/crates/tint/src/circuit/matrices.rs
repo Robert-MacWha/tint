@@ -1,6 +1,6 @@
 use ark_ec::pairing::Pairing;
 use ark_ff::{PrimeField, UniformRand};
-use ark_groth16::{Groth16, Proof, ProvingKey};
+use ark_groth16::{Proof, ProvingKey};
 use ark_relations::gr1cs::{ConstraintSynthesizer, ConstraintSystem, SynthesisError};
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -45,15 +45,24 @@ pub fn prove_with_matrices<
     let public_inputs = cs.instance_assignment()?[1..].to_vec();
     let full_assignment = [cs.instance_assignment()?, cs.witness_assignment()?].concat();
 
-    let proof = Groth16::<E>::create_proof_with_reduction_and_matrices(
+    let proof = crate::groth16::Groth16::prove::<crate::groth16::reduction::LibSnarkReduction>(
         pk,
         r,
         s,
-        &matrices.matrices,
-        matrices.num_inputs,
-        matrices.num_constraints,
+        matrices,
         &full_assignment,
-    )?;
+    )
+    .unwrap();
+    // let proof = ark_groth16::Groth16::<E>::create_proof_with_reduction_and_matrices(
+    //     pk,
+    //     r,
+    //     s,
+    //     &matrices.matrices,
+    //     matrices.num_inputs,
+    //     matrices.num_constraints,
+    //     &full_assignment,
+    // )?;
+
     Ok((public_inputs, proof))
 }
 

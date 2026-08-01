@@ -9,7 +9,7 @@ use tracing::instrument;
 pub use ark_groth16::{Proof, ProvingKey, VerifyingKey};
 pub use reduction::R1CSToQAP;
 
-mod reduction;
+pub mod reduction;
 
 macro_rules! rayon_join3 {
     ($t1: expr, $t2: expr, $t3: expr) => {{

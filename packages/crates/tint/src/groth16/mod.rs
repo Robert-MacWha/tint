@@ -1,22 +1,19 @@
+//! Adapted from https://github.com/TaceoLabs/circom-helpers/tree/main/groth16
+//!
+//! Original source code licensed under MIT.
+//!
+//! Updated to use arkworks 0.6.0 and remove circom compatibility code.
+
 use ark_ec::VariableBaseMSM;
 use ark_ec::pairing::Pairing;
 use ark_ec::{AffineRepr, CurveGroup};
-use ark_ff::{FftField, LegendreSymbol, PrimeField};
-use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use std::marker::PhantomData;
 use tracing::instrument;
 
-pub use ark_groth16::{Proof, ProvingKey, VerifyingKey};
-pub use reduction::R1CSToQAP;
+pub use ark_groth16::{Proof, ProvingKey};
+pub use reduction::LibSnarkReduction;
 
-pub mod reduction;
-
-macro_rules! rayon_join3 {
-    ($t1: expr, $t2: expr, $t3: expr) => {{
-        let ((x, y), z) = rayon::join(|| rayon::join($t1, $t2), $t3);
-        (x, y, z)
-    }};
-}
+mod reduction;
 
 macro_rules! rayon_join5 {
     ($t1: expr, $t2: expr, $t3: expr, $t4: expr, $t5: expr) => {{
@@ -27,65 +24,8 @@ macro_rules! rayon_join5 {
         (v, w, x, y, z)
     }};
 }
-pub(crate) use rayon_join3;
 
 use crate::circuit::matrices::Matrices;
-
-/// Computes the roots of unity over the provided prime field. This method
-/// is equivalent with [Circom's implementation](https://github.com/iden3/ffjavascript/blob/337b881579107ab74d5b2094dbe1910e33da4484/src/wasm_field1.js).
-///
-/// We calculate smallest quadratic non residue q (by checking q^((p-1)/2)=-1 mod p). We also calculate smallest t s.t. p-1=2^s*t, s is the two adicity.
-/// We use g=q^t (this is a 2^s-th root of unity) as (some kind of) generator and compute another domain by repeatedly squaring g, should get to 1 in the s+1-th step.
-/// Then if log2(\text{domain_size}) equals s we take q^2 as root of unity. Else we take the log2(\text{domain_size}) + 1-th element of the domain created above.
-fn roots_of_unity<F: PrimeField + FftField>() -> (F, Vec<F>) {
-    let mut roots = vec![F::zero(); F::TWO_ADICITY as usize + 1];
-    let mut q = F::one();
-    while q.legendre() != LegendreSymbol::QuadraticNonResidue {
-        q += F::one();
-    }
-    let z = q.pow(F::TRACE);
-    roots[0] = z;
-    for i in 1..roots.len() {
-        roots[i] = roots[i - 1].square();
-    }
-    roots.reverse();
-    (q, roots)
-}
-
-/* old way of computing root of unity, does not work for bls12_381:
-let root_of_unity = {
-    let domain_size_double = 2 * domain_size;
-    let domain_double =
-        D::new(domain_size_double).ok_or(SynthesisError::PolynomialDegreeTooLarge)?;
-    domain_double.element(1)
-};
-new one is computed in the same way as in snarkjs (More precisely in ffjavascript/src/wasm_field1.js)
-calculate smallest quadratic non residue q (by checking q^((p-1)/2)=-1 mod p) also calculate smallest t (F::TRACE) s.t. p-1=2^s*t, s is the two_adicity
-use g=q^t (this is a 2^s-th root of unity) as (some kind of) generator and compute another domain by repeatedly squaring g, should get to 1 in the s+1-th step.
-then if log2(domain_size) equals s we take as root of unity q^2, and else we take the log2(domain_size) + 1-th element of the domain created above
-*/
-#[instrument(level = "debug", name = "root of unity", skip_all)]
-fn root_of_unity_for_groth16<F: PrimeField + FftField>(
-    pow: usize,
-    domain: &mut GeneralEvaluationDomain<F>,
-) -> F {
-    let (q, roots) = roots_of_unity::<F>();
-    match domain {
-        GeneralEvaluationDomain::Radix2(domain) => {
-            domain.group_gen = roots[pow];
-            domain.group_gen_inv = domain.group_gen.inverse().expect("can compute inverse");
-        }
-        GeneralEvaluationDomain::MixedRadix(domain) => {
-            domain.group_gen = roots[pow];
-            domain.group_gen_inv = domain.group_gen.inverse().expect("can compute inverse");
-        }
-    };
-    if u64::from(F::TWO_ADICITY) == domain.log_size_of_group() {
-        q.square()
-    } else {
-        roots[domain.log_size_of_group() as usize + 1]
-    }
-}
 
 /// A Groth16 proof protocol.
 ///
@@ -96,7 +36,7 @@ pub struct Groth16<P: Pairing> {
 
 impl<P: Pairing> Groth16<P> {
     #[instrument(level = "debug", name = "Groth16 - Proof", skip_all)]
-    pub fn prove<R: R1CSToQAP>(
+    pub fn prove<R: reduction::R1CSToQAP>(
         pkey: &ProvingKey<P>,
         r: P::ScalarField,
         s: P::ScalarField,
@@ -214,23 +154,5 @@ impl<P: Pairing> Groth16<P> {
             b: g2_b.into_affine(),
             c: g_c.into_affine(),
         })
-    }
-}
-
-impl<P: Pairing> Groth16<P> {
-    /// Verify a Groth16 proof.
-    /// This method is a wrapper arkworks Groth16 and does not use MPC.
-    pub fn verify(
-        vk: &VerifyingKey<P>,
-        proof: &Proof<P>,
-        public_inputs: &[P::ScalarField],
-    ) -> anyhow::Result<()> {
-        let vk = ark_groth16::prepare_verifying_key(vk);
-        let proof_valid = ark_groth16::Groth16::<P>::verify_proof(&vk, proof, public_inputs)?;
-        if proof_valid {
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!("invalid proof"))
-        }
     }
 }

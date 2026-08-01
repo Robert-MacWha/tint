@@ -45,7 +45,7 @@ pub fn prove_with_matrices<
     let public_inputs = cs.instance_assignment()?[1..].to_vec();
     let full_assignment = [cs.instance_assignment()?, cs.witness_assignment()?].concat();
 
-    let proof = crate::groth16::Groth16::prove::<crate::groth16::reduction::LibSnarkReduction>(
+    let proof = crate::groth16::Groth16::prove::<crate::groth16::LibSnarkReduction>(
         pk,
         r,
         s,

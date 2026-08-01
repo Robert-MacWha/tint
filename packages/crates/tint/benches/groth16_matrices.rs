@@ -10,9 +10,9 @@ use ark_bn254::Bn254;
 use ark_groth16::{Groth16, ProvingKey};
 use ark_serialize::CanonicalDeserialize;
 use ark_snark::SNARK;
-use ark_std::rand::{rngs::StdRng, SeedableRng};
+use ark_std::rand::{SeedableRng, rngs::StdRng};
 use tint::circuit::join_split::JoinSplit;
-use tint::circuit::matrices::{prove_with_matrices, Matrices};
+use tint::circuit::matrices::{Matrices, prove_with_matrices};
 
 const PK_PATH: &str = "artifacts/proving_key.bin.br";
 const MATRICES_PATH: &str = "artifacts/matrices.bin.br";
@@ -47,7 +47,7 @@ fn main() {
     let baseline_prove_time = baseline_prove_start.elapsed();
 
     let matrices_prove_start = Instant::now();
-    let _matrices_proof = prove_with_matrices(&pk, circuit.clone(), &matrices, &mut rng).unwrap();
+    let _matrices_proof = prove_with_matrices(&matrices, &pk, circuit.clone(), &mut rng).unwrap();
     let matrices_prove_time = matrices_prove_start.elapsed();
 
     println!("groth16 prove (baseline): {:?}", baseline_prove_time);

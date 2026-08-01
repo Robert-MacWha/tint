@@ -1,10 +1,7 @@
 use ark_bn254::{Bn254, Fr};
 use ark_ff::UniformRand;
 use ark_groth16::{Groth16, Proof, ProvingKey};
-use ark_relations::gr1cs::{
-    ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, R1CS_PREDICATE_LABEL,
-    SynthesisError,
-};
+use ark_relations::gr1cs::{ConstraintSynthesizer, ConstraintSystem, SynthesisError};
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
@@ -22,12 +19,14 @@ pub struct Matrices {
 }
 
 /// Proves a circuit using pre-computed constraint matrices.
+///
+/// Returns the public inputs and the proof.
 pub fn prove_with_matrices<C: ConstraintSynthesizer<Fr> + Clone, R: RngCore + CryptoRng>(
+    matrices: &Matrices,
     pk: &ProvingKey<Bn254>,
     circuit: C,
-    matrices: &Matrices,
     rng: &mut R,
-) -> Result<Proof<Bn254>, SynthesisError> {
+) -> Result<(Vec<Fr>, Proof<Bn254>), SynthesisError> {
     let r = Fr::rand(rng);
     let s = Fr::rand(rng);
 
@@ -39,9 +38,10 @@ pub fn prove_with_matrices<C: ConstraintSynthesizer<Fr> + Clone, R: RngCore + Cr
     });
     circuit.clone().generate_constraints(cs.clone())?;
 
+    let public_inputs = cs.instance_assignment()?[1..].to_vec();
     let full_assignment = [cs.instance_assignment()?, cs.witness_assignment()?].concat();
 
-    Groth16::<Bn254>::create_proof_with_reduction_and_matrices(
+    let proof = Groth16::<Bn254>::create_proof_with_reduction_and_matrices(
         pk,
         r,
         s,
@@ -49,7 +49,8 @@ pub fn prove_with_matrices<C: ConstraintSynthesizer<Fr> + Clone, R: RngCore + Cr
         matrices.num_inputs,
         matrices.num_constraints,
         &full_assignment,
-    )
+    )?;
+    Ok((public_inputs, proof))
 }
 
 impl Matrices {
@@ -65,20 +66,6 @@ impl Matrices {
             num_constraints,
             num_witness_variables,
         }
-    }
-
-    pub fn from_constraint_system(cs: &ConstraintSystemRef<Fr>) -> Result<Self, SynthesisError> {
-        let matrices = cs.to_matrices()?[R1CS_PREDICATE_LABEL].clone();
-        let num_inputs = cs.num_instance_variables();
-        let num_constraints = cs.num_constraints();
-        let num_witness_variables = cs.num_witness_variables();
-
-        Ok(Self {
-            matrices,
-            num_inputs,
-            num_constraints,
-            num_witness_variables,
-        })
     }
 }
 

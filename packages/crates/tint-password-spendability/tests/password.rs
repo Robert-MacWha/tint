@@ -8,7 +8,7 @@ use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{
     account::{Account, keys::Keys, spending::NoopSpendingAccount},
-    circuit::{join_split::JoinSplit, setup_circuit},
+    circuit::{generate_artifacts, join_split::JoinSplit},
     database::memory::MemoryDatabase,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
     note::asset::AssetId,
@@ -40,15 +40,16 @@ async fn password() {
 
     // Setup circuits
     info!("Setting up circuits...");
-    let (proving_key, verifying_key) = setup_circuit::<JoinSplit>().unwrap();
-    let (spendability_proving_key, spendability_verifying_key) =
-        setup_circuit::<PasswordSpendability>().unwrap();
+    let (matrices, proving_key, verifying_key) = generate_artifacts::<JoinSplit>().unwrap();
+    let (spendability_matrices, spendability_proving_key, spendability_verifying_key) =
+        generate_artifacts::<PasswordSpendability>().unwrap();
 
     // Setup spendability account
     info!("Setting up spendability account...");
     let spending = PasswordSpendingAccount::new(
         spendability.address().clone(),
         Fr::from(1234),
+        spendability_matrices,
         spendability_proving_key,
         spendability_verifying_key,
     );
@@ -62,7 +63,7 @@ async fn password() {
     let database = Arc::new(MemoryDatabase::default());
     let indexer = Indexer::new(syncer, verifier, database).await.unwrap();
 
-    let mut tint_provider = Provider::new(indexer, proving_key, verifying_key);
+    let mut tint_provider = Provider::new(indexer, matrices, proving_key, verifying_key);
     tint_provider.add_account(account_1.clone()).await.unwrap();
     tint_provider.add_account(account_2.clone()).await.unwrap();
 

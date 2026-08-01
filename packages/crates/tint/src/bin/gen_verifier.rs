@@ -5,12 +5,12 @@
 use std::path::Path;
 
 use tint::{
-    circuit::{join_split::JoinSplit, setup_circuit},
+    circuit::{generate_artifacts, join_split::JoinSplit},
     codegen,
 };
 
 fn main() {
-    let (_pk, vk) = setup_circuit::<JoinSplit>().unwrap();
+    let (_matrices, _pk, vk) = generate_artifacts::<JoinSplit>().unwrap();
 
     println!("Generating Groth16Verifier.sol");
     let solidity = codegen::groth16_verifier_solidity(&vk, "Groth16Verifier", true);

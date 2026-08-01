@@ -3,26 +3,13 @@
 //!
 //! Run with `cargo run --release --bin gen_artifacts`.
 
-use ark_bn254::Fr;
-use ark_relations::gr1cs::{
-    ConstraintSynthesizer, ConstraintSystem, OptimizationGoal, SynthesisMode,
-};
-use tint::circuit::{artifacts, join_split::JoinSplit, matrices::Matrices, setup_circuit};
+use tint::circuit::{artifacts, generate_artifacts, join_split::JoinSplit};
 
 const ARTIFACTS_DIR: &str = "artifacts/";
 
 fn main() {
-    println!("Generating proving and verifying keys");
-    let (pk, vk) = setup_circuit::<JoinSplit>().unwrap();
-
-    println!("Generating constraint matrices");
-    let circuit = JoinSplit::default();
-    let cs = ConstraintSystem::<Fr>::new_ref();
-    cs.set_optimization_goal(OptimizationGoal::Constraints);
-    cs.set_mode(SynthesisMode::Setup);
-    circuit.clone().generate_constraints(cs.clone()).unwrap();
-    cs.finalize();
-    let matrices = Matrices::from_constraint_system(&cs).unwrap();
+    println!("Generating artifacts");
+    let (matrices, pk, vk) = generate_artifacts::<JoinSplit>().unwrap();
 
     println!("Serializing artifacts");
     let pk_bytes = artifacts::serialize_proving_key(&pk).unwrap();

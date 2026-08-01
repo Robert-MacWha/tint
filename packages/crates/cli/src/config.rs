@@ -15,10 +15,11 @@ use tint::{
     account::{Account, keys::Keys, receiver::Receiver, spending::NoopSpendingAccount},
     circuit::{
         artifacts::{
-            deserialize_proving_key, deserialize_verifying_key, serialize_proving_key,
-            serialize_verifying_key,
+            deserialize_matrices, deserialize_proving_key, deserialize_verifying_key,
+            serialize_matrices, serialize_proving_key, serialize_verifying_key,
         },
-        setup_circuit,
+        generate_artifacts,
+        matrices::Matrices,
     },
 };
 use tint_password_spendability::{account::PasswordSpendingAccount, circuit::PasswordSpendability};
@@ -125,10 +126,10 @@ fn account_from_seed(
             let contract_address = spendability_address
                 .context("--spendability-address is required for password-spendability accounts")?;
             let secret = password_secret(&password()?);
-            let (pk, vk) = load_circuit::<PasswordSpendability>("password")?;
+            let (matrices, pk, vk) = load_circuit::<PasswordSpendability>("password")?;
             Ok(Account::from_keys(
                 keys,
-                PasswordSpendingAccount::new(contract_address, secret, pk, vk),
+                PasswordSpendingAccount::new(contract_address, secret, matrices, pk, vk),
             ))
         }
     }
@@ -188,35 +189,39 @@ fn decode_seed(name: &str, seed: &str) -> anyhow::Result<[u8; 32]> {
 /// caching them on first use.
 pub fn load_circuit<C: ConstraintSynthesizer<Fr> + Default>(
     dir: impl AsRef<Path>,
-) -> anyhow::Result<(ProvingKey<Bn254>, VerifyingKey<Bn254>)> {
+) -> anyhow::Result<(Matrices, ProvingKey<Bn254>, VerifyingKey<Bn254>)> {
     let circuit_dir = circuit_dir().join(&dir);
 
+    let matrices_path = circuit_dir.join("matrices.bin.br");
     let pk_path = circuit_dir.join("proving_key.bin.br");
     let vk_path = circuit_dir.join("verifying_key.bin.br");
 
-    if pk_path.exists() && vk_path.exists() {
+    if matrices_path.exists() && pk_path.exists() && vk_path.exists() {
         info!("Loading cached circuit keys for {}", dir.as_ref().display());
-        let pk_bytes =
-            fs::read(&pk_path).with_context(|| format!("reading {}", pk_path.display()))?;
-        let vk_bytes =
-            fs::read(&vk_path).with_context(|| format!("reading {}", vk_path.display()))?;
+        let matrices_bytes = fs::read(&matrices_path).context("reading cached matrices")?;
+        let pk_bytes = fs::read(&pk_path).context("reading cached proving key")?;
+        let vk_bytes = fs::read(&vk_path).context("reading cached verifying key")?;
+        let matrices =
+            deserialize_matrices(&matrices_bytes).context("deserializing cached matrices")?;
         let proving_key =
             deserialize_proving_key(&pk_bytes).context("deserializing cached proving key")?;
         let verifying_key =
             deserialize_verifying_key(&vk_bytes).context("deserializing cached verifying key")?;
-        return Ok((proving_key, verifying_key));
+        return Ok((matrices, proving_key, verifying_key));
     }
 
     info!("Generating circuit keys (first run)...");
-    let (pk, vk) = setup_circuit::<C>()?;
+    let (matrices, pk, vk) = generate_artifacts::<C>()?;
 
     fs::create_dir_all(circuit_dir)?;
     let pk_bytes = serialize_proving_key(&pk).context("serializing proving key")?;
     let vk_bytes = serialize_verifying_key(&vk).context("serializing verifying key")?;
-    fs::write(&pk_path, pk_bytes).with_context(|| format!("writing {}", pk_path.display()))?;
-    fs::write(&vk_path, vk_bytes).with_context(|| format!("writing {}", vk_path.display()))?;
+    let matrices_bytes = serialize_matrices(&matrices).context("serializing matrices")?;
+    fs::write(&pk_path, pk_bytes).context("writing proving key")?;
+    fs::write(&vk_path, vk_bytes).context("writing verifying key")?;
+    fs::write(&matrices_path, matrices_bytes).context("writing matrices")?;
 
-    Ok((pk, vk))
+    Ok((matrices, pk, vk))
 }
 
 fn base_dir() -> PathBuf {

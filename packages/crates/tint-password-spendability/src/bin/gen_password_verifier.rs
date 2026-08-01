@@ -5,11 +5,11 @@
 
 use std::path::Path;
 
-use tint::{circuit::setup_circuit, codegen};
+use tint::{circuit::generate_artifacts, codegen};
 use tint_password_spendability::circuit::PasswordSpendability;
 
 fn main() {
-    let (_pk, vk) = setup_circuit::<PasswordSpendability>().unwrap();
+    let (_matrices, _pk, vk) = generate_artifacts::<PasswordSpendability>().unwrap();
 
     println!("Generating PasswordSpendabilityVerifier.sol");
     let solidity = codegen::groth16_verifier_solidity(&vk, "PasswordSpendabilityVerifier", false);

@@ -8,6 +8,7 @@ use tint::{
     account::spending::{SpendingAccount, SpendingAccountError},
     circuit::{
         join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
+        matrices::{Matrices, prove_with_matrices},
         poseidon2::poseidon2_compress,
     },
     fr::address_to_fr,
@@ -23,6 +24,7 @@ use crate::{abis::ProofLib, circuit::PasswordSpendability};
 pub struct PasswordSpendingAccount {
     contract_address: Address,
     secret: Fr,
+    matrices: Matrices,
     pk: ProvingKey<Bn254>,
     vk: VerifyingKey<Bn254>,
 }
@@ -31,12 +33,14 @@ impl PasswordSpendingAccount {
     pub fn new(
         contract_address: Address,
         secret: Fr,
+        matrices: Matrices,
         pk: ProvingKey<Bn254>,
         vk: VerifyingKey<Bn254>,
     ) -> Self {
         Self {
             contract_address,
             secret,
+            matrices,
             pk,
             vk,
         }
@@ -78,11 +82,9 @@ impl SpendingAccount for PasswordSpendingAccount {
         );
 
         info!("Proving spendability...");
-        let public_inputs = circuit
-            .synthesize_public_inputs()
-            .map_err(SpendingAccountError::new)?;
-        let proof = Groth16::<Bn254>::prove(&self.pk, circuit, &mut OsRng)
-            .map_err(SpendingAccountError::new)?;
+        let (public_inputs, proof) =
+            prove_with_matrices(&self.matrices, &self.pk, circuit, &mut OsRng)
+                .map_err(SpendingAccountError::new)?;
 
         // Smoke-test the proof locally
         match Groth16::<Bn254>::verify(&self.vk, &public_inputs, &proof) {

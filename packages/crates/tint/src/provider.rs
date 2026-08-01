@@ -14,7 +14,10 @@ use crate::{
     abis::tint::{IPrivacyPool, Tint},
     account::{Account, keys::NullifierPubKey, receiver::Receiver},
     array::try_from_fn,
-    circuit::join_split::{JoinSplit, K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, TREE_DEPTH},
+    circuit::{
+        join_split::{JoinSplit, K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, TREE_DEPTH},
+        matrices::{Matrices, prove_with_matrices},
+    },
     database::DatabaseError,
     fr::fr_to_b256,
     indexer::{Indexer, merkle_tree::InclusionProof},
@@ -57,6 +60,7 @@ pub enum ProviderError {
 pub struct Provider {
     pub indexer: Indexer,
     accounts: Vec<Account>,
+    matrices: Matrices,
     proving_key: ProvingKey<Bn254>,
     verifying_key: VerifyingKey<Bn254>,
 }
@@ -64,12 +68,14 @@ pub struct Provider {
 impl Provider {
     pub fn new(
         indexer: Indexer,
+        matrices: Matrices,
         proving_key: ProvingKey<Bn254>,
         verifying_key: VerifyingKey<Bn254>,
     ) -> Self {
         Self {
             indexer,
             accounts: Vec::new(),
+            matrices,
             proving_key,
             verifying_key,
         }
@@ -170,9 +176,9 @@ impl Provider {
         let end_aggregation_index = self.indexer.posted_aggregation_index();
 
         info!("Proving operation...");
-        let public_inputs = circuit.synthesize_public_inputs()?;
         let outputs = circuit.synthesize_outputs()?;
-        let proof = Groth16::<Bn254>::prove(&self.proving_key, circuit, rng)?;
+        let (public_inputs, proof) =
+            prove_with_matrices(&self.matrices, &self.proving_key, circuit, rng)?;
 
         // Smoke-test the proof locally
         if !Groth16::<Bn254>::verify(&self.verifying_key, &public_inputs, &proof)? {

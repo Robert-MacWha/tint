@@ -8,7 +8,9 @@ import "C"
 
 import (
 	"bytes"
+	"fmt"
 	"io"
+	"sync"
 	"unsafe"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -16,6 +18,7 @@ import (
 	"github.com/consensys/gnark/backend/witness"
 	bn254cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend"
+	gnarkio "github.com/consensys/gnark/io"
 )
 
 // TintProve builds the witness for input and computes a Groth16 proof. Returns
@@ -36,8 +39,12 @@ func TintProve(
 		return 1
 	}
 
+	// pk is loaded via ReadDump, not ReadFrom: proving_key.bin is written by
+	// cmd/setup's trusted local run via WriteDump (see its comment), so
+	// skipping ReadFrom's point decompression + subgroup checks here is
+	// safe and avoids several seconds of validation on every prove call.
 	pk := groth16.NewProvingKey(ecc.BN254)
-	if err := fromC(pk, pkPtr, pkLen); err != nil {
+	if err := fromCDump(pk, pkPtr, pkLen); err != nil {
 		return 2
 	}
 
@@ -119,6 +126,20 @@ func fromC(w io.ReaderFrom, ptr *C.uint8_t, length C.size_t) error {
 	buf := C.GoBytes(unsafe.Pointer(ptr), C.int(length))
 	_, err := w.ReadFrom(bytes.NewReader(buf))
 	return err
+}
+
+var dumpWarningOnce sync.Once
+
+func fromCDump(w gnarkio.BinaryDumper, ptr *C.uint8_t, length C.size_t) error {
+	dumpWarningOnce.Do(func() {
+		fmt.Println("WARNING: proving key loaded via ReadDump (unchecked, no subgroup validation). Only use for testing and development.")
+	})
+
+	if ptr == nil || length == 0 {
+		return nil
+	}
+	buf := C.GoBytes(unsafe.Pointer(ptr), C.int(length))
+	return w.ReadDump(bytes.NewReader(buf))
 }
 
 func toC(w io.WriterTo) (*C.uint8_t, C.size_t, error) {

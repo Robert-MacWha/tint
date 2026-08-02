@@ -1,13 +1,5 @@
 // Command setup generates the MultisigSpendability circuit's Groth16 setup
-// artifacts (constraint system, proving key, verifying key) and writes them
-// to ../artifacts/, mirroring
-// packages/crates/tint/src/bin/gen_artifacts.rs's convention.
-//
-// Run manually with `go run ./cmd/setup` from the go/ directory whenever
-// the circuit's shape changes — this is a deterministic, dev-only trusted
-// setup (see api.Setup), not something that needs to run on every build.
-// Rust reads the resulting files from disk at runtime (see src/ffi.rs)
-// rather than embedding them in the binary.
+// artifacts and writes them to ../artifacts.
 package main
 
 import (
@@ -21,6 +13,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	gnarkio "github.com/consensys/gnark/io"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -51,7 +44,7 @@ func generateArtifacts() error {
 		return fmt.Errorf("creating artifacts dir: %w", err)
 	}
 	writeFile(artifactsDir+"ccs.bin", ccs)
-	writeFile(artifactsDir+"proving_key.bin", pk)
+	writeDump(artifactsDir+"proving_key.bin", pk)
 	writeFile(artifactsDir+"verifying_key.bin", vk)
 
 	fmt.Println("Done generating setup artifacts")
@@ -68,6 +61,20 @@ func writeFile(path string, w io.WriterTo) {
 	}
 	defer f.Close()
 	if _, err := w.WriteTo(f); err != nil {
+		fmt.Fprintln(os.Stderr, "writing", path, ":", err)
+		os.Exit(1)
+	}
+}
+
+func writeDump(path string, w gnarkio.BinaryDumper) {
+	fmt.Printf("Writing %s\n", path)
+	f, err := os.Create(path)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "creating", path, ":", err)
+		os.Exit(1)
+	}
+	defer f.Close()
+	if err := w.WriteDump(f); err != nil {
 		fmt.Fprintln(os.Stderr, "writing", path, ":", err)
 		os.Exit(1)
 	}

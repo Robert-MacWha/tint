@@ -26,3 +26,7 @@ ark-secp256k1 = { workspace = true }
 ark-std = { workspace = true }
 taceo-poseidon2 = { workspace = true, features = ["t2", "t3", "t8"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[[bench]]
+name = "prove"
+harness = false

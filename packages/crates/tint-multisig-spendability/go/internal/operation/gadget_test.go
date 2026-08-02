@@ -21,10 +21,6 @@ func (c *operationHashCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-// TestOperationHashGadgetMatchesNative builds an Operation with a single
-// populated input slot both natively and as a gadget witness, and checks
-// that OperationVar.HashGadget agrees with the native Operation.Hash for the
-// same data.
 func TestOperationHashGadgetMatchesNative(t *testing.T) {
 	spendabilityAddrFr := frbn254.NewElement(2)
 	witness := frbn254.NewElement(3)
@@ -34,10 +30,10 @@ func TestOperationHashGadgetMatchesNative(t *testing.T) {
 	var native Operation
 	native.Inputs[0] = SpendableCommitment{
 		Inner: BaseCommitment{
-			AssetFr:          mustFr("5731378969925109483151705226338364782964441345"),
+			AssetFr:          frbn254.NewElement(1),
 			AmountFr:         frbn254.NewElement(100),
 			SpendabilityHash: spendabilityHash,
-			RandomFr:         frOf32(5),
+			RandomFr:         frbn254.NewElement(42),
 			NullifierPubKey:  nullifierPubKey,
 		},
 	}

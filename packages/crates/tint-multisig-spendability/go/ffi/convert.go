@@ -93,7 +93,7 @@ func fromCSignatureRS(s C.TintSignatureRS) circuit.SignatureRS {
 	return circuit.SignatureRS{R: fromCBigInt(s.r), S: fromCBigInt(s.s)}
 }
 
-func fromCBytes32(b C.TintBytes32) [32]byte {
+func fromCBytes32(b C.Bytes32) [32]byte {
 	var out [32]byte
 	for i := range out {
 		out[i] = byte(b.data[i])
@@ -101,26 +101,26 @@ func fromCBytes32(b C.TintBytes32) [32]byte {
 	return out
 }
 
-func toCBytes32(b [32]byte) C.TintBytes32 {
-	var out C.TintBytes32
+func toCBytes32(b [32]byte) C.Bytes32 {
+	var out C.Bytes32
 	for i := range b {
 		out.data[i] = C.uint8_t(b[i])
 	}
 	return out
 }
 
-func fromCFr(b C.TintBytes32) frbn254.Element {
+func fromCFr(b C.Bytes32) frbn254.Element {
 	bytes := fromCBytes32(b)
 	var e frbn254.Element
 	e.SetBytes(bytes[:])
 	return e
 }
 
-func toCFr(e frbn254.Element) C.TintBytes32 {
+func toCFr(e frbn254.Element) C.Bytes32 {
 	return toCBytes32(e.Bytes())
 }
 
-func fromCBigInt(b C.TintBytes32) *big.Int {
+func fromCBigInt(b C.Bytes32) *big.Int {
 	bytes := fromCBytes32(b)
 	return new(big.Int).SetBytes(bytes[:])
 }

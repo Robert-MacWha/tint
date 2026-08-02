@@ -6,19 +6,17 @@ import (
 	"github.com/Robert-MacWha/tint/packages/crates/tint-multisig-spendability/go/internal/poseidon2"
 )
 
-// PartialHash mirrors Commitment::partial_hash:
-// poseidon2_compress([spendability_hash, nullifier_pub_key, random_fr]).
+// PartialHash mirrors Commitment::partial_hash
 func (c BaseCommitment) PartialHash() frbn254.Element {
 	return poseidon2.Compress3([3]frbn254.Element{c.SpendabilityHash, c.NullifierPubKey, c.RandomFr})
 }
 
-// Hash mirrors Commitment::hash:
-// poseidon2_compress([asset_fr, amount_fr, partial_hash]).
+// Hash mirrors Commitment::hash
 func (c BaseCommitment) Hash() frbn254.Element {
 	return poseidon2.Compress3([3]frbn254.Element{c.AssetFr, c.AmountFr, c.PartialHash()})
 }
 
-// Hash mirrors Withdrawal::hash: poseidon2_compress([asset_fr, amount_fr]).
+// Hash mirrors Withdrawal::hash
 func (w Withdrawal) Hash() frbn254.Element {
 	return poseidon2.Compress2([2]frbn254.Element{w.AssetFr, w.AmountFr})
 }

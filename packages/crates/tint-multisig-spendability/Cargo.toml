@@ -9,17 +9,20 @@ edition = "2024"
 tint = { workspace = true }
 ark-bn254 = { workspace = true, features = ["scalar_field"] }
 ark-ff = { workspace = true }
-num-bigint = "0.4.8"
 thiserror = { workspace = true }
+alloy-primitives = { workspace = true }
+async-trait = { workspace = true }
+k256 = { workspace = true }
+signature = { workspace = true }
 
 [build-dependencies]
-bindgen = "0.72.1"
+bindgen = { workspace = true }
 
 [dev-dependencies]
 ark-ec = { workspace = true }
 ark-r1cs-std = { workspace = true }
 ark-relations = { workspace = true, features = ["std"] }
-ark-secp256k1 = "0.6.0"
+ark-secp256k1 = { workspace = true }
 ark-std = { workspace = true }
 taceo-poseidon2 = { workspace = true, features = ["t2", "t3", "t8"] }
-alloy-primitives = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

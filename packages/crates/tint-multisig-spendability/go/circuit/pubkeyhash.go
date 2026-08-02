@@ -70,7 +70,7 @@ func split128(v *big.Int) (hi, lo *big.Int) {
 
 func limbToFr(limb *big.Int) frbn254.Element {
 	var e frbn254.Element
-	e.SetBigInt(limb) // limb < 2^128, well within Fr's ~254-bit range: no reduction risk.
+	e.SetBigInt(limb)
 	return e
 }
 

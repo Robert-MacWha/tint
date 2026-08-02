@@ -9,33 +9,34 @@ enum
 	N_OUTPUTS = 5,
 	N_WITHDRAWALS = 2,
 	N_SIGNERS = 3,
+	THRESHOLD = 2,
 };
 
 typedef struct
 {
 	uint8_t data[32];
-} TintBytes32;
+} Bytes32;
 
 typedef struct
 {
-	TintBytes32 asset_fr;
-	TintBytes32 amount_fr;
-	TintBytes32 spendability_hash;
-	TintBytes32 random_fr;
-	TintBytes32 nullifier_pub_key;
+	Bytes32 asset_fr;
+	Bytes32 amount_fr;
+	Bytes32 spendability_hash;
+	Bytes32 random_fr;
+	Bytes32 nullifier_pub_key;
 } TintBaseCommitment;
 
 typedef struct
 {
 	TintBaseCommitment inner;
-	TintBytes32 spendability_address;
-	TintBytes32 spendability_witness;
+	Bytes32 spendability_address;
+	Bytes32 spendability_witness;
 } TintSpendableCommitment;
 
 typedef struct
 {
-	TintBytes32 asset_fr;
-	TintBytes32 amount_fr;
+	Bytes32 asset_fr;
+	Bytes32 amount_fr;
 } TintWithdrawal;
 
 typedef struct
@@ -47,19 +48,19 @@ typedef struct
 
 typedef struct
 {
-	TintBytes32 x;
-	TintBytes32 y;
+	Bytes32 x;
+	Bytes32 y;
 } TintPubKeyXY;
 
 typedef struct
 {
-	TintBytes32 r;
-	TintBytes32 s;
+	Bytes32 r;
+	Bytes32 s;
 } TintSignatureRS;
 
 typedef struct
 {
-	TintBytes32 spendability_address;
+	Bytes32 spendability_address;
 	TintOperation operation;
 	TintPubKeyXY pub_keys[N_SIGNERS];
 	TintSignatureRS signatures[N_SIGNERS];

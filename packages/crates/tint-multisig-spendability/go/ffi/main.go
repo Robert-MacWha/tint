@@ -22,12 +22,11 @@ import "unsafe"
 
 func main() {}
 
-// TintFreeBytes frees a buffer TintProve wrote into one of its out
-// parameters. Every other function here writes into caller-allocated
-// fixed-size structs, so this is the only allocation callers need to free.
+// FreeBytes frees a buffer TintProve wrote into one of its out
+// parameters.
 //
-//export TintFreeBytes
-func TintFreeBytes(ptr *C.uint8_t) {
+//export FreeBytes
+func FreeBytes(ptr *C.uint8_t) {
 	if ptr == nil {
 		return
 	}

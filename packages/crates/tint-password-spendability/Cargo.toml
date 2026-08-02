@@ -23,9 +23,8 @@ alloy-provider = { workspace = true }
 alloy-sol-macro = { workspace = true, features = ["json"] }
 alloy-sol-types = { workspace = true }
 alloy-contract = { workspace = true }
-ark-secp256k1 = "0.6.0"
-ark-ec = "0.6.0"
-num-bigint = "0.4.8"
+ark-secp256k1 = { workspace = true }
+ark-ec = { workspace = true }
 
 [dev-dependencies]
 ark-relations = { workspace = true, features = ["std"] }

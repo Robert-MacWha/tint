@@ -20,4 +20,7 @@ func TestConstants(t *testing.T) {
 	if circuit.NSigners != FfiNSigners {
 		t.Errorf("NSigners = %d; want %d", circuit.NSigners, FfiNSigners)
 	}
+	if circuit.Threshold != FfiThreshold {
+		t.Errorf("Threshold = %d; want %d", circuit.Threshold, FfiThreshold)
+	}
 }

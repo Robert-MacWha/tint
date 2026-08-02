@@ -2,6 +2,7 @@ package main
 
 /*
 #include "tint.h"
+#include <stdlib.h>
 */
 import "C"
 
@@ -17,31 +18,9 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-func fromC(w io.ReaderFrom, ptr *C.uint8_t, length C.size_t) error {
-	if ptr == nil || length == 0 {
-		return nil
-	}
-	buf := C.GoBytes(unsafe.Pointer(ptr), C.int(length))
-	_, err := w.ReadFrom(bytes.NewReader(buf))
-	return err
-}
-
-func toC(w io.WriterTo) (*C.uint8_t, C.size_t, error) {
-	var buf bytes.Buffer
-	if _, err := w.WriteTo(&buf); err != nil {
-		return nil, 0, err
-	}
-	if buf.Len() == 0 {
-		return nil, 0, nil
-	}
-	return (*C.uint8_t)(C.CBytes(buf.Bytes())), C.size_t(buf.Len()), nil
-}
-
-// TintProve builds the witness for input, solves and proves the
-// MultisigSpendability circuit against ccs/pk, and writes the serialized
-// public inputs and proof into the two out-params (malloc'd; the caller
-// must free each via TintFreeBytes). Returns 0 on success, nonzero on
-// error (e.g. malformed ccs/pk).
+// TintProve builds the witness for input and computes a Groth16 proof. Returns
+// 0 on success, nonzero on error. On success, outPublicInputs and outProof are
+// populated.
 //
 //export TintProve
 func TintProve(
@@ -86,6 +65,8 @@ func TintProve(
 	}
 	proofPtr, proofLen, err := toC(proof)
 	if err != nil {
+		//? Free to avoid memory leak, since rust only frees on success
+		C.free(unsafe.Pointer(publicInputsPtr))
 		return 7
 	}
 
@@ -97,8 +78,7 @@ func TintProve(
 }
 
 // TintVerify checks a proof against vk/publicInputs. Returns 0 if the
-// proof is valid, 1 if it was correctly rejected, 2 if the inputs
-// themselves were malformed.
+// proof is valid, nonzero if invalid or on error.
 //
 //export TintVerify
 func TintVerify(
@@ -130,4 +110,24 @@ func TintVerify(
 		return 5
 	}
 	return 0
+}
+
+func fromC(w io.ReaderFrom, ptr *C.uint8_t, length C.size_t) error {
+	if ptr == nil || length == 0 {
+		return nil
+	}
+	buf := C.GoBytes(unsafe.Pointer(ptr), C.int(length))
+	_, err := w.ReadFrom(bytes.NewReader(buf))
+	return err
+}
+
+func toC(w io.WriterTo) (*C.uint8_t, C.size_t, error) {
+	var buf bytes.Buffer
+	if _, err := w.WriteTo(&buf); err != nil {
+		return nil, 0, err
+	}
+	if buf.Len() == 0 {
+		return nil, 0, nil
+	}
+	return (*C.uint8_t)(C.CBytes(buf.Bytes())), C.size_t(buf.Len()), nil
 }

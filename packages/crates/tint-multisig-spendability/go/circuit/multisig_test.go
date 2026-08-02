@@ -15,25 +15,12 @@ import (
 	"github.com/Robert-MacWha/tint/packages/crates/tint-multisig-spendability/go/internal/operation"
 )
 
-// frFill mirrors what Rust would hand Go for a 32-byte-word-shaped value
-// (e.g. B256 randomness) filled with a single repeated byte, reduced mod
-// BN254's order — this package never converts raw addresses/bytes itself.
-func frFill(b byte) frbn254.Element {
-	var word [32]byte
-	for i := range word {
-		word[i] = b
-	}
-	var e frbn254.Element
-	e.SetBytes(word[:])
-	return e
-}
-
 type keypair struct {
 	priv *k1ecdsa.PrivateKey
 	xy   PubKeyXY
 }
 
-func genKeypair(t *testing.T) keypair {
+func genKeypair(t testing.TB) keypair {
 	priv, err := k1ecdsa.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -51,11 +38,7 @@ func pubKeyVar(xy PubKeyXY) stdecdsa.PublicKey[emulated.Secp256k1Fp, emulated.Se
 	}
 }
 
-// signOperationHash signs the 32-byte big-endian encoding of an operation
-// hash directly (hFunc=nil, so k1ecdsa.HashToInt treats the bytes as the
-// scalar value itself, unhashed) so the resulting signature verifies against
-// exactly the same scalar the circuit derives from OperationHash.
-func signOperationHash(t *testing.T, priv *k1ecdsa.PrivateKey, opHash frbn254.Element) stdecdsa.Signature[emulated.Secp256k1Fr] {
+func signOperationHash(t testing.TB, priv *k1ecdsa.PrivateKey, opHash frbn254.Element) stdecdsa.Signature[emulated.Secp256k1Fr] {
 	msgBytes := opHash.Bytes()
 	sigBin, err := priv.Sign(msgBytes[:], nil)
 	if err != nil {
@@ -72,16 +55,15 @@ func signOperationHash(t *testing.T, priv *k1ecdsa.PrivateKey, opHash frbn254.El
 	}
 }
 
-// buildOperation returns a native Operation with nInputs slots populated
-// (identical spendabilityAddress/witness in each), and its hash.
+// buildOperation returns a native Operation with nInputs slots populated.
 func buildOperation(nInputs int, spendabilityAddress frbn254.Element, witness frbn254.Element) operation.Operation {
 	var op operation.Operation
 	for i := range nInputs {
 		op.Inputs[i] = operation.SpendableCommitment{
 			Inner: operation.BaseCommitment{
-				AssetFr:  frFill(1),
+				AssetFr:  frbn254.NewElement(1),
 				AmountFr: frbn254.NewElement(100),
-				RandomFr: frFill(byte(10 + i)),
+				RandomFr: frbn254.NewElement(42),
 			},
 			SpendabilityAddress: spendabilityAddress,
 			SpendabilityWitness: witness,
@@ -91,11 +73,9 @@ func buildOperation(nInputs int, spendabilityAddress frbn254.Element, witness fr
 }
 
 // buildAssignment builds a MultisigSpendability witness with nInputs
-// populated operation-input slots (all sharing the same
-// spendability_address/witness) and nValidSigs real signatures over the
-// resulting operation hash (the rest are zero-signature unused slots, which
-// PublicKey.IsValid treats as automatically invalid).
-func buildAssignment(t *testing.T, nInputs, nValidSigs int) (*MultisigSpendability[emulated.Secp256k1Fp, emulated.Secp256k1Fr], [NSigners]keypair, frbn254.Element) {
+// populated operation-input slots and nValidSigs real signatures over the
+// resulting operation hash.
+func buildAssignment(t testing.TB, nInputs, nValidSigs int) (*MultisigSpendability[emulated.Secp256k1Fp, emulated.Secp256k1Fr], [NSigners]keypair, frbn254.Element) {
 	t.Helper()
 
 	keys := [NSigners]keypair{genKeypair(t), genKeypair(t), genKeypair(t)}
@@ -116,9 +96,7 @@ func buildAssignment(t *testing.T, nInputs, nValidSigs int) (*MultisigSpendabili
 		if i < nValidSigs {
 			signatures[i] = signOperationHash(t, k.priv, opHash)
 		} else {
-			// Unused slot: keep a real on-curve pubkey (required for
-			// WithIncompleteArithmetic, which doesn't handle the
-			// point-at-infinity edge case) but a zero signature.
+			// Unused slots are zeroed
 			signatures[i] = stdecdsa.Signature[emulated.Secp256k1Fr]{
 				R: emulated.ValueOf[emulated.Secp256k1Fr](0),
 				S: emulated.ValueOf[emulated.Secp256k1Fr](0),
@@ -142,9 +120,6 @@ func TestValidCircuit(t *testing.T) {
 	assert.CheckCircuit(&MultisigSpendability[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}, test.WithValidAssignment(assignment), test.WithCurves(ecc.BN254))
 }
 
-// TestMultipleInputsValid mirrors tint-password-spendability's
-// multiple_inputs test shape: several operation-input slots share the same
-// spendability_address/witness and the circuit should still be satisfiable.
 func TestMultipleInputsValid(t *testing.T) {
 	assignment, _, _ := buildAssignment(t, 3, Threshold)
 
@@ -152,8 +127,6 @@ func TestMultipleInputsValid(t *testing.T) {
 	assert.CheckCircuit(&MultisigSpendability[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}, test.WithValidAssignment(assignment), test.WithCurves(ecc.BN254))
 }
 
-// TestInvalidSignatureCountFails mirrors password-spendability's
-// invalid_secret test: fewer than Threshold valid signatures must fail.
 func TestInvalidSignatureCountFails(t *testing.T) {
 	assignment, _, _ := buildAssignment(t, 1, Threshold-1)
 
@@ -161,8 +134,6 @@ func TestInvalidSignatureCountFails(t *testing.T) {
 	assert.CheckCircuit(&MultisigSpendability[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}, test.WithInvalidAssignment(assignment), test.WithCurves(ecc.BN254))
 }
 
-// TestInvalidOperationHashFails mirrors password-spendability's
-// invalid_operation_hash test.
 func TestInvalidOperationHashFails(t *testing.T) {
 	assignment, _, opHash := buildAssignment(t, 1, Threshold)
 
@@ -173,9 +144,6 @@ func TestInvalidOperationHashFails(t *testing.T) {
 	assert.CheckCircuit(&MultisigSpendability[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}, test.WithInvalidAssignment(assignment), test.WithCurves(ecc.BN254))
 }
 
-// TestWrongPubKeyHashFails is the multisig-specific analogue of
-// password-spendability's invalid_secret test: valid signatures from a real
-// keyset, but the note's spendability_witness commits to a different keyset.
 func TestWrongPubKeyHashFails(t *testing.T) {
 	assignment, _, _ := buildAssignment(t, 1, Threshold)
 

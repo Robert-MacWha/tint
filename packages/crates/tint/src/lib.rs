@@ -1,6 +1,6 @@
 pub mod abis;
 pub mod account;
-mod array;
+pub mod array;
 pub mod circuit;
 pub mod codegen;
 mod crypto;

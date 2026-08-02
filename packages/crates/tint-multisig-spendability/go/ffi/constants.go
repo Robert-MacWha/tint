@@ -10,4 +10,5 @@ const (
 	FfiNOutputs     = int(C.N_OUTPUTS)
 	FfiNWithdrawals = int(C.N_WITHDRAWALS)
 	FfiNSigners     = int(C.N_SIGNERS)
+	FfiThreshold    = int(C.THRESHOLD)
 )

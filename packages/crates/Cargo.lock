@@ -4898,9 +4898,8 @@ dependencies = [
  "ark-std 0.6.0",
  "bindgen",
  "num-bigint",
- "serde",
- "serde_json",
  "taceo-poseidon2",
+ "thiserror",
  "tint",
 ]
 

@@ -28,6 +28,13 @@ use crate::account::{
     password::{create_password_account, load_password_account},
 };
 
+#[derive(Clone, clap::ValueEnum)]
+pub enum AccountSpendability {
+    Noop,
+    Password,
+    Multisig,
+}
+
 #[derive(Serialize, Deserialize)]
 struct StoredAccount {
     seed: String,
@@ -37,17 +44,15 @@ struct StoredAccount {
 
 /// Spendability-specific persistent state.
 #[derive(Serialize, Deserialize)]
-pub enum SpendabilityState {
+pub(crate) enum SpendabilityState {
     Noop,
-    Password,
-    Multisig { signers: [String; N_SIGNERS] },
-}
-
-#[derive(Clone, clap::ValueEnum)]
-pub enum AccountSpendability {
-    Noop,
-    Password,
-    Multisig,
+    Password {
+        address: Address,
+    },
+    Multisig {
+        address: Address,
+        signers: [String; N_SIGNERS],
+    },
 }
 
 /// Lists all local account names, returning an empty list if none exist.
@@ -76,11 +81,7 @@ pub fn list_accounts() -> anyhow::Result<Vec<String>> {
 }
 
 /// Creates a new named account, failing if one with this name already exists.
-pub fn create_account(
-    name: &str,
-    spendability: AccountSpendability,
-    spendability_address: Option<Address>,
-) -> anyhow::Result<Account> {
+pub fn create_account(name: &str, spendability: AccountSpendability) -> anyhow::Result<Account> {
     let dir = account_dir(name);
     if dir.exists() {
         anyhow::bail!("account \"{name}\" already exists at {}", dir.display());
@@ -96,8 +97,8 @@ pub fn create_account(
             Account::from_keys(keys, NoopSpendingAccount),
             SpendabilityState::Noop,
         ),
-        AccountSpendability::Password => create_password_account(keys, spendability_address)?,
-        AccountSpendability::Multisig => create_multisig_account(name, keys, spendability_address)?,
+        AccountSpendability::Password => create_password_account(name, keys)?,
+        AccountSpendability::Multisig => create_multisig_account(name, keys)?,
     };
 
     let stored = StoredAccount {
@@ -112,16 +113,16 @@ pub fn create_account(
 }
 
 /// Loads a previously created named account
-pub fn load_account(name: &str, spendability_address: Option<Address>) -> anyhow::Result<Account> {
+pub fn load_account(name: &str) -> anyhow::Result<Account> {
     let stored = read_stored_account(name)?;
     let seed = decode_seed(name, &stored.seed)?;
     let keys = Keys::from_seed(&seed);
 
     match stored.spendability {
         SpendabilityState::Noop => Ok(Account::from_keys(keys, NoopSpendingAccount)),
-        SpendabilityState::Password => load_password_account(keys, spendability_address),
-        SpendabilityState::Multisig { signers } => {
-            load_multisig_account(keys, spendability_address, &signers)
+        SpendabilityState::Password { address } => load_password_account(keys, address),
+        SpendabilityState::Multisig { address, signers } => {
+            load_multisig_account(keys, address, &signers)
         }
     }
 }

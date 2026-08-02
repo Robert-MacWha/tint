@@ -54,8 +54,8 @@ just run set-balance 100000000000000000000
 just run set-erc20-balance $TOKEN 100000000000000000000
 
 # Create tint accounts
-just run create-account alice
-just run create-account bob
+just run create alice
+just run create bob
 
 # Shield into alice's account
 just run shield alice $TOKEN 1000
@@ -80,12 +80,22 @@ just run balance alice
 
 **Password Spendability**
 ```bash
-just run create-account charlie --spendability password
+just run create charlie --spendability password
 # > enter password when prompted
 
 just run shield charlie $TOKEN 1000
 just run transfer charlie alice $TOKEN 500
 # > enter password when prompted
+```
+
+**ECDSA Multisig Spendability**
+```bash
+just run create dave --spendability multisig
+# > Enter public keys for multisig as prompted
+
+just run shield dave $TOKEN 1000
+just run transfer dave alice $TOKEN 500
+# > Enter 2-of-3 signatures for multisig as prompted
 ```
 
 ## Gas Costs

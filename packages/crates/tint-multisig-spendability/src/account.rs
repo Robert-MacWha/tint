@@ -20,6 +20,15 @@ use crate::{N_SIGNERS, THRESHOLD, ffi, pubkey_hash};
 /// own public key.
 pub trait Signer: signature::hazmat::PrehashSigner<Signature> {
     fn verifying_key(&self) -> VerifyingKey;
+
+    /// Signs `prehash`, or returns `Ok(None)` if this signer chooses not to
+    /// participate (e.g. because enough other signers already meet
+    /// `THRESHOLD`). A missing signature is encoded on-chain/in-circuit as
+    /// `r = s = 0`, which the ECDSA-verify gadget treats as automatically
+    /// invalid rather than failing proof generation.
+    fn sign_prehash_optional(&self, prehash: &[u8]) -> Result<Option<Signature>, signature::Error> {
+        self.sign_prehash(prehash).map(Some)
+    }
 }
 
 impl Signer for k256::ecdsa::SigningKey {
@@ -103,8 +112,8 @@ impl SpendingAccount for MultisigSpendingAccount<N_SIGNERS, THRESHOLD> {
         let msg = fr_to_be_bytes(operation_hash);
 
         let pub_keys = self.pub_keys();
-        let signatures: [Signature; N_SIGNERS] =
-            tint::array::try_from_fn(|i| self.signers[i].sign_prehash(&msg))
+        let signatures: [Option<Signature>; N_SIGNERS] =
+            tint::array::try_from_fn(|i| self.signers[i].sign_prehash_optional(&msg))
                 .map_err(SpendingAccountError::new)?;
 
         let solidity_proof = ffi::prove_via_go(

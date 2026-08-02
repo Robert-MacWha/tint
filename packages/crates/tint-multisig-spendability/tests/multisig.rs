@@ -50,9 +50,8 @@ async fn multisig() {
 
     // Setup spendability account
     info!("Setting up spendability account...");
-    let signers: [Box<dyn Signer + Send + Sync>; N_SIGNERS] = std::array::from_fn(|_| {
-        Box::new(SigningKey::generate()) as Box<dyn Signer + Send + Sync>
-    });
+    let signers: [Box<dyn Signer + Send + Sync>; N_SIGNERS] =
+        std::array::from_fn(|_| Box::new(SigningKey::generate()) as Box<dyn Signer + Send + Sync>);
     let spending = MultisigSpendingAccount::<N_SIGNERS, THRESHOLD>::new(
         *spendability.address(),
         signers,

@@ -1,34 +1,32 @@
 use std::io::{self, Write};
 
 use alloy::primitives::{Address, keccak256};
-use anyhow::Context;
 use ark_bn254::Fr;
 use ark_ff::PrimeField;
 use tint::account::{Account, keys::Keys};
 use tint_password_spendability::{account::PasswordSpendingAccount, circuit::PasswordSpendability};
 
-use crate::config::{SpendabilityState, load_circuit};
+use crate::{
+    account::resolve_spendability_address,
+    config::{SpendabilityState, load_circuit},
+};
+
+const SPENDABILITY_ADDRESS_ENV_VAR: &str = "PASSWORD_SPENDABILITY_ADDRESS";
 
 pub fn create_password_account(
+    name: &str,
     keys: Keys,
-    spendability_address: Option<Address>,
 ) -> anyhow::Result<(Account, SpendabilityState)> {
-    let account = password_account(keys, spendability_address)?;
-    Ok((account, SpendabilityState::Password))
+    let address = resolve_spendability_address(SPENDABILITY_ADDRESS_ENV_VAR, name)?;
+    let account = password_account(keys, address)?;
+    Ok((account, SpendabilityState::Password { address }))
 }
 
-pub fn load_password_account(
-    keys: Keys,
-    spendability_address: Option<Address>,
-) -> anyhow::Result<Account> {
-    let account = password_account(keys, spendability_address)?;
-    Ok(account)
+pub fn load_password_account(keys: Keys, address: Address) -> anyhow::Result<Account> {
+    password_account(keys, address)
 }
 
-fn password_account(keys: Keys, spendability_address: Option<Address>) -> anyhow::Result<Account> {
-    let contract_address = spendability_address
-        .context("--spendability-address is required for password-spendability accounts")?;
-
+fn password_account(keys: Keys, contract_address: Address) -> anyhow::Result<Account> {
     let (matrices, pk, vk) = load_circuit::<PasswordSpendability>("password")?;
 
     let account = PasswordSpendingAccount::new(contract_address, prompt_password, matrices, pk, vk)

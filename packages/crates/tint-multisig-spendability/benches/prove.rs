@@ -23,8 +23,8 @@ fn main() {
     operation.inputs[0].spendability_witness = witness;
 
     let msg = fr_to_b256(operation.hash()).0;
-    let signatures: [Signature; N_SIGNERS] =
-        tint::array::try_from_fn(|i| signers[i].sign_prehash(&msg)).unwrap();
+    let signatures: [Option<Signature>; N_SIGNERS] =
+        tint::array::try_from_fn(|i| signers[i].sign_prehash(&msg).map(Some)).unwrap();
 
     let ccs = ffi::artifacts::ccs_bytes().unwrap();
     let pk = ffi::artifacts::proving_key_bytes().unwrap();

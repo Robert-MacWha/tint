@@ -52,13 +52,13 @@ pub fn prove_via_go(
     spendability_address: Fr,
     operation: &Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
     pub_keys: &[VerifyingKey; N_SIGNERS],
-    signatures: &[Signature; N_SIGNERS],
+    signatures: &[Option<Signature>; N_SIGNERS],
 ) -> Result<Vec<u8>, FfiError> {
     let mut input = TintProveInput {
         spendability_address: spendability_address.into(),
         operation: operation.into(),
         pub_keys: tint::array::try_from_fn(|i| TintPubKeyXY::try_from(&pub_keys[i]))?,
-        signatures: std::array::from_fn(|i| (&signatures[i]).into()),
+        signatures: std::array::from_fn(|i| signatures[i].as_ref().into()),
     };
 
     let mut proof_ptr: *mut u8 = std::ptr::null_mut();
@@ -138,8 +138,16 @@ impl TryFrom<&VerifyingKey> for TintPubKeyXY {
     }
 }
 
-impl From<&Signature> for TintSignatureRS {
-    fn from(sig: &Signature) -> Self {
+/// A missing signature is encoded as `r = s = 0`, which the circuit's
+/// ECDSA-verify gadget treats as automatically invalid.
+impl From<Option<&Signature>> for TintSignatureRS {
+    fn from(sig: Option<&Signature>) -> Self {
+        let Some(sig) = sig else {
+            return TintSignatureRS {
+                r: Bytes32 { data: [0u8; 32] },
+                s: Bytes32 { data: [0u8; 32] },
+            };
+        };
         let (r, s) = sig.split_bytes();
         TintSignatureRS {
             r: Bytes32 { data: r.into() },

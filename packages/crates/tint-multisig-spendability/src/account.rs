@@ -107,9 +107,10 @@ impl SpendingAccount for MultisigSpendingAccount<N_SIGNERS, THRESHOLD> {
             tint::array::try_from_fn(|i| self.signers[i].sign_prehash(&msg))
                 .map_err(SpendingAccountError::new)?;
 
-        let (public_inputs, proof) = ffi::prove_via_go(
+        let solidity_proof = ffi::prove_via_go(
             &self.ccs,
             &self.pk,
+            &self.vk,
             address_to_fr(self.contract_address),
             &operation,
             &pub_keys,
@@ -117,15 +118,13 @@ impl SpendingAccount for MultisigSpendingAccount<N_SIGNERS, THRESHOLD> {
         )
         .map_err(SpendingAccountError::new)?;
 
-        ffi::verify_via_go(&self.vk, &proof, &public_inputs).map_err(SpendingAccountError::new)?;
-
         Ok(SpendableCommitment::new(
             base.inner.asset,
             base.inner.amount,
             base.nullifier_key,
             self.spendability_address(),
             self.spendability_witness(),
-            Bytes::from(proof),
+            Bytes::from(solidity_proof),
             base.inner.random,
         ))
     }
@@ -158,9 +157,9 @@ mod tests {
         let account = MultisigSpendingAccount::<N_SIGNERS, THRESHOLD>::new(
             contract_address,
             signers,
-            ffi::artifacts::ccs_bytes(),
-            ffi::artifacts::proving_key_bytes(),
-            ffi::artifacts::verifying_key_bytes(),
+            ffi::artifacts::ccs_bytes().unwrap(),
+            ffi::artifacts::proving_key_bytes().unwrap(),
+            ffi::artifacts::verifying_key_bytes().unwrap(),
         )
         .unwrap();
 

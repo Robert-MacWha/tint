@@ -32,6 +32,22 @@ pub struct PasswordSpendingAccount {
 impl PasswordSpendingAccount {
     pub fn new(
         contract_address: Address,
+        secret: impl FnOnce() -> Result<Fr, Box<dyn std::error::Error + Send + Sync>>,
+        matrices: Matrices<Fr>,
+        pk: ProvingKey<Bn254>,
+        vk: VerifyingKey<Bn254>,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        Ok(Self {
+            contract_address,
+            secret: secret()?,
+            matrices,
+            pk,
+            vk,
+        })
+    }
+
+    pub fn new_const(
+        contract_address: Address,
         secret: Fr,
         matrices: Matrices<Fr>,
         pk: ProvingKey<Bn254>,

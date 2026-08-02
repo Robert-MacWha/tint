@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {ISpendability} from "../interfaces/ISpendability.sol";
-import {IPrivacyPool} from "../interfaces/IPrivacyPool.sol";
-import {ProofLib} from "../lib/ProofLib.sol";
-import {N_INPUTS} from "../lib/Constants.sol";
+import {ISpendability} from "../../interfaces/ISpendability.sol";
+import {IPrivacyPool} from "../../interfaces/IPrivacyPool.sol";
+import {ProofLib} from "../../lib/ProofLib.sol";
+import {N_INPUTS} from "../../lib/Constants.sol";
 import {PasswordSpendabilityVerifier} from "./PasswordSpendabilityVerifier.sol";
 
 /// @notice Password spendability rule that verifies knowledge of a password

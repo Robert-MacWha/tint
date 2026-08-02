@@ -31,3 +31,6 @@ x25519-dalek = { workspace = true }
 rand_core = { workspace = true, features = ["getrandom"] }
 ark-relations = { workspace = true }
 tint-password-spendability = { workspace = true }
+tint-multisig-spendability = { workspace = true }
+k256 = { workspace = true }
+signature = { workspace = true }

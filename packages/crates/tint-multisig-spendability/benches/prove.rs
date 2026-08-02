@@ -1,9 +1,9 @@
 use std::time::Instant;
 
 use alloy_primitives::Address;
+use k256::ecdsa::signature::hazmat::PrehashSigner;
 use k256::ecdsa::{Signature, SigningKey, VerifyingKey};
 use k256::elliptic_curve::Generate;
-use signature::hazmat::PrehashSigner;
 use tint::{
     circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
     fr::{address_to_fr, fr_to_b256},
@@ -26,13 +26,15 @@ fn main() {
     let signatures: [Signature; N_SIGNERS] =
         tint::array::try_from_fn(|i| signers[i].sign_prehash(&msg)).unwrap();
 
-    let ccs = ffi::artifacts::ccs_bytes();
-    let pk = ffi::artifacts::proving_key_bytes();
+    let ccs = ffi::artifacts::ccs_bytes().unwrap();
+    let pk = ffi::artifacts::proving_key_bytes().unwrap();
+    let vk = ffi::artifacts::verifying_key_bytes().unwrap();
 
     let prove_start = Instant::now();
     let _ = ffi::prove_via_go(
         &ccs,
         &pk,
+        &vk,
         address_to_fr(contract_address),
         &operation,
         &pub_keys,
@@ -41,5 +43,5 @@ fn main() {
     .unwrap();
     let prove_time = prove_start.elapsed();
 
-    println!("groth16 prove (go ffi): {:?}", prove_time);
+    println!("groth16 prove+verify+solidity (go ffi): {:?}", prove_time);
 }

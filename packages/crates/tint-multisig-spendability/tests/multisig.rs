@@ -3,9 +3,9 @@ mod common;
 use std::sync::Arc;
 
 use alloy_primitives::U256;
-use ark_bn254::Fr;
-use ark_std::rand::rngs::StdRng;
-use rand_core::SeedableRng;
+use ark_std::rand::{SeedableRng, rngs::StdRng};
+use k256::ecdsa::SigningKey;
+use k256::elliptic_curve::Generate;
 use tint::{
     account::{Account, keys::Keys, spending::NoopSpendingAccount},
     circuit::{generate_artifacts, join_split::JoinSplit},
@@ -14,15 +14,21 @@ use tint::{
     note::asset::AssetId,
     provider::Provider,
 };
-use tint_password_spendability::{account::PasswordSpendingAccount, circuit::PasswordSpendability};
+use tint_multisig_spendability::{
+    N_SIGNERS, THRESHOLD,
+    account::{MultisigSpendingAccount, Signer},
+    ffi,
+};
 use tracing::info;
 
 use crate::common::anvil;
 
-/// Test that we can spend a note using the `PasswordSpendability` circuit.
+/// Test that we can spend a note using the `MultisigSpendability` circuit,
+/// including on-chain verification via the generated (uncompressed) Solidity
+/// verifier.
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
-async fn password() {
+async fn multisig() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
         .add_directive("gr1cs=off".parse().unwrap())
@@ -41,18 +47,20 @@ async fn password() {
     // Setup circuits
     info!("Setting up circuits...");
     let (matrices, proving_key, verifying_key) = generate_artifacts::<JoinSplit>().unwrap();
-    let (spendability_matrices, spendability_proving_key, spendability_verifying_key) =
-        generate_artifacts::<PasswordSpendability>().unwrap();
 
     // Setup spendability account
     info!("Setting up spendability account...");
-    let spending = PasswordSpendingAccount::new_const(
-        spendability.address().clone(),
-        Fr::from(1234),
-        spendability_matrices,
-        spendability_proving_key,
-        spendability_verifying_key,
-    );
+    let signers: [Box<dyn Signer + Send + Sync>; N_SIGNERS] = std::array::from_fn(|_| {
+        Box::new(SigningKey::generate()) as Box<dyn Signer + Send + Sync>
+    });
+    let spending = MultisigSpendingAccount::<N_SIGNERS, THRESHOLD>::new(
+        *spendability.address(),
+        signers,
+        ffi::artifacts::ccs_bytes().unwrap(),
+        ffi::artifacts::proving_key_bytes().unwrap(),
+        ffi::artifacts::verifying_key_bytes().unwrap(),
+    )
+    .unwrap();
     let account_1 = Account::from_keys(Keys::from_seed(&[11u8; 32]), spending);
     let account_2 = Account::from_keys(Keys::from_seed(&[22u8; 32]), NoopSpendingAccount);
 
@@ -98,11 +106,11 @@ async fn password() {
 
     let notes = tint_provider.notes(account_1.receiver());
 
-    // Spend the note, which is only spendable using the `PasswordSpendability` contract / circuit.
+    // Spend the note, which is only spendable using the `MultisigSpendability` contract / circuit.
     info!("Spending note");
     let call = tint_provider
         .operate(
-            [notes[0].clone()],
+            [*notes[0]],
             [
                 (account_1.receiver(), asset, amount - 100),
                 (account_2.receiver(), asset, 100),

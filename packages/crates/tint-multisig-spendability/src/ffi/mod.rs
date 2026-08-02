@@ -29,29 +29,31 @@ mod bindings {
 }
 use bindings::{
     Bytes32, FreeBytes, TintBaseCommitment, TintOperation, TintProve, TintProveInput, TintPubKeyXY,
-    TintSignatureRS, TintSpendableCommitment, TintVerify, TintWithdrawal,
+    TintSignatureRS, TintSpendableCommitment, TintWithdrawal,
 };
 
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum FfiError {
     #[error("Prove failed with status code {0}")]
     ProveFailed(u8),
-    #[error("Verify failed with status code {0}")]
-    VerifyFailed(u8),
     #[error(transparent)]
     InvalidPublicKey(#[from] crate::pubkey_hash::InvalidPublicKey),
 }
 
-/// Calls into Go's Prove. Returns `(public_inputs, proof)` on success or
-/// TintProve's raw status code on failure.
+/// Generates a proof for the multisig-spendability circuit using gnark
+/// for the given inputs.
+///
+/// Returns the proof as solidity-verifier-compatible bytes on success or
+/// the status code on failure.
 pub fn prove_via_go(
     ccs: &[u8],
     pk: &[u8],
+    vk: &[u8],
     spendability_address: Fr,
     operation: &Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
     pub_keys: &[VerifyingKey; N_SIGNERS],
     signatures: &[Signature; N_SIGNERS],
-) -> Result<(Vec<u8>, Vec<u8>), FfiError> {
+) -> Result<Vec<u8>, FfiError> {
     let mut input = TintProveInput {
         spendability_address: spendability_address.into(),
         operation: operation.into(),
@@ -59,8 +61,6 @@ pub fn prove_via_go(
         signatures: std::array::from_fn(|i| (&signatures[i]).into()),
     };
 
-    let mut public_inputs_ptr: *mut u8 = std::ptr::null_mut();
-    let mut public_inputs_len: usize = 0;
     let mut proof_ptr: *mut u8 = std::ptr::null_mut();
     let mut proof_len: usize = 0;
 
@@ -70,9 +70,9 @@ pub fn prove_via_go(
             ccs.len(),
             pk.as_ptr().cast_mut(),
             pk.len(),
+            vk.as_ptr().cast_mut(),
+            vk.len(),
             &mut input,
-            &mut public_inputs_ptr,
-            &mut public_inputs_len,
             &mut proof_ptr,
             &mut proof_len,
         )
@@ -82,36 +82,9 @@ pub fn prove_via_go(
         return Err(FfiError::ProveFailed(status));
     }
 
-    let public_inputs =
-        unsafe { std::slice::from_raw_parts(public_inputs_ptr, public_inputs_len) }.to_vec();
     let proof = unsafe { std::slice::from_raw_parts(proof_ptr, proof_len) }.to_vec();
-    unsafe {
-        FreeBytes(public_inputs_ptr);
-        FreeBytes(proof_ptr);
-    }
-    Ok((public_inputs, proof))
-}
-
-/// Calls into Go's Verify. Returns `Ok(())` on success or TintVerify's raw status code on failure.
-///
-/// TODO: Remove this and replace with arkworks verification in rust.
-pub fn verify_via_go(vk: &[u8], proof: &[u8], public_inputs: &[u8]) -> Result<(), FfiError> {
-    let status = unsafe {
-        TintVerify(
-            proof.as_ptr().cast_mut(),
-            proof.len(),
-            vk.as_ptr().cast_mut(),
-            vk.len(),
-            public_inputs.as_ptr().cast_mut(),
-            public_inputs.len(),
-        )
-    };
-
-    if status != 0 {
-        return Err(FfiError::VerifyFailed(status));
-    }
-
-    Ok(())
+    unsafe { FreeBytes(proof_ptr) };
+    Ok(proof)
 }
 
 impl From<&Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>> for TintOperation {

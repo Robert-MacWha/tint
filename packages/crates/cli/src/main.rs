@@ -1,3 +1,4 @@
+mod account;
 mod chain;
 mod config;
 
@@ -21,7 +22,7 @@ enum Command {
         /// The spendability rule for this account
         #[arg(long, value_enum, default_value = "noop")]
         spendability: config::AccountSpendability,
-        /// The on-chain PasswordSpendability contract address (required only for --spendability password)
+        /// The on-chain spendability contract address (required only for --spendability password/multisig)
         #[arg(long, env = "SPENDABILITY_ADDRESS")]
         spendability_address: Option<Address>,
     },

@@ -1781,11 +1781,14 @@ dependencies = [
  "ark-serialize 0.6.0",
  "brotli",
  "clap",
+ "k256 0.14.0",
  "rand_core 0.6.4",
  "rustls",
  "serde",
  "serde_json",
+ "signature 3.0.0",
  "tint",
+ "tint-multisig-spendability",
  "tint-password-spendability",
  "tokio",
  "tracing",
@@ -5136,7 +5139,14 @@ dependencies = [
 name = "tint-multisig-spendability"
 version = "0.1.0"
 dependencies = [
+ "alloy-contract",
+ "alloy-node-bindings",
  "alloy-primitives",
+ "alloy-provider",
+ "alloy-signer-local",
+ "alloy-sol-macro",
+ "alloy-sol-types",
+ "anyhow",
  "ark-bn254",
  "ark-ec",
  "ark-ff 0.6.0",
@@ -5152,6 +5162,8 @@ dependencies = [
  "thiserror",
  "tint",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

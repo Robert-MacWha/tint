@@ -4,10 +4,10 @@ pragma solidity ^0.8.24;
 import {Script, console} from "forge-std/Script.sol";
 import {
     PasswordSpendabilityVerifier
-} from "../src/spendability/PasswordSpendabilityVerifier.sol";
+} from "../src/spendability/password/PasswordSpendabilityVerifier.sol";
 import {
     PasswordSpendability
-} from "../src/spendability/PasswordSpendability.sol";
+} from "../src/spendability/password/PasswordSpendability.sol";
 
 /// Deploys the PasswordSpendabilityContract. Usage:
 ///   forge script script/DeployPasswordSpendability.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast

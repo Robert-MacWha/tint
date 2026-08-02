@@ -1,13 +1,11 @@
 use std::{
     fs,
-    io::{self, Write},
     path::{Path, PathBuf},
 };
 
-use alloy::primitives::{Address, keccak256};
+use alloy::primitives::{Address, hex};
 use anyhow::Context;
 use ark_bn254::{Bn254, Fr};
-use ark_ff::PrimeField;
 use ark_groth16::{ProvingKey, VerifyingKey};
 use ark_relations::gr1cs::ConstraintSynthesizer;
 use serde::{Deserialize, Serialize};
@@ -22,20 +20,34 @@ use tint::{
         matrices::Matrices,
     },
 };
-use tint_password_spendability::{account::PasswordSpendingAccount, circuit::PasswordSpendability};
+use tint_multisig_spendability::N_SIGNERS;
 use tracing::info;
+
+use crate::account::{
+    multisig::{create_multisig_account, load_multisig_account},
+    password::{create_password_account, load_password_account},
+};
 
 #[derive(Serialize, Deserialize)]
 struct StoredAccount {
     seed: String,
     receiver: Receiver,
-    spendability: AccountSpendability,
+    spendability: SpendabilityState,
 }
 
-#[derive(Clone, Serialize, Deserialize, clap::ValueEnum)]
+/// Spendability-specific persistent state.
+#[derive(Serialize, Deserialize)]
+pub enum SpendabilityState {
+    Noop,
+    Password,
+    Multisig { signers: [String; N_SIGNERS] },
+}
+
+#[derive(Clone, clap::ValueEnum)]
 pub enum AccountSpendability {
     Noop,
     Password,
+    Multisig,
 }
 
 /// Lists all local account names, returning an empty list if none exist.
@@ -77,15 +89,21 @@ pub fn create_account(
 
     let mut seed = [0u8; 32];
     rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut seed);
+    let keys = Keys::from_seed(&seed);
 
-    let account = account_from_seed(&seed, spendability.clone(), spendability_address, || {
-        prompt_new_password(name)
-    })?;
+    let (account, state) = match spendability {
+        AccountSpendability::Noop => (
+            Account::from_keys(keys, NoopSpendingAccount),
+            SpendabilityState::Noop,
+        ),
+        AccountSpendability::Password => create_password_account(keys, spendability_address)?,
+        AccountSpendability::Multisig => create_multisig_account(name, keys, spendability_address)?,
+    };
 
     let stored = StoredAccount {
-        seed: alloy::primitives::hex::encode_prefixed(seed),
+        seed: hex::encode_prefixed(seed),
         receiver: account.receiver(),
-        spendability,
+        spendability: state,
     };
     fs::write(account_file(name), serde_json::to_string_pretty(&stored)?)
         .with_context(|| format!("writing account file for \"{name}\""))?;
@@ -93,80 +111,33 @@ pub fn create_account(
     Ok(account)
 }
 
-/// Loads a previously created named account, prompting for its password if
-/// it uses password spendability.
+/// Loads a previously created named account
 pub fn load_account(name: &str, spendability_address: Option<Address>) -> anyhow::Result<Account> {
     let stored = read_stored_account(name)?;
     let seed = decode_seed(name, &stored.seed)?;
+    let keys = Keys::from_seed(&seed);
 
-    account_from_seed(&seed, stored.spendability, spendability_address, || {
-        prompt_password(name)
-    })
-}
-
-/// Loads a previously created named account's receiver without requiring its
-/// password. Used to look up someone else's receiver (e.g. a transfer
-/// recipient), which shouldn't require unlocking their account.
-pub fn load_receiver(name: &str) -> anyhow::Result<Receiver> {
-    Ok(read_stored_account(name)?.receiver)
-}
-
-/// Builds an [`Account`] from a seed and spendability configuration, prompting
-/// for a password (via `password`) only if the spendability rule needs one.
-fn account_from_seed(
-    seed: &[u8; 32],
-    spendability: AccountSpendability,
-    spendability_address: Option<Address>,
-    password: impl FnOnce() -> anyhow::Result<String>,
-) -> anyhow::Result<Account> {
-    let keys = Keys::from_seed(seed);
-    match spendability {
-        AccountSpendability::Noop => Ok(Account::from_keys(keys, NoopSpendingAccount)),
-        AccountSpendability::Password => {
-            let contract_address = spendability_address
-                .context("--spendability-address is required for password-spendability accounts")?;
-            let secret = password_secret(&password()?);
-            let (matrices, pk, vk) = load_circuit::<PasswordSpendability>("password")?;
-            Ok(Account::from_keys(
-                keys,
-                PasswordSpendingAccount::new(contract_address, secret, matrices, pk, vk),
-            ))
+    match stored.spendability {
+        SpendabilityState::Noop => Ok(Account::from_keys(keys, NoopSpendingAccount)),
+        SpendabilityState::Password => load_password_account(keys, spendability_address),
+        SpendabilityState::Multisig { signers } => {
+            load_multisig_account(keys, spendability_address, &signers)
         }
     }
 }
 
-/// Derives the spendability secret from a password. This is a toy CLI, so
-/// this is intentionally simple: no salt, just a direct hash.
-fn password_secret(password: &str) -> Fr {
-    Fr::from_le_bytes_mod_order(&keccak256(password.as_bytes()).0)
+/// Loads a previously created named account's receiver.
+pub fn load_receiver(name: &str) -> anyhow::Result<Receiver> {
+    Ok(read_stored_account(name)?.receiver)
 }
 
-/// Prompts for a password, echoing input (this is a toy CLI, not a secure one).
-fn prompt_password(name: &str) -> anyhow::Result<String> {
-    print!("Password for \"{name}\": ");
-    io::stdout().flush()?;
-
-    let mut password = String::new();
-    io::stdin().read_line(&mut password)?;
-    Ok(password.trim_end().to_string())
+fn decode_seed(name: &str, seed: &str) -> anyhow::Result<[u8; 32]> {
+    let seed_bytes = hex::decode(seed)?;
+    seed_bytes
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("corrupt account file for \"{name}\": seed is not 32 bytes"))
 }
 
-/// Prompts for a new password twice, failing if they don't match.
-fn prompt_new_password(name: &str) -> anyhow::Result<String> {
-    let password = prompt_password(name)?;
-
-    print!("Confirm password for \"{name}\": ");
-    io::stdout().flush()?;
-    let mut confirmation = String::new();
-    io::stdin().read_line(&mut confirmation)?;
-
-    if password != confirmation.trim_end() {
-        anyhow::bail!("passwords do not match");
-    }
-    Ok(password)
-}
-
-/// Reads and parses a previously created named account's file.
 fn read_stored_account(name: &str) -> anyhow::Result<StoredAccount> {
     let path = account_file(name);
     let contents = fs::read_to_string(&path).with_context(|| {
@@ -176,13 +147,6 @@ fn read_stored_account(name: &str) -> anyhow::Result<StoredAccount> {
         )
     })?;
     Ok(serde_json::from_str(&contents)?)
-}
-
-fn decode_seed(name: &str, seed: &str) -> anyhow::Result<[u8; 32]> {
-    let seed_bytes = alloy::primitives::hex::decode(seed)?;
-    seed_bytes
-        .try_into()
-        .map_err(|_| anyhow::anyhow!("corrupt account file for \"{name}\": seed is not 32 bytes"))
 }
 
 /// Loads the cached Groth16 proving/verifying keys from disk, generating and

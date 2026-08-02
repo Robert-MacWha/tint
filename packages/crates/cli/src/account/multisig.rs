@@ -8,6 +8,7 @@ use tint_multisig_spendability::{
     account::{MultisigSpendingAccount, Signer},
     ffi::artifacts as multisig_artifacts,
 };
+use tracing::info;
 
 use crate::{account::resolve_spendability_address, config::SpendabilityState};
 
@@ -117,17 +118,17 @@ fn prompt_signature(
     let hash_hex = hex::encode_prefixed(prehash);
     let pubkey_hex = hex::encode_prefixed(&verifying_key.to_sec1_point(false).as_bytes()[1..]);
     let signer_number = index + 1;
-    println!(
-        "Signer {signer_number} (pubkey {pubkey_hex}) needs to sign the operation hash:\n  {hash_hex}\ne.g. `cast wallet sign --no-hash {hash_hex} --private-key <key>`"
-    );
-    print!("Paste the resulting signature, or leave blank to skip this signer: ");
+    info!("Operation hash: {hash_hex}");
+    info!("Signer {signer_number} ({pubkey_hex})");
+    print!("Paste the resulting signature: ");
     io::stdout().flush()?;
 
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
     let input = input.trim();
     if input.is_empty() {
-        println!("Skipping signer {signer_number}");
+        info!("Skipping signer {signer_number}");
+        println!();
         return Ok(None);
     }
 
@@ -137,5 +138,6 @@ fn prompt_signature(
         65 => &bytes[..64],
         n => return Err(format!("expected a 64 or 65 byte signature, got {n} bytes").into()),
     };
+    println!();
     Ok(Some(Signature::from_slice(sig_bytes)?))
 }

@@ -119,7 +119,7 @@ impl PasswordSpendabilityVar {
         for input in &self.operation.inputs {
             let spendability_addresses_eq =
                 input.spendability_address.is_eq(spendability_address)?;
-            let expected_witness = poseidon2_compress_gadget(&[self.secret.clone()])?;
+            let expected_witness = poseidon2_compress_gadget(core::array::from_ref(&self.secret))?;
             input
                 .spendability_witness
                 .conditional_enforce_equal(&expected_witness, &spendability_addresses_eq)?;

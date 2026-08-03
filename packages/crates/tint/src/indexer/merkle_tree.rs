@@ -82,6 +82,7 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
         self.levels[D].first().copied().unwrap_or(self.zeros[D])
     }
 
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.levels[0].len()
     }
@@ -112,8 +113,8 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
         for m in 0..PATH_LEN {
             let cur_level = level + m;
             let group_start = (index / K) * K;
-            for k in 0..K {
-                siblings[PATH_LEN - 1 - m][k] = self.levels[cur_level]
+            for (k, slot) in siblings[PATH_LEN - 1 - m].iter_mut().enumerate().take(K) {
+                *slot = self.levels[cur_level]
                     .get(group_start + k)
                     .copied()
                     .unwrap_or(self.zeros[cur_level]);

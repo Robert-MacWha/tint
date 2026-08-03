@@ -3,6 +3,9 @@ name = "tint"
 version = "0.1.0"
 edition = "2024"
 
+[package.metadata.cargo-machete]
+ignored = ["ruint"]
+
 [features]
 default = []
 parallel = ["ark-groth16/parallel"]
@@ -27,7 +30,6 @@ ark-r1cs-std = { workspace = true }
 ark-relations = { workspace = true }
 ark-poly = { workspace = true }
 async-trait = { workspace = true }
-ruint = { workspace = true, features = ["ark-ff-06"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 x25519-dalek = { workspace = true, features = ["static_secrets", "serde"] }
@@ -42,8 +44,8 @@ serde = { workspace = true }
 taceo-poseidon2 = { workspace = true, features = ["t2", "t3", "t8"] }
 serde_with = { workspace = true }
 ark-serialize = { workspace = true }
-brotli = { workspace = true }
-rayon = "1.8"
+ruint = { workspace = true, features = ["ark-ff-06"] }
+rayon = { workspace = true }
 
 [dev-dependencies]
 circuit-profiler = { workspace = true }

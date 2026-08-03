@@ -58,9 +58,9 @@ impl Receiver {
             .ok_or(ReceiverAddressError::InvalidLength)?;
 
         let nullifier_pub_key =
-            NullifierPubKey(Fr::from_le_bytes_mod_order(nullifier_pub_key_bytes));
+            NullifierPubKey(Fr::from_be_bytes_mod_order(nullifier_pub_key_bytes));
         let encryption_pub_key = EncryptionPubKey(PublicKey::from(encryption_pub_key_bytes));
-        let spendability_hash = Fr::from_le_bytes_mod_order(spendability_hash_bytes);
+        let spendability_hash = Fr::from_be_bytes_mod_order(spendability_hash_bytes);
         Ok(Self {
             nullifier_pub_key,
             encryption_pub_key,

@@ -163,7 +163,7 @@ mod tests {
         };
         let mut rng = StdRng::seed_from_u64(1);
         let (public_inputs, proof) =
-            prove_with_matrices(&artifacts.matrices, &artifacts.pk, circuit, &mut rng).unwrap();
+            prove_with_matrices(&artifacts.matrices, &artifacts.pk, &circuit, &mut rng).unwrap();
 
         assert!(Groth16::<Bn254>::verify(&artifacts.vk, &public_inputs, &proof).unwrap());
     }

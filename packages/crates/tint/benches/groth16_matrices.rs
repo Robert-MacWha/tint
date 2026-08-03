@@ -23,13 +23,7 @@ fn main() {
     let baseline_prove_time = baseline_prove_start.elapsed();
 
     let matrices_prove_start = Instant::now();
-    let _ = prove_with_matrices(
-        &artifacts.matrices,
-        &artifacts.pk,
-        circuit.clone(),
-        &mut rng,
-    )
-    .unwrap();
+    let _ = prove_with_matrices(&artifacts.matrices, &artifacts.pk, &circuit, &mut rng).unwrap();
     let matrices_prove_time = matrices_prove_start.elapsed();
 
     println!("groth16 prove (baseline): {:?}", baseline_prove_time);

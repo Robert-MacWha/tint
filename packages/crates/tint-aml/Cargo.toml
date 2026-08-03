@@ -12,6 +12,5 @@ ark-relations = { workspace = true }
 ark-r1cs-std = { workspace = true }
 tint = { workspace = true }
 tracing = { workspace = true }
-ark-ed-on-bn254 = { workspace = true }
 
 [dev-dependencies]

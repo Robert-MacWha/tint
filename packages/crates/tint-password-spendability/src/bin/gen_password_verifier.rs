@@ -8,8 +8,10 @@ use std::path::Path;
 use tint::{circuit::generate_artifacts, codegen};
 use tint_password_spendability::circuit::PasswordSpendability;
 
+#[allow(clippy::expect_used)]
 fn main() {
-    let artifacts = generate_artifacts::<PasswordSpendability>().unwrap();
+    let artifacts =
+        generate_artifacts::<PasswordSpendability>().expect("failed to generate artifacts");
 
     println!("Generating PasswordSpendabilityVerifier.sol");
     let solidity =

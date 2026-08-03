@@ -7,6 +7,7 @@
 
 use std::{env, path::PathBuf, process::Command};
 
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let go_dir = manifest_dir.join("go");
@@ -21,9 +22,10 @@ fn main() {
         .arg("./ffi")
         .status()
         .expect("failed to invoke `go build` — is Go on PATH? (`nix develop` provides it)");
-    if !status.success() {
-        panic!("`go build -buildmode=c-archive ./ffi` failed");
-    }
+    assert!(
+        status.success(),
+        "`go build -buildmode=c-archive ./ffi` failed"
+    );
 
     println!("cargo:rustc-link-search=native={}", out_dir.display());
     println!("cargo:rustc-link-lib=static=tint_multisig");

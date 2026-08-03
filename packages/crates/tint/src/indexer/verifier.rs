@@ -51,7 +51,7 @@ impl<P: Provider> Verifier for RpcVerifier<P> {
         let index = Tint::rootsCall::abi_decode_returns(&result)?;
 
         if index == 0 {
-            return Err(format!("root {} not registered on-chain by block {block}", root).into());
+            return Err(format!("root {root} not registered on-chain by block {block}").into());
         }
         Ok(())
     }

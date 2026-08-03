@@ -9,18 +9,22 @@ pub struct Withdrawal {
 }
 
 impl Withdrawal {
+    #[must_use] 
     pub fn new(asset: AssetId, amount: u128) -> Self {
         Withdrawal { asset, amount }
     }
 
+    #[must_use] 
     pub fn asset_fr(&self) -> Fr {
         Fr::from(self.asset)
     }
 
+    #[must_use] 
     pub fn amount_fr(&self) -> Fr {
         Fr::from(self.amount)
     }
 
+    #[must_use] 
     pub fn hash(&self) -> Fr {
         poseidon2_compress(&[self.asset_fr(), self.amount_fr()])
     }

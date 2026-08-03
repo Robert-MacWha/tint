@@ -28,7 +28,7 @@ pub fn prove_with_matrices<
 >(
     matrices: &Matrices<E::ScalarField>,
     pk: &ProvingKey<E>,
-    circuit: C,
+    circuit: &C,
     rng: &mut R,
 ) -> Result<(Vec<E::ScalarField>, Proof<E>), SynthesisError> {
     let r = E::ScalarField::rand(rng);
@@ -51,13 +51,13 @@ pub fn prove_with_matrices<
         s,
         matrices,
         &full_assignment,
-    )
-    .unwrap();
+    )?;
 
     Ok((public_inputs, proof))
 }
 
 impl<F: PrimeField> Matrices<F> {
+    #[must_use]
     pub fn new(
         matrices: Vec<Vec<Vec<(F, usize)>>>,
         num_inputs: usize,

@@ -65,6 +65,7 @@ pub struct Provider {
 }
 
 impl Provider {
+    #[must_use]
     pub fn new(indexer: Indexer, artifacts: Artifacts<Bn254>) -> Self {
         Self {
             indexer,
@@ -84,6 +85,7 @@ impl Provider {
     }
 
     /// Returns the notes owned by `receiver`.
+    #[must_use]
     pub fn notes(&self, receiver: Receiver) -> Vec<&NullifiableCommitment> {
         self.indexer.notes(receiver)
     }
@@ -170,7 +172,7 @@ impl Provider {
         info!("Proving operation...");
         let outputs = circuit.synthesize_outputs()?;
         let (public_inputs, proof) =
-            prove_with_matrices(&self.artifacts.matrices, &self.artifacts.pk, circuit, rng)?;
+            prove_with_matrices(&self.artifacts.matrices, &self.artifacts.pk, &circuit, rng)?;
 
         // Smoke-test the proof locally
         if !Groth16::<Bn254>::verify(&self.artifacts.vk, &public_inputs, &proof)? {
@@ -217,12 +219,12 @@ impl Provider {
 
         let subtree_append = self.indexer.commit()?;
 
-        let (output_commitments, output_withdrawals) = build_outputs(outputs, withdrawals, rng)?;
+        let (output_commitments, output_withdrawals) = build_outputs(outputs, withdrawals, rng);
 
         let placeholder_inputs: [SpendableCommitment; I] =
             inputs.map(|note| note.as_pending_spendable());
         let mut operation =
-            assemble_operation(&placeholder_inputs, output_commitments, output_withdrawals)?;
+            assemble_operation(&placeholder_inputs, output_commitments, output_withdrawals);
 
         let mut resolved_inputs: [SpendableCommitment; I] = repeat(SpendableCommitment::default());
         for (i, note) in inputs.iter().enumerate() {
@@ -314,7 +316,7 @@ fn build_outputs<const O: usize, const W: usize, R: RngCore + CryptoRng>(
     outputs: &[(Receiver, AssetId, u128); O],
     withdrawals: &[(Address, AssetId, u128); W],
     rng: &mut R,
-) -> Result<([BaseCommitment; N_OUTPUTS], [Withdrawal; N_WITHDRAWALS]), ProviderError> {
+) -> ([BaseCommitment; N_OUTPUTS], [Withdrawal; N_WITHDRAWALS]) {
     const {
         assert!(O <= N_OUTPUTS, "too many outputs");
         assert!(W <= N_WITHDRAWALS, "too many withdrawals");
@@ -331,16 +333,17 @@ fn build_outputs<const O: usize, const W: usize, R: RngCore + CryptoRng>(
         output_withdrawals[i] = Withdrawal::new(*asset, *amount);
     }
 
-    Ok((output_commitments, output_withdrawals))
+    (output_commitments, output_withdrawals)
 }
 
 /// Pads `inputs` up to the circuit's fixed slot count and assembles an `Operation`
 /// from them and already-built outputs/withdrawals.
+#[allow(clippy::large_types_passed_by_value)]
 fn assemble_operation<const I: usize>(
     inputs: &[SpendableCommitment; I],
     output_commitments: [BaseCommitment; N_OUTPUTS],
     output_withdrawals: [Withdrawal; N_WITHDRAWALS],
-) -> Result<Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>, ProviderError> {
+) -> Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
     const {
         assert!(I <= N_INPUTS, "too many inputs");
     }
@@ -350,11 +353,7 @@ fn assemble_operation<const I: usize>(
         input_commitments[i] = input.clone();
     }
 
-    Ok(Operation::new(
-        input_commitments,
-        output_commitments,
-        output_withdrawals,
-    ))
+    Operation::new(input_commitments, output_commitments, output_withdrawals)
 }
 
 fn spendability_inputs<const I: usize>(inputs: &[SpendableCommitment; I]) -> [Bytes; N_INPUTS] {

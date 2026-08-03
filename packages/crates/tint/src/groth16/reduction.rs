@@ -1,6 +1,7 @@
 use ark_ec::pairing::Pairing;
 use ark_ff::{FftField, Field};
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
+use ark_relations::gr1cs::SynthesisError;
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
@@ -18,7 +19,7 @@ pub trait R1CSToQAP {
     fn witness_map_from_matrices<P: Pairing>(
         matrices: &Matrices<P::ScalarField>,
         witness: &[P::ScalarField],
-    ) -> anyhow::Result<Vec<P::ScalarField>>;
+    ) -> Result<Vec<P::ScalarField>, SynthesisError>;
 }
 
 fn evaluate_constraint<P: Pairing>(
@@ -54,16 +55,16 @@ impl R1CSToQAP for LibSnarkReduction {
     fn witness_map_from_matrices<P: Pairing>(
         matrices: &Matrices<P::ScalarField>,
         witness: &[P::ScalarField],
-    ) -> anyhow::Result<Vec<P::ScalarField>> {
+    ) -> Result<Vec<P::ScalarField>, SynthesisError> {
         let num_constraints = matrices.num_constraints;
         let num_inputs = matrices.num_inputs;
         let domain = GeneralEvaluationDomain::<P::ScalarField>::new(num_constraints + num_inputs)
-            .ok_or(anyhow::anyhow!("Polynomial Degree too large"))?;
+            .ok_or(SynthesisError::PolynomialDegreeTooLarge)?;
         let domain_size = domain.size();
 
         let coset_domain = domain
             .get_coset(P::ScalarField::GENERATOR)
-            .expect("generator has always inverse");
+            .ok_or(SynthesisError::PolynomialDegreeTooLarge)?;
 
         let (mut ab, c) = rayon::join(
             || {
@@ -114,7 +115,7 @@ impl R1CSToQAP for LibSnarkReduction {
         let vanishing_polynomial_over_coset = domain
             .evaluate_vanishing_polynomial(P::ScalarField::GENERATOR)
             .inverse()
-            .expect("Inverse exists");
+            .ok_or(SynthesisError::DivisionByZero)?;
 
         ab.par_iter_mut().zip(c.par_iter()).for_each(|(ab_i, c_i)| {
             *ab_i -= *c_i;

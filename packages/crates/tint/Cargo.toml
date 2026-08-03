@@ -43,7 +43,6 @@ taceo-poseidon2 = { workspace = true, features = ["t2", "t3", "t8"] }
 serde_with = { workspace = true }
 ark-serialize = { workspace = true }
 brotli = { workspace = true }
-anyhow = { workspace = true }
 rayon = "1.8"
 
 [dev-dependencies]

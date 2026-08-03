@@ -98,9 +98,11 @@ impl EncryptedEnvelope {
     }
 }
 
+#[allow(clippy::expect_used)]
 fn kdf(shared: &SharedSecret, info: &[u8]) -> [u8; 32] {
     let hk = Hkdf::<Sha256>::new(None, shared.as_bytes());
     let mut out = [0u8; 32];
+    // SAFETY: 32 bytes is a valid length for HKDF output.
     hk.expand(info, &mut out).expect("32 bytes is valid length");
     out
 }

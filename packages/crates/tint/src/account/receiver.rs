@@ -1,6 +1,8 @@
 use alloy_primitives::B256;
 use ark_bn254::Fr;
+use ark_ff::{BigInteger, PrimeField};
 use serde::{Deserialize, Serialize};
+use x25519_dalek::PublicKey;
 
 use crate::{
     account::keys::{EncryptionPubKey, NullifierPubKey},
@@ -19,11 +21,12 @@ pub struct Receiver {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReceiverAddressError {
-    #[error("invalid receiver address: {0}")]
-    Serialization(#[from] postcard::Error),
+    #[error("invalid length")]
+    InvalidLength,
 }
 
 impl Receiver {
+    #[must_use]
     pub fn new(
         nullifier_pub_key: NullifierPubKey,
         encryption_pub_key: EncryptionPubKey,
@@ -37,11 +40,36 @@ impl Receiver {
     }
 
     /// Parses a [`Receiver`] from the bytes produced by [`Self::address`].
+    ///
+    /// # Errors
+    ///
+    /// Errors if the provided address cannot be parsed.
     pub fn from_address(address: &[u8]) -> Result<Self, ReceiverAddressError> {
-        Ok(postcard::from_bytes(address)?)
+        let nullifier_pub_key_bytes = address
+            .get(..32)
+            .ok_or(ReceiverAddressError::InvalidLength)?;
+        let encryption_pub_key_bytes: [u8; 32] = address
+            .get(32..64)
+            .ok_or(ReceiverAddressError::InvalidLength)?
+            .try_into()
+            .map_err(|_| ReceiverAddressError::InvalidLength)?;
+        let spendability_hash_bytes = address
+            .get(64..96)
+            .ok_or(ReceiverAddressError::InvalidLength)?;
+
+        let nullifier_pub_key =
+            NullifierPubKey(Fr::from_le_bytes_mod_order(nullifier_pub_key_bytes));
+        let encryption_pub_key = EncryptionPubKey(PublicKey::from(encryption_pub_key_bytes));
+        let spendability_hash = Fr::from_le_bytes_mod_order(spendability_hash_bytes);
+        Ok(Self {
+            nullifier_pub_key,
+            encryption_pub_key,
+            spendability_hash,
+        })
     }
 
     /// Creates a new [`BaseCommitment`] spendable by this receiver.
+    #[must_use]
     pub fn commitment(&self, asset: AssetId, amount: u128, random: B256) -> BaseCommitment {
         BaseCommitment::new(
             asset,
@@ -52,8 +80,13 @@ impl Receiver {
         )
     }
 
+    #[must_use]
     pub fn address(&self) -> Vec<u8> {
-        postcard::to_stdvec(self).expect("Receiver serialization is infallible")
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&self.nullifier_pub_key.0.into_bigint().to_bytes_be());
+        buf.extend_from_slice(self.encryption_pub_key.0.as_bytes());
+        buf.extend_from_slice(&self.spendability_hash.into_bigint().to_bytes_be());
+        buf
     }
 }
 

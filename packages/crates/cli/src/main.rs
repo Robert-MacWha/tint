@@ -133,7 +133,7 @@ async fn main() -> anyhow::Result<()> {
         Command::List => {
             let accounts = config::list_accounts()?;
             for account in accounts {
-                tracing::info!("{}", account)
+                tracing::info!("{}", account);
             }
         }
         Command::Create { name, spendability } => {

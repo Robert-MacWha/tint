@@ -73,7 +73,13 @@ fn internal_round<W: Width<T>, E: PoseidonElement, const T: usize>(
     Ok(())
 }
 
+#[allow(clippy::expect_used)]
 fn matmul_internal<E: PoseidonElement, const T: usize>(state: &mut [E; T], diag: &[Fr; T]) {
+    const {
+        assert!(T > 0, "Poseidon2 state must be non-empty");
+    }
+
+    // SAFETY: poseidon2 state is never empty, so `reduce` will always return `Some`.
     let sum = state
         .iter()
         .cloned()

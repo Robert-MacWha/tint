@@ -72,6 +72,7 @@ pub enum CommitmentError {
 }
 
 impl BaseCommitment {
+    #[must_use] 
     pub fn new(
         asset: AssetId,
         amount: u128,
@@ -83,8 +84,8 @@ impl BaseCommitment {
             asset,
             amount,
             spendability_hash,
-            nullifier_pub_key,
             random,
+            nullifier_pub_key,
         }
     }
 
@@ -97,6 +98,7 @@ impl BaseCommitment {
         Ok(postcard::from_bytes(&plaintext)?)
     }
 
+    #[must_use] 
     pub fn nullifier(&self, nullifier_key: &NullifierKey) -> Fr {
         poseidon2_compress(&[nullifier_key.0, self.hash()])
     }
@@ -113,6 +115,7 @@ impl BaseCommitment {
 }
 
 impl NullifiableCommitment {
+    #[must_use] 
     pub fn new(inner: BaseCommitment, nullifier_key: NullifierKey) -> Self {
         NullifiableCommitment {
             inner,
@@ -120,12 +123,14 @@ impl NullifiableCommitment {
         }
     }
 
+    #[must_use] 
     pub fn nullifier(&self) -> Fr {
         self.inner.nullifier(&self.nullifier_key)
     }
 
     /// Builds a [`SpendableCommitment`] carrying this note's real
     /// committed data but no resolved spendability rule.
+    #[must_use] 
     pub fn as_pending_spendable(&self) -> SpendableCommitment {
         SpendableCommitment {
             inner: self.inner,

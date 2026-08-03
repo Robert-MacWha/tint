@@ -1,4 +1,4 @@
-use std::ops::Add;
+use std::{convert::Infallible, ops::Add};
 
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, Field};
@@ -18,7 +18,7 @@ pub trait PoseidonElement: Sized + Clone + Add<Self, Output = Self> {
 }
 
 impl PoseidonElement for Fr {
-    type Error = ();
+    type Error = Infallible;
 
     fn zero() -> Self {
         Fr::ZERO

@@ -62,11 +62,13 @@ impl IndexedAccount {
     }
 
     /// Returns `true` if `query` identifies this account.
+    #[must_use]
     pub fn matches(&self, query: &Receiver) -> bool {
         self.nullifying.pub_key() == query.nullifier_pub_key
             && self.viewing.pub_key() == query.encryption_pub_key
     }
 
+    #[must_use]
     pub fn notes(&self) -> Vec<&NullifiableCommitment> {
         self.notes
             .iter()
@@ -89,8 +91,7 @@ impl IndexedAccount {
                     self.nullifiers.insert(nullifier);
                 }
             }
-            Event::Withdrawn(_) => {}
-            Event::AdvanceAggregationRing(_) => {}
+            Event::Withdrawn(_) | Event::AdvanceAggregationRing(_) => {}
         }
     }
 

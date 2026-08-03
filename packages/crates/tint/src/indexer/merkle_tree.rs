@@ -52,6 +52,7 @@ pub struct SubtreeAppendProof<
 
 impl<const PATH_LEN: usize, const K: usize> InclusionProof<PATH_LEN, K> {
     /// Computes the Merkle root implied by this proof.
+    #[must_use]
     pub fn root(&self) -> Fr {
         let mut current = self.leaf;
         for (&digit, sibling_group) in self.path.iter().rev().zip(self.siblings.iter().rev()) {
@@ -64,6 +65,7 @@ impl<const PATH_LEN: usize, const K: usize> InclusionProof<PATH_LEN, K> {
 }
 
 impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
+    #[must_use]
     pub fn new() -> Self {
         let zeros = Self::compute_zeros();
         Self {
@@ -72,28 +74,33 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
         }
     }
 
+    #[must_use]
     pub fn from_leaves(leaves: &[Fr]) -> Self {
         let mut tree = Self::new();
         tree.append(leaves);
         tree
     }
 
+    #[must_use]
     pub fn root(&self) -> Fr {
         self.levels[D].first().copied().unwrap_or(self.zeros[D])
     }
 
     #[allow(clippy::len_without_is_empty)]
+    #[must_use]
     pub fn len(&self) -> usize {
         self.levels[0].len()
     }
 
     /// Returns the path from the root to the given leaf if it exists in the tree.
+    #[must_use]
     pub fn path(&self, leaf: Fr) -> Option<Path<D>> {
         let index = self.levels[0].iter().position(|&l| l == leaf)?;
         Some(Self::path_for_index(index))
     }
 
     /// Returns the inclusion proof for the node at the given path.
+    #[must_use]
     pub fn inclusion<const PATH_LEN: usize>(
         &self,
         path: Path<PATH_LEN>,
@@ -232,7 +239,7 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
     /// Inverse of [`Self::path_for_index`].
     fn index_for_path<const PATH_LEN: usize>(path: &Path<PATH_LEN>) -> usize {
         let mut index = 0;
-        for &digit in path.iter() {
+        for &digit in path {
             index = index * K + digit as usize;
         }
         index
@@ -243,6 +250,8 @@ impl<const D: usize, const K: usize> IncrementalMerkleTree<D, K> {
         let mut zeros = Vec::with_capacity(D + 1);
         zeros.push(Fr::zero());
         for _ in 0..D {
+            // SAFETY: zeros is never empty, so `last` will always return `Some`.
+            #[allow(clippy::unwrap_used)]
             let prev = *zeros.last().unwrap();
             zeros.push(poseidon2_compress(&[prev; K]));
         }

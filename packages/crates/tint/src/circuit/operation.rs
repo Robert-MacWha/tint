@@ -87,6 +87,7 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     }
 
     #[tracing::instrument(target = "r1cs", skip_all)]
+    #[allow(clippy::unused_self)]
     fn hash_inner(
         &self,
         input_commitment_hashes: &[FrVar; N_INPUTS],

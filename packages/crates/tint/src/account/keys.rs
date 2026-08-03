@@ -34,9 +34,15 @@ const NULLIFIER_KEY_INFO: &[u8] = b"tint/nullifier-key/v1";
 const ENCRYPTION_KEY_INFO: &[u8] = b"tint/encryption-key/v1";
 
 impl Keys {
+    /// Derives a `Keys` struct from a 32-byte seed using HKDF-SHA256.
+    #[must_use]
+    #[allow(clippy::expect_used)]
+    #[allow(clippy::missing_panics_doc)]
     pub fn from_seed(seed: &[u8; 32]) -> Self {
         let hkdf = Hkdf::<Sha256>::new(None, seed);
 
+        // SAFETY: 32 bytes is a valid HKDF-SHA256 output length, so the `expect` here
+        // should never fail.
         let mut nullifier_bytes = [0u8; 32];
         hkdf.expand(NULLIFIER_KEY_INFO, &mut nullifier_bytes)
             .expect("32 bytes is a valid HKDF-SHA256 output length");
@@ -53,22 +59,26 @@ impl Keys {
         }
     }
 
+    #[must_use]
     pub fn nullifier_pub_key(&self) -> NullifierPubKey {
         self.nullifier_key.pub_key()
     }
 
+    #[must_use]
     pub fn encryption_pub_key(&self) -> EncryptionPubKey {
         self.encryption_key.public_key()
     }
 }
 
 impl NullifierKey {
+    #[must_use]
     pub fn pub_key(&self) -> NullifierPubKey {
         NullifierPubKey(poseidon2_compress(&[self.0, Fr::from(0)]))
     }
 }
 
 impl EncryptionKey {
+    #[must_use]
     pub fn public_key(&self) -> EncryptionPubKey {
         EncryptionPubKey(PublicKey::from(&self.0))
     }

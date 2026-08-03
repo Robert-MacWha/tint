@@ -22,7 +22,9 @@ mod pubkey_hash_test;
     non_upper_case_globals,
     non_camel_case_types,
     non_snake_case,
-    dead_code
+    dead_code,
+    clippy::all,
+    clippy::pedantic
 )]
 mod bindings {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
@@ -70,9 +72,9 @@ pub fn prove_via_go(
             artifacts.pk.len(),
             artifacts.vk.as_ptr().cast_mut(),
             artifacts.vk.len(),
-            &mut input,
-            &mut proof_ptr,
-            &mut proof_len,
+            &raw mut input,
+            &raw mut proof_ptr,
+            &raw mut proof_len,
         )
     };
 

@@ -252,7 +252,7 @@ impl<
             assert!(
                 SUBTREE_SIZE == K.pow(SUBTREE_DEPTH as u32),
                 "SUBTREE_SIZE must equal K^SUBTREE_DEPTH"
-            )
+            );
         };
 
         let cs = cs.into();

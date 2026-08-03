@@ -10,15 +10,20 @@ pub struct ViewingAccount {
 }
 
 impl ViewingAccount {
+    #[must_use]
     pub fn new(key: EncryptionKey) -> Self {
         Self { key }
     }
 
+    #[must_use]
     pub fn pub_key(&self) -> EncryptionPubKey {
         self.key.public_key()
     }
 
     /// Decrypts a note encrypted to this account.
+    ///
+    /// # Errors
+    /// Errors if the provided encrypted note cannot be decrypted with this account's key.
     pub fn decrypt(&self, encrypted: &[u8]) -> Result<BaseCommitment, CommitmentError> {
         BaseCommitment::from_encrypted(encrypted, &self.key)
     }

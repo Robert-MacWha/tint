@@ -1,4 +1,4 @@
-//! Generates groth16 proving & verifying artifacts for the JoinSplit circuit,
+//! Generates groth16 proving & verifying artifacts for the `JoinSplit` circuit,
 //! compresses them, and writes them to disk.
 //!
 //! Run with `cargo run --release --bin gen_artifacts`.
@@ -11,16 +11,19 @@ use tint::circuit::{
 
 const ARTIFACTS_DIR: &str = "artifacts/";
 
+#[allow(clippy::expect_used)]
 fn main() {
     println!("Generating artifacts");
-    let artifacts = generate_artifacts::<JoinSplit>().unwrap();
+    let artifacts =
+        generate_artifacts::<JoinSplit>().expect("failed to generate JoinSplit artifacts");
 
     println!("Serializing artifacts");
-    let pk_bytes = serialize_pk(&artifacts.pk).unwrap();
-    let vk_bytes = serialize_vk(&artifacts.vk).unwrap();
-    let matrices_bytes = serialize_matrices(&artifacts.matrices).unwrap();
+    let pk_bytes = serialize_pk(&artifacts.pk).expect("failed to serialize proving key");
+    let vk_bytes = serialize_vk(&artifacts.vk).expect("failed to serialize verifying key");
+    let matrices_bytes =
+        serialize_matrices(&artifacts.matrices).expect("failed to serialize matrices");
 
-    std::fs::create_dir_all(ARTIFACTS_DIR).unwrap();
+    std::fs::create_dir_all(ARTIFACTS_DIR).expect("failed to create artifacts directory");
     write_to_file(
         format!("{ARTIFACTS_DIR}proving_key.bin.br").as_str(),
         &pk_bytes,
@@ -37,7 +40,8 @@ fn main() {
     println!("Done generating artifacts");
 }
 
+#[allow(clippy::expect_used)]
 fn write_to_file(path: &str, data: &[u8]) {
-    println!("Writing compressed data to {}", path);
-    std::fs::write(path, data).unwrap();
+    println!("Writing compressed data to {path}");
+    std::fs::write(path, data).expect("failed to write compressed data to file");
 }

@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use alloy_primitives::U256;
 use ark_bn254::Bn254;
 use ark_groth16::VerifyingKey;
@@ -9,8 +11,10 @@ use ark_groth16::VerifyingKey;
 /// (and imports it) -- only valid when the verifying key's public input count
 /// matches `IVerifier`'s `N_PUB`-sized `verifyProof` signature.
 ///
-/// Based on SnarkJS's groth16 verifier contract, remixed to use string formatting
+/// Based on `SnarkJS`'s groth16 verifier contract, remixed to use string formatting
 /// instead of EJS.
+#[must_use]
+#[allow(clippy::similar_names, clippy::too_many_lines)]
 pub fn groth16_verifier_solidity(
     vk: &VerifyingKey<Bn254>,
     contract_name: &str,
@@ -23,33 +27,39 @@ pub fn groth16_verifier_solidity(
     let (gammax1, gammax2, gammay1, gammay2) = g2(&vk.gamma_g2);
     let (deltax1, deltax2, deltay1, deltay2) = g2(&vk.delta_g2);
 
-    let ic_constants: String = vk
-        .gamma_abc_g1
-        .iter()
-        .enumerate()
-        .map(|(i, p)| {
-            let (x, y) = g1(p);
-            format!("    uint256 constant IC{i}x = {x};\n    uint256 constant IC{i}y = {y};\n")
-        })
-        .collect();
+    // SAFETY: write! on a String is infallible.
+    #[allow(clippy::unwrap_used)]
+    let ic_constants: String =
+        vk.gamma_abc_g1
+            .iter()
+            .enumerate()
+            .fold(String::new(), |mut acc, (i, p)| {
+                let (x, y) = g1(p);
 
-    let check_field_loop: String = (0..n_public)
-        .map(|i| {
-            format!(
-                "            checkField(calldataload(add(_pubSignals, {})))\n",
-                i * 32
-            )
-        })
-        .collect();
+                let _ = writeln!(acc, "uint256 constant IC{i}x = {x};");
+                let _ = writeln!(acc, "uint256 constant IC{i}y = {y};");
+                acc
+            });
 
-    let mul_acc_loop: String = (1..=n_public)
-        .map(|i| {
-            format!(
-                "                g1_mulAccC(_pVk, IC{i}x, IC{i}y, calldataload(add(pubSignals, {})))\n",
-                (i - 1) * 32
-            )
-        })
-        .collect();
+    #[allow(clippy::unwrap_used)]
+    let check_field_loop: String = (0..n_public).fold(String::new(), |mut acc, i| {
+        let _ = writeln!(
+            acc,
+            "checkField(calldataload(add(_pubSignals, {})))",
+            i * 32
+        );
+        acc
+    });
+
+    #[allow(clippy::unwrap_used)]
+    let mul_acc_loop: String = (1..=n_public).fold(String::new(), |mut acc, i| {
+        let _ = writeln!(
+            acc,
+            "g1_mulAccC(_pVk, IC{i}x, IC{i}y, calldataload(add(pubSignals, {})))",
+            (i - 1) * 32
+        );
+        acc
+    });
 
     let import_line = if implements_i_verifier {
         "import {IVerifier} from \"./interfaces/IVerifier.sol\";\n\n"
@@ -62,8 +72,9 @@ pub fn groth16_verifier_solidity(
         ""
     };
 
+    // TODO: Extract the contract template into a separate file and use `include_str!` to load it.
     format!(
-        r#"// SPDX-License-Identifier: GPL-3.0
+        r"// SPDX-License-Identifier: GPL-3.0
 /*
     Copyright 2021 0KIMS association.
 
@@ -219,7 +230,7 @@ pragma solidity ^0.8.24;
          }}
      }}
  }}
-"#
+"
     )
 }
 

@@ -1,4 +1,4 @@
-//! Adapted from https://github.com/TaceoLabs/circom-helpers/tree/main/groth16
+//! Adapted from <https://github.com/TaceoLabs/circom-helpers/tree/main/groth16>
 //!
 //! Original source code licensed under MIT.
 //!
@@ -8,6 +8,7 @@ use std::marker::PhantomData;
 
 use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM, pairing::Pairing};
 pub use ark_groth16::{Proof, ProvingKey};
+use ark_relations::gr1cs::SynthesisError;
 pub use reduction::LibSnarkReduction;
 use tracing::instrument;
 
@@ -40,15 +41,15 @@ impl<P: Pairing> Groth16<P> {
         s: P::ScalarField,
         matrices: &Matrices<P::ScalarField>,
         witness: &[P::ScalarField],
-    ) -> anyhow::Result<Proof<P>> {
+    ) -> Result<Proof<P>, SynthesisError> {
         let witness_len = witness.len();
         let witness_should_len = matrices.num_witness_variables + matrices.num_inputs;
         if witness_len != witness_should_len {
-            anyhow::bail!("expected witness len {witness_should_len}, got len {witness_len}",)
+            return Err(SynthesisError::AssignmentMissing);
         }
         let h = R::witness_map_from_matrices::<P>(matrices, witness)?;
         let proof =
-            Self::create_proof_with_assignment(pkey, r, s, h, witness, matrices.num_inputs)?;
+            Self::create_proof_with_assignment(pkey, r, s, &h, witness, matrices.num_inputs)?;
         Ok(proof)
     }
 
@@ -74,10 +75,10 @@ impl<P: Pairing> Groth16<P> {
         pkey: &ProvingKey<P>,
         r: P::ScalarField,
         s: P::ScalarField,
-        h: Vec<P::ScalarField>,
+        h: &[P::ScalarField],
         witness: &[P::ScalarField],
         num_inputs: usize,
-    ) -> anyhow::Result<Proof<P>> {
+    ) -> Result<Proof<P>, SynthesisError> {
         let delta_g1 = pkey.delta_g1.into_group();
         let alpha_g1 = pkey.vk.alpha_g1;
         let beta_g1 = pkey.beta_g1;
@@ -122,7 +123,7 @@ impl<P: Pairing> Groth16<P> {
             || {
                 let msm_h_query = tracing::debug_span!("msm h_query").entered();
                 //perform the msm for h
-                let result = P::G1::msm_unchecked(&pkey.h_query, &h);
+                let result = P::G1::msm_unchecked(&pkey.h_query, h);
                 msm_h_query.exit();
                 result
             }

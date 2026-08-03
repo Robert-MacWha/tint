@@ -101,24 +101,24 @@ impl JoinSplit {
         }
     }
 
-    /// Synthesizes the JoinSplit circuit, returning the public inputs.
+    /// Synthesizes the `JoinSplit` circuit, returning the public inputs.
     pub fn synthesize_public_inputs(&self) -> Result<Vec<Fr>, SynthesisError> {
         let cs = ConstraintSystem::new_ref();
         cs.set_optimization_goal(OptimizationGoal::Constraints);
 
-        let _ = self.synthesize(cs.clone())?;
+        let _ = self.synthesize(&cs)?;
         cs.finalize();
 
         // `instance_assignment()` leads with the implicit constant-1 term.
         Ok(cs.instance_assignment()?[1..].to_vec())
     }
 
-    /// Synthesizes the JoinSplit circuit, returning the public outputs.
+    /// Synthesizes the `JoinSplit` circuit, returning the public outputs.
     pub fn synthesize_outputs(&self) -> Result<JoinSplitResult, SynthesisError> {
         let cs = ConstraintSystem::new_ref();
         cs.set_optimization_goal(OptimizationGoal::Constraints);
 
-        let result = self.synthesize(cs.clone())?;
+        let result = self.synthesize(&cs)?;
         cs.finalize();
 
         result.try_into()
@@ -126,7 +126,7 @@ impl JoinSplit {
 
     fn synthesize(
         &self,
-        cs: ConstraintSystemRef<Fr>,
+        cs: &ConstraintSystemRef<Fr>,
     ) -> Result<JoinSplitResultVar, SynthesisError> {
         // Public inputs
         let old_root = input(cs.clone(), &self.old_root)?;
@@ -165,13 +165,13 @@ impl JoinSplit {
 
 impl ConstraintSynthesizer<Fr> for JoinSplit {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
-        let _ = self.synthesize(cs)?;
+        let _ = self.synthesize(&cs)?;
         Ok(())
     }
 }
 
 impl JoinSplitVar {
-    /// Verifies the JoinSplit operation.
+    /// Verifies the `JoinSplit` operation.
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn verify(
         &self,

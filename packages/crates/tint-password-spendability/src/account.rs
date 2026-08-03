@@ -29,6 +29,7 @@ pub struct PasswordSpendingAccount {
 }
 
 impl PasswordSpendingAccount {
+    #[must_use]
     pub fn new(contract_address: Address, secret: Fr, artifacts: Artifacts<Bn254>) -> Self {
         Self {
             contract_address,
@@ -76,7 +77,7 @@ impl SpendingAccount for PasswordSpendingAccount {
         let (public_inputs, proof) = prove_with_matrices(
             &self.artifacts.matrices,
             &self.artifacts.pk,
-            circuit,
+            &circuit,
             &mut OsRng,
         )
         .map_err(SpendingAccountError::new)?;

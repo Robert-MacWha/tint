@@ -92,26 +92,31 @@ impl Indexer {
         })
     }
 
+    #[must_use]
     pub fn root(&self) -> Fr {
         self.state.tree.root()
     }
 
     /// Returns the currently posted aggregation hash.
+    #[must_use]
     pub fn posted_aggregation_hash(&self) -> Fr {
         self.state.posted_aggregation_hash
     }
 
     /// Returns the index of the currently posted aggregation hash.
+    #[must_use]
     pub fn posted_aggregation_index(&self) -> u128 {
         self.state.tree.len() as u128
     }
 
     /// Returns the number of staged commitments that have not been posted.
+    #[must_use]
     pub fn staged_count(&self) -> u128 {
         self.state.staged_commitments.len() as u128
     }
 
     /// Returns the notes owned by `receiver`.
+    #[must_use]
     pub fn notes(&self, receiver: Receiver) -> Vec<&NullifiableCommitment> {
         for account in &self.accounts {
             if account.matches(&receiver) {
@@ -134,6 +139,7 @@ impl Indexer {
     }
 
     /// Returns an inclusion proof for `commitment`, if it's present in the tree.
+    #[must_use]
     pub fn prove(&self, commitment: Fr) -> Option<InclusionProof<TREE_DEPTH, K>> {
         let path = self.state.tree.path(commitment)?;
         Some(self.state.tree.inclusion(path))
@@ -165,7 +171,7 @@ impl Indexer {
             .await
             .map_err(IndexerError::Syncer)?;
 
-        for event in events {
+        for event in &events {
             self.apply_event(event)?;
         }
 
@@ -181,7 +187,7 @@ impl Indexer {
 
     /// Drains up to `SUBTREE_SIZE` pending commitments, inserts them into
     /// the tree, and returns the append proof needed to build the next
-    /// JoinSplit witness.
+    /// `JoinSplit` witness.
     pub fn commit(
         &mut self,
     ) -> Result<SubtreeAppendProof<SUBTREE_PATH_LENGTH, SUBTREE_SIZE, K>, IndexerError> {
@@ -189,8 +195,8 @@ impl Indexer {
         self.advance(count)
     }
 
-    fn apply_event(&mut self, event: Event) -> Result<(), IndexerError> {
-        match &event {
+    fn apply_event(&mut self, event: &Event) -> Result<(), IndexerError> {
+        match event {
             Event::Deposit(d) => {
                 self.stage(b256_to_fr(d.commitment));
             }
@@ -201,12 +207,11 @@ impl Indexer {
                 let count = a.idx - self.posted_aggregation_index();
                 let _ = self.advance(count as usize)?;
             }
-            Event::Nullified(_) => {}
-            Event::Withdrawn(_) => {}
+            Event::Nullified(_) | Event::Withdrawn(_) => {}
         }
 
         for account in &mut self.accounts {
-            account.apply_event(&event);
+            account.apply_event(event);
         }
 
         Ok(())

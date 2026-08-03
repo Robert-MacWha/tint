@@ -50,14 +50,14 @@ impl PasswordSpendability {
         let cs = ConstraintSystem::new_ref();
         cs.set_optimization_goal(OptimizationGoal::Constraints);
 
-        self.synthesize(cs.clone())?;
+        self.synthesize(&cs)?;
         cs.finalize();
 
         // `instance_assignment()` leads with the implicit constant-1 term.
         Ok(cs.instance_assignment()?[1..].to_vec())
     }
 
-    fn synthesize(&self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+    fn synthesize(&self, cs: &ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
         // Public inputs
         let spendability_address: FrVar = input(cs.clone(), &self.spendability_address)?;
         let operation_hash: FrVar = input(cs.clone(), &self.operation_hash)?;
@@ -72,7 +72,7 @@ impl PasswordSpendability {
 
 impl ConstraintSynthesizer<Fr> for PasswordSpendability {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
-        self.synthesize(cs)
+        self.synthesize(&cs)
     }
 }
 
@@ -164,7 +164,7 @@ mod tests {
             operation,
             secret,
         );
-        circuit.synthesize(cs.clone()).unwrap();
+        circuit.synthesize(&cs).unwrap();
         assert!(cs.is_satisfied().unwrap())
     }
 
@@ -190,7 +190,7 @@ mod tests {
             operation,
             secret,
         );
-        circuit.synthesize(cs.clone()).unwrap();
+        circuit.synthesize(&cs).unwrap();
         assert!(cs.is_satisfied().unwrap())
     }
 
@@ -216,7 +216,7 @@ mod tests {
             operation,
             invalid_secret,
         );
-        circuit.synthesize(cs.clone()).unwrap();
+        circuit.synthesize(&cs).unwrap();
 
         let failed = cs
             .which_is_unsatisfied()
@@ -252,7 +252,7 @@ mod tests {
             operation,
             secret,
         );
-        circuit.synthesize(cs.clone()).unwrap();
+        circuit.synthesize(&cs).unwrap();
 
         let failed = cs
             .which_is_unsatisfied()
@@ -286,7 +286,7 @@ mod tests {
             operation,
             secret,
         );
-        circuit.synthesize(cs.clone()).unwrap();
+        circuit.synthesize(&cs).unwrap();
 
         let failed = cs
             .which_is_unsatisfied()

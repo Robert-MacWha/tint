@@ -12,17 +12,18 @@ use crate::circuit::{FrVar, poseidon2::element::PoseidonElement};
 
 /// Compresses `T` field elements into one using the Poseidon2 permutation.
 /// Supported: `T` = 2, 3, 4, 8.
+#[must_use]
 pub fn poseidon2_compress<const T: usize>(input: &[Fr; T]) -> Fr {
     const {
         assert!(
             matches!(T, 1 | 2 | 3 | 8),
             "poseidon2: unsupported width (must be 1, 2, 3, or 8)"
-        )
+        );
     };
 
     let mut state = *input;
-    //? permute cannot fail for native field elements
-    permute(&mut state).expect("Poseidon2 permutation failed");
+    //? E::Error is infallible for native Fr
+    permute(&mut state);
 
     // Feed-forward the first input (matches the taceo `Poseidon2T*_BN254._compress`).
     state[0] + input[0]
@@ -47,7 +48,17 @@ pub fn poseidon2_compress_gadget<const T: usize>(
     Ok(state[0].clone() + input[0].clone())
 }
 
+#[allow(clippy::unwrap_used, clippy::unreachable)]
 fn permute<E: PoseidonElement, const T: usize>(state: &mut [E; T]) -> Result<(), E::Error> {
+    const {
+        assert!(
+            matches!(T, 1 | 2 | 3 | 8),
+            "poseidon2: unsupported width (must be 1, 2, 3, or 8)"
+        );
+    };
+
+    // SAFETY: transmute is safe because the length of the slice is guaranteed to be `T`.
+    // SAFETY: the `match` arms below are exhaustive for the supported values of `T`.
     match T {
         1 => {
             let mut buf = [state[0].clone(), E::zero()];

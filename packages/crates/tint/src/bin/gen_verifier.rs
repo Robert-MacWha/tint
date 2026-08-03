@@ -9,8 +9,10 @@ use tint::{
     codegen,
 };
 
+#[allow(clippy::expect_used)]
 fn main() {
-    let artifacts = generate_artifacts::<JoinSplit>().unwrap();
+    let artifacts =
+        generate_artifacts::<JoinSplit>().expect("failed to generate JoinSplit artifacts");
 
     println!("Generating Groth16Verifier.sol");
     let solidity = codegen::groth16_verifier_solidity(&artifacts.vk, "Groth16Verifier", true);

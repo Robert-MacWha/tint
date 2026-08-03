@@ -41,6 +41,10 @@ pub(crate) trait TintDatabase: Database {
 }
 
 impl DatabaseError {
+    pub fn storage(s: impl AsRef<str>) -> Self {
+        DatabaseError::StorageError(s.as_ref().to_string())
+    }
+
     pub fn other(e: impl std::error::Error + Send + Sync + 'static) -> Self {
         DatabaseError::Other(Box::new(e))
     }

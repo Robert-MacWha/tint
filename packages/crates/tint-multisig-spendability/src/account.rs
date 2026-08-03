@@ -2,7 +2,6 @@ use alloy_primitives::{Address, Bytes};
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 use k256::ecdsa::{Signature, VerifyingKey};
-
 use tint::{
     account::spending::{SpendingAccount, SpendingAccountError},
     circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
@@ -148,8 +147,7 @@ fn fr_to_be_bytes(f: Fr) -> [u8; 32] {
 
 #[cfg(test)]
 mod tests {
-    use k256::ecdsa::SigningKey;
-    use k256::elliptic_curve::Generate;
+    use k256::{ecdsa::SigningKey, elliptic_curve::Generate};
     use tint::{account::keys::NullifierKey, note::commitment::BaseCommitment};
 
     use super::*;

@@ -33,9 +33,8 @@ mod tests {
     use ark_relations::gr1cs::ConstraintSystem;
     use ark_std::test_rng;
 
-    use crate::circuit::{poseidon2::poseidon2_compress, witness};
-
     use super::*;
+    use crate::circuit::{poseidon2::poseidon2_compress, witness};
 
     #[test]
     fn test_merkle_root() {

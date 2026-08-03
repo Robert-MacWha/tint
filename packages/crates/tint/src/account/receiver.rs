@@ -59,9 +59,8 @@ impl Receiver {
 
 #[cfg(test)]
 mod tests {
-    use crate::account::keys::Keys;
-
     use super::*;
+    use crate::account::keys::Keys;
 
     #[test]
     fn address_round_trips() {

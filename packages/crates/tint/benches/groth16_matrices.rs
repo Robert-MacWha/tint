@@ -9,9 +9,7 @@ use ark_bn254::Bn254;
 use ark_groth16::Groth16;
 use ark_snark::SNARK;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
-use tint::circuit::generate_artifacts;
-use tint::circuit::join_split::JoinSplit;
-use tint::circuit::matrices::prove_with_matrices;
+use tint::circuit::{generate_artifacts, join_split::JoinSplit, matrices::prove_with_matrices};
 
 fn main() {
     let mut rng = StdRng::seed_from_u64(42);

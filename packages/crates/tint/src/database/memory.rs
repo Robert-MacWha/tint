@@ -1,5 +1,6 @@
-use crate::database::{Database, DatabaseError};
 use std::{collections::HashMap, sync::Mutex};
+
+use crate::database::{Database, DatabaseError};
 
 /// Basic in-memory KV database implementation.
 #[derive(Default)]

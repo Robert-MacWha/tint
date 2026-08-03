@@ -1,10 +1,10 @@
 #![cfg(test)]
+use ark_bn254::Fr;
 use tint::circuit::poseidon2::poseidon2_compress;
 
 use crate::ffi::bindings::{
     Bytes32, Poseidon2Compress1, Poseidon2Compress2, Poseidon2Compress3, Poseidon2Compress8,
 };
-use ark_bn254::Fr;
 
 macro_rules! poseidon2_compress_fn {
     ($name:ident, $ffi:ident, $($arg:ident),+) => {

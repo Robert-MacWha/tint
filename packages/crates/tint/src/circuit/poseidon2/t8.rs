@@ -1,9 +1,8 @@
 use ark_bn254::Fr;
 use taceo_poseidon2::bn254::t8::POSEIDON2_BN254_T8_PARAMS;
 
-use crate::circuit::poseidon2::element::PoseidonElement;
-
 use super::common::{Width, matmul_m4};
+use crate::circuit::poseidon2::element::PoseidonElement;
 
 pub struct T8;
 
@@ -45,13 +44,12 @@ mod tests {
     use ark_r1cs_std::GR1CSVar;
     use ark_relations::gr1cs::ConstraintSystem;
 
+    use super::*;
     use crate::circuit::{
         FrVar,
         poseidon2::{poseidon2_compress, poseidon2_compress_gadget},
         witness,
     };
-
-    use super::*;
 
     /// Test that our permutation matches taceo-poseidon2's own native
     /// permutation for `t=8`.

@@ -280,8 +280,9 @@ impl<
 
 #[cfg(test)]
 mod tests {
-    use ark_r1cs_std::GR1CSVar;
     use std::array::repeat;
+
+    use ark_r1cs_std::GR1CSVar;
 
     use super::*;
 

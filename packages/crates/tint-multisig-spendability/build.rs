@@ -5,9 +5,7 @@
 //! signatures). Requires `go` on PATH and libclang available (both provided
 //! by `nix develop`, same as the rest of this repo's toolchain).
 
-use std::env;
-use std::path::PathBuf;
-use std::process::Command;
+use std::{env, path::PathBuf, process::Command};
 
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());

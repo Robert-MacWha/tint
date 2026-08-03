@@ -32,10 +32,9 @@
         ];
       };
 
-      # noir = pkgs.callPackage ./nix/noir/package.nix { };
-      # barretenberg = pkgs.callPackage ./nix/barretenberg/package.nix { };
-      # provekit = pkgs.callPackage ./nix/provekit/package.nix { };
-
+      rustfmtNightly = pkgs.rust-bin.nightly."2026-06-01".minimal.override {
+        extensions = [ "rustfmt" ];
+      };
     in
     {
       devShells.${system}.default = pkgs.mkShell {
@@ -55,8 +54,12 @@
 
           pkgs.go
           pkgs.gopls
-
         ];
+
+        # Use nightly rustfmt for the `imports_granularity` rules.
+        shellHook = ''
+          export RUSTFMT="${rustfmtNightly}/bin/rustfmt"
+        '';
       };
     };
 }

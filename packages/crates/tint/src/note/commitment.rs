@@ -269,9 +269,8 @@ mod tests {
     use alloy_primitives::Address;
     use insta::assert_snapshot;
 
-    use crate::account::keys::Keys;
-
     use super::*;
+    use crate::account::keys::Keys;
 
     #[test]
     fn commitment_hash() {

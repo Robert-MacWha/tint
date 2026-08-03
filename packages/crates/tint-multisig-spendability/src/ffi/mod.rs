@@ -158,9 +158,8 @@ impl From<Option<&Signature>> for TintSignatureRS {
 
 #[cfg(test)]
 mod tests {
-    use crate::THRESHOLD;
-
     use super::*;
+    use crate::THRESHOLD;
 
     #[test]
     fn consts_match() {

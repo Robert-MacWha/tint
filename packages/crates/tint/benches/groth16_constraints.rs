@@ -4,9 +4,11 @@ use ark_bn254::Bn254;
 use ark_groth16::Groth16;
 use ark_relations::gr1cs::ConstraintSynthesizer;
 use ark_snark::SNARK;
-use ark_std::rand::{rngs::StdRng, SeedableRng};
-use circuit_profiler::format::{self, OutputFormat};
-use circuit_profiler::profiling::{profile_constraints, profile_time};
+use ark_std::rand::{SeedableRng, rngs::StdRng};
+use circuit_profiler::{
+    format::{self, OutputFormat},
+    profiling::{profile_constraints, profile_time},
+};
 use tint::circuit::join_split::JoinSplit;
 
 fn main() {

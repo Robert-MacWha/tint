@@ -1,7 +1,9 @@
 #![cfg(test)]
 
-use k256::ecdsa::{SigningKey, VerifyingKey};
-use k256::elliptic_curve::Generate;
+use k256::{
+    ecdsa::{SigningKey, VerifyingKey},
+    elliptic_curve::Generate,
+};
 
 use crate::{
     N_SIGNERS,

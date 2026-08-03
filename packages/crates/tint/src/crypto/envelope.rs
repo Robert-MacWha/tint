@@ -107,9 +107,8 @@ fn kdf(shared: &SharedSecret, info: &[u8]) -> [u8; 32] {
 
 #[cfg(test)]
 mod tests {
-    use crate::account::keys::Keys;
-
     use super::*;
+    use crate::account::keys::Keys;
 
     #[test]
     fn envelope_encrypt_decrypt() {

@@ -1,9 +1,10 @@
 use std::time::Instant;
 
 use alloy_primitives::Address;
-use k256::ecdsa::signature::hazmat::PrehashSigner;
-use k256::ecdsa::{Signature, SigningKey, VerifyingKey};
-use k256::elliptic_curve::Generate;
+use k256::{
+    ecdsa::{Signature, SigningKey, VerifyingKey, signature::hazmat::PrehashSigner},
+    elliptic_curve::Generate,
+};
 use tint::{
     circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
     fr::{address_to_fr, fr_to_b256},

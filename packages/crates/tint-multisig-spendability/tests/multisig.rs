@@ -4,8 +4,7 @@ use std::sync::Arc;
 
 use alloy_primitives::U256;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
-use k256::ecdsa::SigningKey;
-use k256::elliptic_curve::Generate;
+use k256::{ecdsa::SigningKey, elliptic_curve::Generate};
 use tint::{
     account::{Account, keys::Keys, spending::NoopSpendingAccount},
     circuit::{generate_artifacts, join_split::JoinSplit},

@@ -89,7 +89,8 @@ enum Command {
         #[arg(long, env = "PRIVATE_KEY")]
         private_key: B256,
     },
-    /// Overwrite an address's native balance via Tenderly's setBalance cheatcode (testnets only)
+    /// Overwrite an address's native balance via Tenderly's setBalance cheatcode
+    /// (testnets only)
     SetBalance {
         /// The amount of ETH to set the balance to (in wei).
         amount: u128,
@@ -101,7 +102,8 @@ enum Command {
         #[arg(long, env = "PRIVATE_KEY")]
         private_key: B256,
     },
-    /// Overwrite an address's ERC20 balance via Tenderly's setErc20Balance cheatcode (testnets only)
+    /// Overwrite an address's ERC20 balance via Tenderly's setErc20Balance cheatcode
+    /// (testnets only)
     SetErc20Balance {
         /// The ERC20 token address to set the balance of.
         token: Address,

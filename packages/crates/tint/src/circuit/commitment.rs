@@ -155,12 +155,11 @@ mod tests {
     use ark_r1cs_std::GR1CSVar;
     use ark_relations::gr1cs::ConstraintSystem;
 
+    use super::*;
     use crate::{
         circuit::witness,
         note::commitment::{BaseCommitment, Commitment, SpendableCommitment},
     };
-
-    use super::*;
 
     #[test]
     fn commitment_hash() {

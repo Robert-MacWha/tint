@@ -4,14 +4,12 @@
 //!
 //! Updated to use arkworks 0.6.0 and remove circom compatibility code.
 
-use ark_ec::VariableBaseMSM;
-use ark_ec::pairing::Pairing;
-use ark_ec::{AffineRepr, CurveGroup};
 use std::marker::PhantomData;
-use tracing::instrument;
 
+use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM, pairing::Pairing};
 pub use ark_groth16::{Proof, ProvingKey};
 pub use reduction::LibSnarkReduction;
+use tracing::instrument;
 
 mod reduction;
 

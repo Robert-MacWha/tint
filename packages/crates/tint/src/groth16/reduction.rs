@@ -9,10 +9,12 @@ use tracing::instrument;
 use crate::circuit::matrices::Matrices;
 
 /// This trait is used to convert the witness into QAP witness as part of a Groth16 proof.
-/// Refer to <https://docs.rs/ark-groth16/latest/ark_groth16/r1cs_to_qap/trait.R1CSToQAP.html> for more details.
-/// We do not implement the other methods of the arkworks trait, as we do not need them during proof generation.
+/// Refer to <https://docs.rs/ark-groth16/latest/ark_groth16/r1cs_to_qap/trait.R1CSToQAP.html>
+/// for more details.  We do not implement the other methods of the arkworks trait,
+/// as we do not need them during proof generation.
 pub trait R1CSToQAP {
-    /// Computes a QAP witness corresponding to the R1CS witness, using the provided `ConstraintMatrices`.
+    /// Computes a QAP witness corresponding to the R1CS witness, using the
+    /// provided `ConstraintMatrices`.
     fn witness_map_from_matrices<P: Pairing>(
         matrices: &Matrices<P::ScalarField>,
         witness: &[P::ScalarField],
@@ -40,9 +42,9 @@ fn evaluate_constraint<P: Pairing>(
     result
 }
 
-/// Implements the witness map used by libsnark. The arkworks witness map calculates the
-/// coefficients of H through computing (AB-C)/Z in the evaluation domain and going back to the
-/// coefficients domain.
+/// Implements the witness map used by libsnark. The arkworks witness map
+/// calculates the coefficients of H through computing (AB-C)/Z in the evaluation
+/// domain and going back to the coefficients domain.
 ///
 /// Based on <https://github.com/arkworks-rs/groth16/>.
 pub struct LibSnarkReduction;

@@ -21,19 +21,19 @@ pub enum ArtifactError {
     Io(#[from] std::io::Error),
 }
 
-pub fn serialize_proving_key(pk: &ProvingKey<Bn254>) -> Result<Vec<u8>, ArtifactError> {
+pub fn serialize_pk(pk: &ProvingKey<Bn254>) -> Result<Vec<u8>, ArtifactError> {
     serialize_canonical(pk)
 }
 
-pub fn deserialize_proving_key(bytes: &[u8]) -> Result<ProvingKey<Bn254>, ArtifactError> {
+pub fn deserialize_pk(bytes: &[u8]) -> Result<ProvingKey<Bn254>, ArtifactError> {
     deserialize_canonical(bytes)
 }
 
-pub fn serialize_verifying_key(vk: &VerifyingKey<Bn254>) -> Result<Vec<u8>, ArtifactError> {
+pub fn serialize_vk(vk: &VerifyingKey<Bn254>) -> Result<Vec<u8>, ArtifactError> {
     serialize_canonical(vk)
 }
 
-pub fn deserialize_verifying_key(bytes: &[u8]) -> Result<VerifyingKey<Bn254>, ArtifactError> {
+pub fn deserialize_vk(bytes: &[u8]) -> Result<VerifyingKey<Bn254>, ArtifactError> {
     deserialize_canonical(bytes)
 }
 
@@ -54,7 +54,7 @@ fn serialize_canonical<T: CanonicalSerialize>(value: &T) -> Result<Vec<u8>, Arti
 
 /// Brotli-decompresses `bytes` and deserializes with `ark-serialize`.
 fn deserialize_canonical<T: CanonicalDeserialize>(bytes: &[u8]) -> Result<T, ArtifactError> {
-    Ok(T::deserialize_uncompressed(&bytes[..])?)
+    Ok(T::deserialize_uncompressed(bytes)?)
 }
 
 /// Serializes `value` with `postcard` and brotli-compresses the result.
@@ -65,7 +65,7 @@ fn serialize_postcard<T: serde::Serialize>(value: &T) -> Result<Vec<u8>, Artifac
 
 /// Brotli-decompresses `bytes` and deserializes with `postcard`.
 fn deserialize_postcard<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, ArtifactError> {
-    Ok(postcard::from_bytes(&bytes)?)
+    Ok(postcard::from_bytes(bytes)?)
 }
 
 // fn compress(data: &[u8]) -> Result<Vec<u8>, ArtifactError> {

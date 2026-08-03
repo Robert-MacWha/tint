@@ -10,10 +10,10 @@ use tint::{
 };
 
 fn main() {
-    let (_matrices, _pk, vk) = generate_artifacts::<JoinSplit>().unwrap();
+    let artifacts = generate_artifacts::<JoinSplit>().unwrap();
 
     println!("Generating Groth16Verifier.sol");
-    let solidity = codegen::groth16_verifier_solidity(&vk, "Groth16Verifier", true);
+    let solidity = codegen::groth16_verifier_solidity(&artifacts.vk, "Groth16Verifier", true);
 
     let out_path =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../contracts/src/Groth16Verifier.sol");

@@ -36,7 +36,7 @@ async fn shield() {
 
     // Setup circuits
     info!("Setting up circuits...");
-    let (matrices, proving_key, verifying_key) = generate_artifacts::<JoinSplit>().unwrap();
+    let artifacts = generate_artifacts::<JoinSplit>().unwrap();
 
     // Setup tint provider
     info!("Setting up tint provider...");
@@ -47,7 +47,7 @@ async fn shield() {
     let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
     let database = Arc::new(MemoryDatabase::default());
     let indexer = Indexer::new(syncer, verifier, database).await.unwrap();
-    let mut tint_provider = Provider::new(indexer, matrices, proving_key, verifying_key);
+    let mut tint_provider = Provider::new(indexer, artifacts);
     tint_provider.add_account(account.clone()).await.unwrap();
 
     // Approve Tint to pull the deposit.

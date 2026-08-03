@@ -27,9 +27,9 @@ pub fn load_password_account(keys: Keys, address: Address) -> anyhow::Result<Acc
 }
 
 fn password_account(keys: Keys, contract_address: Address) -> anyhow::Result<Account> {
-    let (matrices, pk, vk) = load_circuit::<PasswordSpendability>("password")?;
+    let artifacts = load_circuit::<PasswordSpendability>("password")?;
 
-    let account = PasswordSpendingAccount::new(contract_address, prompt_password, matrices, pk, vk)
+    let account = PasswordSpendingAccount::new(contract_address, prompt_password, artifacts)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     Ok(Account::from_keys(keys, account))
 }

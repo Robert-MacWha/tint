@@ -216,7 +216,7 @@ impl Commitment for BaseCommitment {
     }
 
     fn nullifier_pub_key(&self) -> NullifierPubKey {
-        self.nullifier_pub_key.clone()
+        self.nullifier_pub_key
     }
 }
 

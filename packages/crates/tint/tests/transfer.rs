@@ -36,7 +36,7 @@ async fn transfer() {
 
     // Setup circuits
     info!("Setting up circuits...");
-    let (matrices, proving_key, verifying_key) = generate_artifacts::<JoinSplit>().unwrap();
+    let artifacts = generate_artifacts::<JoinSplit>().unwrap();
 
     // Setup tint provider
     info!("Setting up tint provider...");
@@ -47,7 +47,7 @@ async fn transfer() {
     let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
     let database = Arc::new(MemoryDatabase::default());
     let indexer = Indexer::new(syncer, verifier, database).await.unwrap();
-    let mut tint_provider = Provider::new(indexer, matrices, proving_key, verifying_key);
+    let mut tint_provider = Provider::new(indexer, artifacts);
     tint_provider.add_account(account_1.clone()).await.unwrap();
     tint_provider.add_account(account_2.clone()).await.unwrap();
 

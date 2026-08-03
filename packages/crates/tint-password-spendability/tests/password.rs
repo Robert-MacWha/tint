@@ -40,18 +40,15 @@ async fn password() {
 
     // Setup circuits
     info!("Setting up circuits...");
-    let (matrices, proving_key, verifying_key) = generate_artifacts::<JoinSplit>().unwrap();
-    let (spendability_matrices, spendability_proving_key, spendability_verifying_key) =
-        generate_artifacts::<PasswordSpendability>().unwrap();
+    let artifacts = generate_artifacts::<JoinSplit>().unwrap();
+    let spendability_artifacts = generate_artifacts::<PasswordSpendability>().unwrap();
 
     // Setup spendability account
     info!("Setting up spendability account...");
     let spending = PasswordSpendingAccount::new_const(
         spendability.address().clone(),
         Fr::from(1234),
-        spendability_matrices,
-        spendability_proving_key,
-        spendability_verifying_key,
+        spendability_artifacts,
     );
     let account_1 = Account::from_keys(Keys::from_seed(&[11u8; 32]), spending);
     let account_2 = Account::from_keys(Keys::from_seed(&[22u8; 32]), NoopSpendingAccount);
@@ -63,7 +60,7 @@ async fn password() {
     let database = Arc::new(MemoryDatabase::default());
     let indexer = Indexer::new(syncer, verifier, database).await.unwrap();
 
-    let mut tint_provider = Provider::new(indexer, matrices, proving_key, verifying_key);
+    let mut tint_provider = Provider::new(indexer, artifacts);
     tint_provider.add_account(account_1.clone()).await.unwrap();
     tint_provider.add_account(account_2.clone()).await.unwrap();
 

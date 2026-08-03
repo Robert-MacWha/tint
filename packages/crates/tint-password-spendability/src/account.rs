@@ -1,14 +1,15 @@
 use alloy_primitives::{Address, Bytes};
 use alloy_sol_types::SolValue;
 use ark_bn254::{Bn254, Fr};
-use ark_groth16::{Groth16, ProvingKey, VerifyingKey};
+use ark_groth16::Groth16;
 use ark_snark::SNARK;
 use rand_core::OsRng;
 use tint::{
     account::spending::{SpendingAccount, SpendingAccountError},
     circuit::{
+        Artifacts,
         join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
-        matrices::{Matrices, prove_with_matrices},
+        matrices::prove_with_matrices,
         poseidon2::poseidon2_compress,
     },
     fr::address_to_fr,
@@ -24,41 +25,27 @@ use crate::{abis::ProofLib, circuit::PasswordSpendability};
 pub struct PasswordSpendingAccount {
     contract_address: Address,
     secret: Fr,
-    matrices: Matrices<Fr>,
-    pk: ProvingKey<Bn254>,
-    vk: VerifyingKey<Bn254>,
+    artifacts: Artifacts<Bn254>,
 }
 
 impl PasswordSpendingAccount {
     pub fn new(
         contract_address: Address,
         secret: impl FnOnce() -> Result<Fr, Box<dyn std::error::Error + Send + Sync>>,
-        matrices: Matrices<Fr>,
-        pk: ProvingKey<Bn254>,
-        vk: VerifyingKey<Bn254>,
+        artifacts: Artifacts<Bn254>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         Ok(Self {
             contract_address,
             secret: secret()?,
-            matrices,
-            pk,
-            vk,
+            artifacts,
         })
     }
 
-    pub fn new_const(
-        contract_address: Address,
-        secret: Fr,
-        matrices: Matrices<Fr>,
-        pk: ProvingKey<Bn254>,
-        vk: VerifyingKey<Bn254>,
-    ) -> Self {
+    pub fn new_const(contract_address: Address, secret: Fr, artifacts: Artifacts<Bn254>) -> Self {
         Self {
             contract_address,
             secret,
-            matrices,
-            pk,
-            vk,
+            artifacts,
         }
     }
 }
@@ -82,7 +69,7 @@ impl SpendingAccount for PasswordSpendingAccount {
     }
 
     /// Proves knowledge of `secret`
-    async fn into_spendable(
+    async fn as_spendable(
         &self,
         base: NullifiableCommitment,
         operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
@@ -98,14 +85,18 @@ impl SpendingAccount for PasswordSpendingAccount {
         );
 
         info!("Proving spendability...");
-        let (public_inputs, proof) =
-            prove_with_matrices(&self.matrices, &self.pk, circuit, &mut OsRng)
-                .map_err(SpendingAccountError::new)?;
+        let (public_inputs, proof) = prove_with_matrices(
+            &self.artifacts.matrices,
+            &self.artifacts.pk,
+            circuit,
+            &mut OsRng,
+        )
+        .map_err(SpendingAccountError::new)?;
 
         // Smoke-test the proof locally
-        match Groth16::<Bn254>::verify(&self.vk, &public_inputs, &proof) {
+        match Groth16::<Bn254>::verify(&self.artifacts.vk, &public_inputs, &proof) {
             Ok(true) => {}
-            Ok(false) => return Err(SpendingAccountError::from_str("invalid proof")),
+            Ok(false) => return Err(SpendingAccountError::from("invalid proof")),
             Err(e) => return Err(SpendingAccountError::new(e)),
         }
         info!("Spendability proof verified");

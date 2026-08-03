@@ -1,4 +1,5 @@
 use ark_bn254::{Bn254, Fr};
+use ark_ec::pairing::Pairing;
 use ark_ff::Field;
 use ark_groth16::{Groth16, ProvingKey, VerifyingKey};
 use ark_r1cs_std::{GR1CSVar, alloc::AllocVar};
@@ -22,26 +23,27 @@ pub mod poseidon2;
 
 pub type FrVar = ark_r1cs_std::fields::fp::FpVar<ark_bn254::Fr>;
 
+#[derive(Clone, Debug)]
+pub struct Artifacts<E: Pairing> {
+    pub matrices: Matrices<E::ScalarField>,
+    pub pk: ProvingKey<E>,
+    pub vk: VerifyingKey<E>,
+}
+
 /// Sets up the circuit `C` and returns its proving and verifying keys.
 ///
 /// This circuit setup is deterministic using a fixed seed. It is not cryptographically
 /// secure and should only be used for testing and development.
-pub fn generate_artifacts<C: ConstraintSynthesizer<Fr> + Default>() -> Result<
-    (Matrices<Fr>, ProvingKey<Bn254>, VerifyingKey<Bn254>),
-    ark_relations::gr1cs::SynthesisError,
-> {
+pub fn generate_artifacts<C: ConstraintSynthesizer<Fr> + Default>()
+-> Result<Artifacts<Bn254>, ark_relations::gr1cs::SynthesisError> {
     let mut rng = StdRng::seed_from_u64(42);
 
-    // Generate proving and verifying keys
     warn!("Circuit setup with fixed seed. Only use for testing and development.");
-    let (proving_key, verifying_key) =
-        Groth16::<Bn254>::circuit_specific_setup(C::default(), &mut rng)?;
-
-    // Generate constraint matrices
+    let (pk, vk) = Groth16::<Bn254>::circuit_specific_setup(C::default(), &mut rng)?;
     let matrices = generate_matrices::<C>()?;
 
     info!("Circuit setup complete.");
-    Ok((matrices, proving_key, verifying_key))
+    Ok(Artifacts { matrices, pk, vk })
 }
 
 /// Generates the constraint matrices for the circuit `C`.
@@ -153,7 +155,7 @@ mod tests {
     /// the same circuit's setup.
     #[test]
     fn generated_matrices_produce_valid_proof() {
-        let (matrices, pk, vk) = generate_artifacts::<XEqualsY>().unwrap();
+        let artifacts = generate_artifacts::<XEqualsY>().unwrap();
 
         let circuit = XEqualsY {
             x: Fr::from(5u64),
@@ -161,8 +163,8 @@ mod tests {
         };
         let mut rng = StdRng::seed_from_u64(1);
         let (public_inputs, proof) =
-            prove_with_matrices(&matrices, &pk, circuit, &mut rng).unwrap();
+            prove_with_matrices(&artifacts.matrices, &artifacts.pk, circuit, &mut rng).unwrap();
 
-        assert!(Groth16::<Bn254>::verify(&vk, &public_inputs, &proof).unwrap());
+        assert!(Groth16::<Bn254>::verify(&artifacts.vk, &public_inputs, &proof).unwrap());
     }
 }

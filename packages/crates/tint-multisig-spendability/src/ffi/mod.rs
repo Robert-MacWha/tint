@@ -8,7 +8,7 @@ use tint::{
     operation::Operation,
 };
 
-use crate::N_SIGNERS;
+use crate::{N_SIGNERS, ffi::artifacts::Artifacts};
 
 pub mod artifacts;
 mod bytes32;
@@ -46,9 +46,7 @@ pub enum FfiError {
 /// Returns the proof as solidity-verifier-compatible bytes on success or
 /// the status code on failure.
 pub fn prove_via_go(
-    ccs: &[u8],
-    pk: &[u8],
-    vk: &[u8],
+    artifacts: &Artifacts,
     spendability_address: Fr,
     operation: &Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
     pub_keys: &[VerifyingKey; N_SIGNERS],
@@ -66,12 +64,12 @@ pub fn prove_via_go(
 
     let status = unsafe {
         TintProve(
-            ccs.as_ptr().cast_mut(),
-            ccs.len(),
-            pk.as_ptr().cast_mut(),
-            pk.len(),
-            vk.as_ptr().cast_mut(),
-            vk.len(),
+            artifacts.ccs.as_ptr().cast_mut(),
+            artifacts.ccs.len(),
+            artifacts.pk.as_ptr().cast_mut(),
+            artifacts.pk.len(),
+            artifacts.vk.as_ptr().cast_mut(),
+            artifacts.vk.len(),
             &mut input,
             &mut proof_ptr,
             &mut proof_len,

@@ -35,7 +35,7 @@ impl EncryptedEnvelope {
         mut rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Self, EncryptionError> {
         let payload_key: [u8; 32] = rng.r#gen();
-        let commitment = Sha256::digest(&plaintext).into();
+        let commitment = Sha256::digest(plaintext).into();
         let ct_payload = aead_encrypt(&payload_key, plaintext, &mut rng)?;
 
         let ephemeral_secret = StaticSecret::random_from_rng(&mut rng);

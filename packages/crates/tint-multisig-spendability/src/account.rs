@@ -10,7 +10,11 @@ use tint::{
     operation::Operation,
 };
 
-use crate::{N_SIGNERS, THRESHOLD, ffi, pubkey_hash};
+use crate::{
+    N_SIGNERS, THRESHOLD,
+    ffi::{self, artifacts::Artifacts},
+    pubkey_hash,
+};
 
 /// A signer capable of producing an ECDSA/secp256k1 signature over an
 /// already-final digest (no further hashing — the circuit signs
@@ -48,30 +52,28 @@ pub struct MultisigSpendingAccount<const N_SIGNERS: usize, const THRESHOLD: usiz
     /// so `spendability_witness()` (whose signature is fixed by
     /// [`SpendingAccount`]) can return it infallibly.
     witness: Fr,
-    ccs: Vec<u8>,
-    pk: Vec<u8>,
-    vk: Vec<u8>,
+    artifacts: Artifacts,
 }
 
 impl<const N_SIGNERS: usize, const THRESHOLD: usize> MultisigSpendingAccount<N_SIGNERS, THRESHOLD> {
     pub fn new(
         contract_address: Address,
         signers: [Box<dyn Signer + Send + Sync>; N_SIGNERS],
-        ccs: Vec<u8>,
-        pk: Vec<u8>,
-        vk: Vec<u8>,
+        artifacts: Artifacts,
     ) -> Result<Self, pubkey_hash::InvalidPublicKey> {
-        debug_assert!(THRESHOLD <= N_SIGNERS);
+        const {
+            assert!(THRESHOLD <= N_SIGNERS, "THRESHOLD must be <= N_SIGNERS");
+        }
+
         let pub_keys: [VerifyingKey; N_SIGNERS] =
             std::array::from_fn(|i| signers[i].verifying_key());
         let witness = pubkey_hash::pubkey_hash(&pub_keys)?;
+
         Ok(Self {
             contract_address,
             signers,
             witness,
-            ccs,
-            pk,
-            vk,
+            artifacts,
         })
     }
 
@@ -102,7 +104,7 @@ impl SpendingAccount for MultisigSpendingAccount<N_SIGNERS, THRESHOLD> {
 
     /// Proves that at least `THRESHOLD` of this account's `N_SIGNERS` signers
     /// validly signed the operation.
-    async fn into_spendable(
+    async fn as_spendable(
         &self,
         base: NullifiableCommitment,
         operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
@@ -116,9 +118,7 @@ impl SpendingAccount for MultisigSpendingAccount<N_SIGNERS, THRESHOLD> {
                 .map_err(SpendingAccountError::new)?;
 
         let solidity_proof = ffi::prove_via_go(
-            &self.ccs,
-            &self.pk,
-            &self.vk,
+            &self.artifacts,
             address_to_fr(self.contract_address),
             &operation,
             &pub_keys,
@@ -164,9 +164,7 @@ mod tests {
         let account = MultisigSpendingAccount::<N_SIGNERS, THRESHOLD>::new(
             contract_address,
             signers,
-            ffi::artifacts::ccs_bytes().unwrap(),
-            ffi::artifacts::proving_key_bytes().unwrap(),
-            ffi::artifacts::verifying_key_bytes().unwrap(),
+            ffi::artifacts::load_artifacts().unwrap(),
         )
         .unwrap();
 
@@ -176,6 +174,6 @@ mod tests {
 
         let base = NullifiableCommitment::new(BaseCommitment::default(), NullifierKey::default());
 
-        account.into_spendable(base, operation).await.unwrap();
+        account.as_spendable(base, operation).await.unwrap();
     }
 }

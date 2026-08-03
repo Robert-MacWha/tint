@@ -4,7 +4,7 @@ use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_sol_types::{SolCall, SolValue};
 use ark_bn254::{Bn254, Fr};
 use ark_ff::PrimeField;
-use ark_groth16::{Groth16, ProvingKey, VerifyingKey};
+use ark_groth16::Groth16;
 use ark_snark::SNARK;
 use ark_std::rand::Rng;
 use rand_core::{CryptoRng, RngCore};
@@ -15,8 +15,9 @@ use crate::{
     account::{Account, keys::NullifierPubKey, receiver::Receiver},
     array::try_from_fn,
     circuit::{
+        Artifacts,
         join_split::{JoinSplit, K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, TREE_DEPTH},
-        matrices::{Matrices, prove_with_matrices},
+        matrices::prove_with_matrices,
     },
     database::DatabaseError,
     fr::fr_to_b256,
@@ -60,24 +61,15 @@ pub enum ProviderError {
 pub struct Provider {
     pub indexer: Indexer,
     accounts: Vec<Account>,
-    matrices: Matrices<Fr>,
-    proving_key: ProvingKey<Bn254>,
-    verifying_key: VerifyingKey<Bn254>,
+    artifacts: Artifacts<Bn254>,
 }
 
 impl Provider {
-    pub fn new(
-        indexer: Indexer,
-        matrices: Matrices<Fr>,
-        proving_key: ProvingKey<Bn254>,
-        verifying_key: VerifyingKey<Bn254>,
-    ) -> Self {
+    pub fn new(indexer: Indexer, artifacts: Artifacts<Bn254>) -> Self {
         Self {
             indexer,
             accounts: Vec::new(),
-            matrices,
-            proving_key,
-            verifying_key,
+            artifacts,
         }
     }
 
@@ -178,10 +170,10 @@ impl Provider {
         info!("Proving operation...");
         let outputs = circuit.synthesize_outputs()?;
         let (public_inputs, proof) =
-            prove_with_matrices(&self.matrices, &self.proving_key, circuit, rng)?;
+            prove_with_matrices(&self.artifacts.matrices, &self.artifacts.pk, circuit, rng)?;
 
         // Smoke-test the proof locally
-        if !Groth16::<Bn254>::verify(&self.verifying_key, &public_inputs, &proof)? {
+        if !Groth16::<Bn254>::verify(&self.artifacts.vk, &public_inputs, &proof)? {
             return Err(ProviderError::InvalidProof);
         }
         info!("Operation proof verified");
@@ -237,7 +229,7 @@ impl Provider {
             let account = self.account_for(note)?;
             let resolved = account
                 .spending()
-                .into_spendable(*note, operation.clone())
+                .as_spendable(*note, operation.clone())
                 .await?;
             operation.inputs[i] = resolved.clone();
             resolved_inputs[i] = resolved;
@@ -271,7 +263,7 @@ impl Provider {
         let circuit = JoinSplit::new(
             // Public inputs
             old_root,
-            start_aggregation_index.into(),
+            start_aggregation_index,
             start_aggregation_hash,
             bound_params_hash,
             // Witnessed values

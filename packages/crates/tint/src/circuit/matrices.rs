@@ -53,15 +53,6 @@ pub fn prove_with_matrices<
         &full_assignment,
     )
     .unwrap();
-    // let proof = ark_groth16::Groth16::<E>::create_proof_with_reduction_and_matrices(
-    //     pk,
-    //     r,
-    //     s,
-    //     &matrices.matrices,
-    //     matrices.num_inputs,
-    //     matrices.num_constraints,
-    //     &full_assignment,
-    // )?;
 
     Ok((public_inputs, proof))
 }

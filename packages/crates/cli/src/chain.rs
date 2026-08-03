@@ -62,8 +62,8 @@ pub async fn connect(
     let database = Arc::new(MemoryDatabase::default());
     let indexer = Indexer::new(syncer, verifier, database).await?;
 
-    let (matrices, pk, vk) = config::load_circuit::<JoinSplit>("join_split")?;
-    let mut tint_provider = TintProvider::new(indexer, matrices, pk, vk);
+    let artifacts = config::load_circuit::<JoinSplit>("join_split")?;
+    let mut tint_provider = TintProvider::new(indexer, artifacts);
     tint_provider.add_account(account.clone()).await?;
 
     tracing::info!("Syncing with chain...");

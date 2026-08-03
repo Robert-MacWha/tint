@@ -3,18 +3,22 @@
 //!
 //! Run with `cargo run --release --bin gen_artifacts`.
 
-use tint::circuit::{artifacts, generate_artifacts, join_split::JoinSplit};
+use tint::circuit::{
+    artifacts::{serialize_matrices, serialize_pk, serialize_vk},
+    generate_artifacts,
+    join_split::JoinSplit,
+};
 
 const ARTIFACTS_DIR: &str = "artifacts/";
 
 fn main() {
     println!("Generating artifacts");
-    let (matrices, pk, vk) = generate_artifacts::<JoinSplit>().unwrap();
+    let artifacts = generate_artifacts::<JoinSplit>().unwrap();
 
     println!("Serializing artifacts");
-    let pk_bytes = artifacts::serialize_proving_key(&pk).unwrap();
-    let vk_bytes = artifacts::serialize_verifying_key(&vk).unwrap();
-    let matrices_bytes = artifacts::serialize_matrices(&matrices).unwrap();
+    let pk_bytes = serialize_pk(&artifacts.pk).unwrap();
+    let vk_bytes = serialize_vk(&artifacts.vk).unwrap();
+    let matrices_bytes = serialize_matrices(&artifacts.matrices).unwrap();
 
     std::fs::create_dir_all(ARTIFACTS_DIR).unwrap();
     write_to_file(

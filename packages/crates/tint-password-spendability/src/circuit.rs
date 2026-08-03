@@ -50,7 +50,7 @@ impl PasswordSpendability {
         let cs = ConstraintSystem::new_ref();
         cs.set_optimization_goal(OptimizationGoal::Constraints);
 
-        let _ = self.synthesize(cs.clone())?;
+        self.synthesize(cs.clone())?;
         cs.finalize();
 
         // `instance_assignment()` leads with the implicit constant-1 term.

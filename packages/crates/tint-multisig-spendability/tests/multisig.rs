@@ -45,7 +45,7 @@ async fn multisig() {
 
     // Setup circuits
     info!("Setting up circuits...");
-    let (matrices, proving_key, verifying_key) = generate_artifacts::<JoinSplit>().unwrap();
+    let artifacts = generate_artifacts::<JoinSplit>().unwrap();
 
     // Setup spendability account
     info!("Setting up spendability account...");
@@ -54,9 +54,7 @@ async fn multisig() {
     let spending = MultisigSpendingAccount::<N_SIGNERS, THRESHOLD>::new(
         *spendability.address(),
         signers,
-        ffi::artifacts::ccs_bytes().unwrap(),
-        ffi::artifacts::proving_key_bytes().unwrap(),
-        ffi::artifacts::verifying_key_bytes().unwrap(),
+        ffi::artifacts::load_artifacts().unwrap(),
     )
     .unwrap();
     let account_1 = Account::from_keys(Keys::from_seed(&[11u8; 32]), spending);
@@ -69,7 +67,7 @@ async fn multisig() {
     let database = Arc::new(MemoryDatabase::default());
     let indexer = Indexer::new(syncer, verifier, database).await.unwrap();
 
-    let mut tint_provider = Provider::new(indexer, matrices, proving_key, verifying_key);
+    let mut tint_provider = Provider::new(indexer, artifacts);
     tint_provider.add_account(account_1.clone()).await.unwrap();
     tint_provider.add_account(account_2.clone()).await.unwrap();
 

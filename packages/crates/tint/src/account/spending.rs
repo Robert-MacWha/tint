@@ -24,7 +24,7 @@ pub trait SpendingAccount: std::fmt::Debug {
 
     /// Converts a nullifiable commitment into a spendable commitment by
     /// generating the `spendability_input`.
-    async fn into_spendable(
+    async fn as_spendable(
         &self,
         base: NullifiableCommitment,
         operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
@@ -43,6 +43,10 @@ pub struct SpendingAccountError {
     inner: Box<dyn std::error::Error + Send + Sync>,
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+struct Message(String);
+
 #[async_trait::async_trait]
 impl SpendingAccount for NoopSpendingAccount {
     fn spendability_address(&self) -> Address {
@@ -53,7 +57,7 @@ impl SpendingAccount for NoopSpendingAccount {
         Fr::from(0)
     }
 
-    async fn into_spendable(
+    async fn as_spendable(
         &self,
         base: NullifiableCommitment,
         _operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
@@ -77,9 +81,21 @@ impl SpendingAccountError {
         }
     }
 
-    pub fn from_str(inner: impl Into<String>) -> Self {
+    pub fn msg(s: impl Into<String>) -> Self {
         Self {
-            inner: Box::new(std::io::Error::new(std::io::ErrorKind::Other, inner.into())),
+            inner: Box::new(Message(s.into())),
         }
+    }
+}
+
+impl From<String> for SpendingAccountError {
+    fn from(s: String) -> Self {
+        Self::msg(s)
+    }
+}
+
+impl From<&str> for SpendingAccountError {
+    fn from(s: &str) -> Self {
+        Self::msg(s)
     }
 }

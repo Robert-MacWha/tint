@@ -6,18 +6,17 @@ use std::{
 use alloy::primitives::{Address, hex};
 use anyhow::Context;
 use ark_bn254::{Bn254, Fr};
-use ark_groth16::{ProvingKey, VerifyingKey};
 use ark_relations::gr1cs::ConstraintSynthesizer;
 use serde::{Deserialize, Serialize};
 use tint::{
     account::{Account, keys::Keys, receiver::Receiver, spending::NoopSpendingAccount},
     circuit::{
+        Artifacts,
         artifacts::{
-            deserialize_matrices, deserialize_proving_key, deserialize_verifying_key,
-            serialize_matrices, serialize_proving_key, serialize_verifying_key,
+            deserialize_matrices, deserialize_pk, deserialize_vk, serialize_matrices, serialize_pk,
+            serialize_vk,
         },
         generate_artifacts,
-        matrices::Matrices,
     },
 };
 use tint_multisig_spendability::N_SIGNERS;
@@ -154,7 +153,7 @@ fn read_stored_account(name: &str) -> anyhow::Result<StoredAccount> {
 /// caching them on first use.
 pub fn load_circuit<C: ConstraintSynthesizer<Fr> + Default>(
     dir: impl AsRef<Path>,
-) -> anyhow::Result<(Matrices<Fr>, ProvingKey<Bn254>, VerifyingKey<Bn254>)> {
+) -> anyhow::Result<Artifacts<Bn254>> {
     let circuit_dir = circuit_dir().join(&dir);
 
     let matrices_path = circuit_dir.join("matrices.bin.br");
@@ -168,25 +167,23 @@ pub fn load_circuit<C: ConstraintSynthesizer<Fr> + Default>(
         let vk_bytes = fs::read(&vk_path).context("reading cached verifying key")?;
         let matrices =
             deserialize_matrices(&matrices_bytes).context("deserializing cached matrices")?;
-        let proving_key =
-            deserialize_proving_key(&pk_bytes).context("deserializing cached proving key")?;
-        let verifying_key =
-            deserialize_verifying_key(&vk_bytes).context("deserializing cached verifying key")?;
-        return Ok((matrices, proving_key, verifying_key));
+        let pk = deserialize_pk(&pk_bytes).context("deserializing cached proving key")?;
+        let vk = deserialize_vk(&vk_bytes).context("deserializing cached verifying key")?;
+        return Ok(Artifacts { matrices, pk, vk });
     }
 
     info!("Generating circuit keys (first run)...");
-    let (matrices, pk, vk) = generate_artifacts::<C>()?;
+    let artifacts = generate_artifacts::<C>()?;
 
     fs::create_dir_all(circuit_dir)?;
-    let pk_bytes = serialize_proving_key(&pk).context("serializing proving key")?;
-    let vk_bytes = serialize_verifying_key(&vk).context("serializing verifying key")?;
-    let matrices_bytes = serialize_matrices(&matrices).context("serializing matrices")?;
+    let pk_bytes = serialize_pk(&artifacts.pk).context("serializing proving key")?;
+    let vk_bytes = serialize_vk(&artifacts.vk).context("serializing verifying key")?;
+    let matrices_bytes = serialize_matrices(&artifacts.matrices).context("serializing matrices")?;
     fs::write(&pk_path, pk_bytes).context("writing proving key")?;
     fs::write(&vk_path, vk_bytes).context("writing verifying key")?;
     fs::write(&matrices_path, matrices_bytes).context("writing matrices")?;
 
-    Ok((matrices, pk, vk))
+    Ok(artifacts)
 }
 
 fn base_dir() -> PathBuf {

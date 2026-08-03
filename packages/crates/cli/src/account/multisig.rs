@@ -6,7 +6,7 @@ use tint::account::{Account, keys::Keys};
 use tint_multisig_spendability::{
     N_SIGNERS, THRESHOLD,
     account::{MultisigSpendingAccount, Signer},
-    ffi::artifacts as multisig_artifacts,
+    ffi::artifacts::load_artifacts as multisig_artifacts,
 };
 use tracing::info;
 
@@ -57,9 +57,7 @@ fn multisig_account(
     let account = MultisigSpendingAccount::<N_SIGNERS, THRESHOLD>::new(
         contract_address,
         signers,
-        multisig_artifacts::ccs_bytes()?,
-        multisig_artifacts::proving_key_bytes()?,
-        multisig_artifacts::verifying_key_bytes()?,
+        multisig_artifacts()?,
     )?;
     Ok(Account::from_keys(keys, account))
 }

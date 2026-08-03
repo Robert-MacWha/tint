@@ -27,15 +27,11 @@ fn main() {
     let signatures: [Option<Signature>; N_SIGNERS] =
         tint::array::try_from_fn(|i| signers[i].sign_prehash(&msg).map(Some)).unwrap();
 
-    let ccs = ffi::artifacts::ccs_bytes().unwrap();
-    let pk = ffi::artifacts::proving_key_bytes().unwrap();
-    let vk = ffi::artifacts::verifying_key_bytes().unwrap();
+    let artifacts = ffi::artifacts::load_artifacts().unwrap();
 
     let prove_start = Instant::now();
     let _ = ffi::prove_via_go(
-        &ccs,
-        &pk,
-        &vk,
+        &artifacts,
         address_to_fr(contract_address),
         &operation,
         &pub_keys,

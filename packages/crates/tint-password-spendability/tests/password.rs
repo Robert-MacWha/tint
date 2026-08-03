@@ -45,7 +45,7 @@ async fn password() {
 
     // Setup spendability account
     info!("Setting up spendability account...");
-    let spending = PasswordSpendingAccount::new_const(
+    let spending = PasswordSpendingAccount::new(
         spendability.address().clone(),
         Fr::from(1234),
         spendability_artifacts,

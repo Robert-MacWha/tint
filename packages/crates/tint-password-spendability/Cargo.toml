@@ -6,6 +6,9 @@ edition = "2024"
 [features]
 parallel = ["ark-groth16/parallel"]
 
+[lints]
+workspace = true
+
 [dependencies]
 tint = { workspace = true }
 ark-ff = { workspace = true }

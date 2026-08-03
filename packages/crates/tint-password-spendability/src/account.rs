@@ -29,19 +29,7 @@ pub struct PasswordSpendingAccount {
 }
 
 impl PasswordSpendingAccount {
-    pub fn new(
-        contract_address: Address,
-        secret: impl FnOnce() -> Result<Fr, Box<dyn std::error::Error + Send + Sync>>,
-        artifacts: Artifacts<Bn254>,
-    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        Ok(Self {
-            contract_address,
-            secret: secret()?,
-            artifacts,
-        })
-    }
-
-    pub fn new_const(contract_address: Address, secret: Fr, artifacts: Artifacts<Bn254>) -> Self {
+    pub fn new(contract_address: Address, secret: Fr, artifacts: Artifacts<Bn254>) -> Self {
         Self {
             contract_address,
             secret,

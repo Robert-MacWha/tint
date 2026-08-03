@@ -29,12 +29,12 @@ pub fn load_password_account(keys: Keys, address: Address) -> anyhow::Result<Acc
 fn password_account(keys: Keys, contract_address: Address) -> anyhow::Result<Account> {
     let artifacts = load_circuit::<PasswordSpendability>("password")?;
 
-    let account = PasswordSpendingAccount::new(contract_address, prompt_password, artifacts)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let password = prompt_password()?;
+    let account = PasswordSpendingAccount::new(contract_address, password, artifacts);
     Ok(Account::from_keys(keys, account))
 }
 
-fn prompt_password() -> Result<Fr, Box<dyn std::error::Error + Send + Sync>> {
+fn prompt_password() -> io::Result<Fr> {
     print!("Password: ");
     io::stdout().flush()?;
 

@@ -9,6 +9,9 @@ parallel = ["ark-groth16/parallel"]
 asm = ["ark-ff/asm"]
 print-trace = ["ark-std/print-trace"]
 
+[lints]
+workspace = true
+
 [dependencies]
 alloy-primitives = { workspace = true }
 alloy-provider = { workspace = true }

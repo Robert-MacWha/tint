@@ -37,7 +37,7 @@ pub fn poseidon2_compress_gadget<const T: usize>(
         assert!(
             matches!(T, 1 | 2 | 3 | 8),
             "poseidon2: unsupported width (must be 1, 2, 3, or 8)"
-        )
+        );
     };
 
     let mut state = input.clone();

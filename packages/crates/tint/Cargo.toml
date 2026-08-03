@@ -12,9 +12,6 @@ parallel = ["ark-groth16/parallel"]
 asm = ["ark-ff/asm"]
 print-trace = ["ark-std/print-trace"]
 
-[lints]
-workspace = true
-
 [dependencies]
 alloy-primitives = { workspace = true }
 alloy-provider = { workspace = true }
@@ -22,41 +19,47 @@ alloy-rpc-types-eth = { workspace = true }
 alloy-sol-macro = { workspace = true, features = ["json"] }
 alloy-sol-types = { workspace = true }
 ark-bn254 = { workspace = true }
+ark-ec = { workspace = true }
 ark-ff = { workspace = true }
 ark-groth16 = { workspace = true }
-ark-snark = { workspace = true }
-ark-ec = { workspace = true }
+ark-poly = { workspace = true }
 ark-r1cs-std = { workspace = true }
 ark-relations = { workspace = true }
-ark-poly = { workspace = true }
+ark-serialize = { workspace = true }
+ark-snark = { workspace = true }
+ark-std = { workspace = true }
 async-trait = { workspace = true }
-thiserror = { workspace = true }
-tracing = { workspace = true }
-x25519-dalek = { workspace = true, features = ["static_secrets", "serde"] }
 chacha20poly1305 = { workspace = true }
 hkdf = { workspace = true }
-sha2 = { workspace = true }
-rand_core = { workspace = true, features = ["getrandom"] }
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
-ark-std = { workspace = true }
 postcard = { workspace = true, features = ["use-std"] }
-serde = { workspace = true }
-taceo-poseidon2 = { workspace = true, features = ["t2", "t3", "t8"] }
-serde_with = { workspace = true }
-ark-serialize = { workspace = true }
-ruint = { workspace = true, features = ["ark-ff-06"] }
+rand_core = { workspace = true, features = ["getrandom"] }
 rayon = { workspace = true }
+ruint = { workspace = true, features = ["ark-ff-06"] }
+serde = { workspace = true }
+serde_with = { workspace = true }
+sha2 = { workspace = true }
+taceo-poseidon2 = { workspace = true, features = ["t2", "t3", "t8"] }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tracing = { workspace = true }
+x25519-dalek = { workspace = true, features = ["static_secrets", "serde"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
 
 [dev-dependencies]
-circuit-profiler = { workspace = true }
+alloy-contract = { workspace = true }
 alloy-node-bindings = { workspace = true }
 alloy-signer-local = { workspace = true }
 anyhow = { workspace = true }
+circuit-profiler = { workspace = true }
+criterion = { workspace = true }
 insta = { workspace = true }
 serde_json = { workspace = true }
-criterion = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
-alloy-contract = { workspace = true }
+
+[lints]
+workspace = true
 
 [[bench]]
 name = "groth16_constraints"
@@ -65,6 +68,3 @@ harness = false
 [[bench]]
 name = "groth16_matrices"
 harness = false
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }

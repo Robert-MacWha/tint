@@ -3,24 +3,28 @@ name = "tint-multisig-spendability"
 version = "0.1.0"
 edition = "2024"
 
-[lints]
-workspace = true
-
 [dependencies]
-tint = { workspace = true }
+alloy-primitives = { workspace = true }
 ark-bn254 = { workspace = true, features = ["scalar_field"] }
 ark-ff = { workspace = true }
-thiserror = { workspace = true }
-alloy-primitives = { workspace = true }
 async-trait = { workspace = true }
 k256 = { workspace = true }
 signature = { workspace = true }
+thiserror = { workspace = true }
+tint = { workspace = true }
 tracing = { workspace = true }
 
 [build-dependencies]
 bindgen = { workspace = true }
 
 [dev-dependencies]
+alloy-contract = { workspace = true }
+alloy-node-bindings = { workspace = true }
+alloy-provider = { workspace = true }
+alloy-signer-local = { workspace = true }
+alloy-sol-macro = { workspace = true, features = ["json"] }
+alloy-sol-types = { workspace = true }
+anyhow = { workspace = true }
 ark-ec = { workspace = true }
 ark-r1cs-std = { workspace = true }
 ark-relations = { workspace = true, features = ["std"] }
@@ -29,13 +33,9 @@ ark-std = { workspace = true }
 taceo-poseidon2 = { workspace = true, features = ["t2", "t3", "t8"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
-alloy-node-bindings = { workspace = true }
-alloy-provider = { workspace = true }
-alloy-signer-local = { workspace = true }
-alloy-sol-macro = { workspace = true, features = ["json"] }
-alloy-sol-types = { workspace = true }
-alloy-contract = { workspace = true }
-anyhow = { workspace = true }
+
+[lints]
+workspace = true
 
 [[bench]]
 name = "prove"

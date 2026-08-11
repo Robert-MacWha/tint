@@ -37,11 +37,8 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
         address indexed recipient
     );
 
-    error ZeroAmount();
-    error ZeroCommitment();
     error InvalidProof();
     error NullifierAlreadySpent(bytes32 nullifier);
-    error UnshieldRecipientZero(uint256 index);
     error InvalidSpendability(address spendabilityAddress);
 
     constructor(address _verifier) RootRegistry(GENESIS_ROOT) {
@@ -61,9 +58,6 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
         bytes32 partialCommitment,
         bytes calldata encryptedNote
     ) external {
-        if (amount == 0) revert ZeroAmount();
-        if (partialCommitment == 0) revert ZeroCommitment();
-
         bytes32 commitment = ProofLib.toCommitment(
             asset,
             amount,
@@ -149,13 +143,6 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
             bytes32 hash = op.nullifiers[i];
             if (hash == 0) continue;
             if (nullifierHashes[hash]) revert NullifierAlreadySpent(hash);
-        }
-
-        // Verify unshield recipients are non-zero addresses
-        for (uint256 i; i < N_WITHDRAWALS; ++i) {
-            if (op.unshieldAmounts[i] == 0) continue;
-            if (op.context.unshieldRecipients[i] == address(0))
-                revert UnshieldRecipientZero(i);
         }
 
         // Verify spendability

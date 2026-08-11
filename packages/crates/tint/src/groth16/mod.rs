@@ -3,6 +3,8 @@
 //! Original source code licensed under MIT.
 //!
 //! Updated to use arkworks 0.6.0 and remove circom compatibility code.
+//!
+//! TODO: Replace with importing the dep directly since they updated to 0.6.0
 
 use std::marker::PhantomData;
 

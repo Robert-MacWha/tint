@@ -93,16 +93,6 @@ contract TintTests is Test {
         assertEq(token.balanceOf(address(tint)), tintBefore + 100);
     }
 
-    function test_deposit_zeroAmount_reverts() public {
-        vm.expectRevert(Tint.ZeroAmount.selector);
-        tint.deposit(address(token), 0, SEED, "");
-    }
-
-    function test_deposit_zeroCommitment_reverts() public {
-        vm.expectRevert(Tint.ZeroCommitment.selector);
-        tint.deposit(address(token), 1, bytes32(0), "");
-    }
-
     function test_deposit_noAllowance_reverts() public {
         token.approve(address(tint), 0);
         vm.expectRevert();
@@ -143,21 +133,6 @@ contract TintTests is Test {
             abi.encodeWithSelector(
                 Tint.NullifierAlreadySpent.selector,
                 bytes32(uint256(123))
-            )
-        );
-        tint.operate(op);
-    }
-
-    function test_operate_unshieldZeroRecipient_reverts() public {
-        bytes32[N_INPUTS] memory nullifiers;
-        IPrivacyPool.Operation memory op = _op(GENESIS_ROOT, nullifiers);
-        op.unshieldAmounts[0] = 1;
-        op.unshieldAssets[0] = address(token);
-        // unshieldRecipients[0] stays address(0)
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Tint.UnshieldRecipientZero.selector,
-                uint256(0)
             )
         );
         tint.operate(op);

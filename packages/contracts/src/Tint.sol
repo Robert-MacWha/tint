@@ -152,7 +152,6 @@ contract Tint is
             .spendabilityAddresses(op);
         for (uint256 i; i < N_INPUTS; ++i) {
             if (spendabilityAddresses[i] == address(0)) continue;
-
             ISpendability(spendabilityAddresses[i]).requireSpendable(op);
         }
     }
@@ -160,6 +159,9 @@ contract Tint is
     /// @notice Executes the state changes specified by the operation.
     /// @dev Assumes the operation has already been verified.
     function _executeOperation(IPrivacyPool.Operation calldata op) private {
+        _advanceConsumed(op.endAggregationIndex);
+        _updateRoot(op.oldRoot, op.newRoot);
+
         // Nullify the input notes
         for (uint256 i; i < N_INPUTS; ++i) {
             bytes32 hash = op.nullifiers[i];
@@ -173,9 +175,6 @@ contract Tint is
             _commit(commitment);
             emit Committed(commitment, op.context.ciphertexts[i]);
         }
-
-        _advanceConsumed(op.endAggregationIndex);
-        _updateRoot(op.oldRoot, op.newRoot);
 
         // Execute any unshielding transfers
         for (uint256 i; i < N_WITHDRAWALS; ++i) {

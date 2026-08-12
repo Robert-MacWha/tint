@@ -21,8 +21,10 @@ contract AggregationRing {
 
     /// Stages a commitment into the aggregation ring, extending the Poseidon hash chain.
     ///
-    /// @dev Reverts if the ring is full
+    /// @dev Reverts if the ring is full. No-op if the commitment is the magic value 0.
     function _commit(bytes32 commitment) internal {
+        if (commitment == 0) return;
+
         uint128 newStaged = staged + 1;
         if (newStaged > AGGREGATION_RING_SIZE) revert StagingFull();
 

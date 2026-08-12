@@ -42,7 +42,6 @@ contract Tint is
     );
 
     error InvalidProof();
-    error InvalidSpendability(address spendabilityAddress);
 
     constructor(address _verifier) RootRegistry(GENESIS_ROOT) {
         VERIFIER = IVerifier(_verifier);
@@ -154,8 +153,7 @@ contract Tint is
         for (uint256 i; i < N_INPUTS; ++i) {
             if (spendabilityAddresses[i] == address(0)) continue;
 
-            bool ok = ISpendability(spendabilityAddresses[i]).isSpendable(op);
-            if (!ok) revert InvalidSpendability(spendabilityAddresses[i]);
+            ISpendability(spendabilityAddresses[i]).requireSpendable(op);
         }
     }
 
@@ -172,7 +170,6 @@ contract Tint is
         // Stage any output commitments
         for (uint256 i; i < N_OUTPUTS; ++i) {
             bytes32 commitment = op.commitmentsOut[i];
-            if (commitment == 0) continue;
             _commit(commitment);
             emit Committed(commitment, op.context.ciphertexts[i]);
         }

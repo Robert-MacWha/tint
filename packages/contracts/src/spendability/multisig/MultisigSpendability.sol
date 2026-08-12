@@ -11,13 +11,16 @@ import {Verifier} from "./MultisigSpendabilityVerifier.sol";
 contract MultisigSpendability is ISpendability {
     Verifier public immutable VERIFIER;
 
+    error InvalidProof();
+    error NoInputsForThisSpendability();
+
     constructor(Verifier verifier) {
         VERIFIER = verifier;
     }
 
-    function isSpendable(
+    function requireSpendable(
         IPrivacyPool.Operation calldata operation
-    ) external view returns (bool) {
+    ) external view {
         for (uint256 i = 0; i < N_INPUTS; i++) {
             if (operation.spendabilityAddresses[i] != address(this)) continue;
             bytes calldata proof = operation.context.spendabilityInputs[i];
@@ -26,13 +29,10 @@ contract MultisigSpendability is ISpendability {
                 uint256(operation.operationHash)
             ];
 
-            try VERIFIER.verifyProof(proof, pubSignals) {
-                return true;
-            } catch {
-                return false;
-            }
+            VERIFIER.verifyProof(proof, pubSignals);
+            return;
         }
 
-        return false;
+        revert NoInputsForThisSpendability();
     }
 }

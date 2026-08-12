@@ -12,13 +12,16 @@ import {PasswordSpendabilityVerifier} from "./PasswordSpendabilityVerifier.sol";
 contract PasswordSpendability is ISpendability {
     PasswordSpendabilityVerifier public immutable VERIFIER;
 
+    error InvalidProof();
+    error NoInputsForThisSpendability();
+
     constructor(PasswordSpendabilityVerifier verifier) {
         VERIFIER = verifier;
     }
 
-    function isSpendable(
+    function requireSpendable(
         IPrivacyPool.Operation calldata operation
-    ) external view returns (bool) {
+    ) external view {
         for (uint256 i = 0; i < N_INPUTS; i++) {
             if (operation.spendabilityAddresses[i] != address(this)) continue;
 
@@ -31,10 +34,15 @@ contract PasswordSpendability is ISpendability {
                 uint256(operation.operationHash)
             ];
 
-            return
-                VERIFIER.verifyProof(proof.pA, proof.pB, proof.pC, pubSignals);
+            if (
+                !VERIFIER.verifyProof(proof.pA, proof.pB, proof.pC, pubSignals)
+            ) {
+                revert InvalidProof();
+            }
+
+            return;
         }
 
-        return false;
+        revert NoInputsForThisSpendability();
     }
 }

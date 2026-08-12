@@ -64,6 +64,9 @@ contract AggregationRingSymTest is Test, SymTest {
     function check_commit(bytes32 commitment) public {
         (uint128 consumed0, uint128 staged0) = _arbitraryState();
 
+        // SAFETY: Committing the magic value 0 is a no-op.
+        vm.assume(commitment != 0);
+
         try ring.commit(commitment) {
             assert(staged0 < AGGREGATION_RING_SIZE);
             assert(ring.staged() == staged0 + 1);
@@ -85,6 +88,10 @@ contract AggregationRingSymTest is Test, SymTest {
 
         // SAFETY: Ensure the total will not overflow u128.
         vm.assume(uint256(total0) + 2 <= uint256(type(uint128).max));
+
+        // SAFETY: Committing the magic value 0 is a no-op.
+        vm.assume(c1 != 0);
+        vm.assume(c2 != 0);
 
         try ring.commit(c1) {} catch {
             //? Cannot fail since we assumed room

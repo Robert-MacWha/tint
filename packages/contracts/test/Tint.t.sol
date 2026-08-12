@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Tint} from "../src/Tint.sol";
 import {RootRegistry} from "../src/RootRegistry.sol";
+import {NullifierRegistry} from "../src/NullifierRegistry.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
 import {
     N_INPUTS,
@@ -116,27 +117,27 @@ contract TintTests is Test {
         tint.operate(_op(GENESIS_ROOT, nullifiers));
     }
 
-    // function test_operate_spentNullifier_reverts() public {
-    //     bytes32[N_INPUTS] memory nullifiers;
-    //     nullifiers[0] = bytes32(uint256(123));
-    //     tint.operate(_op(GENESIS_ROOT, nullifiers));
+    function test_operate_spentNullifier_reverts() public {
+        bytes32[N_INPUTS] memory nullifiers;
+        nullifiers[0] = bytes32(uint256(123));
+        tint.operate(_op(GENESIS_ROOT, nullifiers));
 
-    //     tint.deposit(address(token), 1, bytes32(uint256(99)), "");
-    //     IPrivacyPool.Operation memory op;
-    //     op.oldRoot = bytes32(uint256(1));
-    //     op.newRoot = bytes32(uint256(2));
-    //     op.endAggregationIndex = 1;
-    //     op.nullifiers = nullifiers;
-    //     for (uint256 i; i < N_INPUTS; ++i)
-    //         op.spendabilityAddresses[i] = address(0);
-    //     vm.expectRevert(
-    //         abi.encodeWithSelector(
-    //             Tint.NullifierAlreadySpent.selector,
-    //             bytes32(uint256(123))
-    //         )
-    //     );
-    //     tint.operate(op);
-    // }
+        tint.deposit(address(token), 1, bytes32(uint256(99)), "");
+        IPrivacyPool.Operation memory op;
+        op.oldRoot = bytes32(uint256(1));
+        op.newRoot = bytes32(uint256(2));
+        op.endAggregationIndex = 1;
+        op.nullifiers = nullifiers;
+        for (uint256 i; i < N_INPUTS; ++i)
+            op.spendabilityAddresses[i] = address(0);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                NullifierRegistry.NullifierAlreadySpent.selector,
+                bytes32(uint256(123))
+            )
+        );
+        tint.operate(op);
+    }
 
     // ------- operate() — state transitions -------
 
@@ -205,30 +206,30 @@ contract TintTests is Test {
 
     // ------- batch & integration -------
 
-    // function test_revert_on_nullifier_reuse() public {
-    //     bytes32[N_INPUTS] memory nullifiers;
-    //     nullifiers[0] = bytes32(uint256(123));
-    //     tint.operate(_op(GENESIS_ROOT, nullifiers));
+    function test_revert_on_nullifier_reuse() public {
+        bytes32[N_INPUTS] memory nullifiers;
+        nullifiers[0] = bytes32(uint256(123));
+        tint.operate(_op(GENESIS_ROOT, nullifiers));
 
-    //     tint.deposit(address(token), 1, bytes32(uint256(99)), "");
-    //     IPrivacyPool.Operation memory op = _op(GENESIS_ROOT, nullifiers);
-    //     op.oldRoot = bytes32(uint256(1));
-    //     op.newRoot = bytes32(uint256(2));
-    //     op.endAggregationIndex = 1;
-    //     op.nullifiers = nullifiers;
-    //     for (uint256 i; i < N_INPUTS; ++i)
-    //         op.spendabilityAddresses[i] = address(0);
-    //     vm.expectRevert(
-    //         abi.encodeWithSelector(
-    //             Tint.NullifierAlreadySpent.selector,
-    //             bytes32(uint256(123))
-    //         )
-    //     );
-    //     tint.operate(op);
-    // }
+        tint.deposit(address(token), 1, bytes32(uint256(99)), "");
+        IPrivacyPool.Operation memory op = _op(GENESIS_ROOT, nullifiers);
+        op.oldRoot = bytes32(uint256(1));
+        op.newRoot = bytes32(uint256(2));
+        op.endAggregationIndex = 1;
+        op.nullifiers = nullifiers;
+        for (uint256 i; i < N_INPUTS; ++i)
+            op.spendabilityAddresses[i] = address(0);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                NullifierRegistry.NullifierAlreadySpent.selector,
+                bytes32(uint256(123))
+            )
+        );
+        tint.operate(op);
+    }
 
     function test_depositThenOperate() public {
-        tint.deposit(address(token), 1, bytes32(uint256(2)), ""); // idx=1 now valid
+        tint.deposit(address(token), 1, bytes32(uint256(2)), "");
         bytes32[N_INPUTS] memory nullifiers;
         IPrivacyPool.Operation memory op = _op(GENESIS_ROOT, nullifiers);
         op.endAggregationIndex = 1;

@@ -56,8 +56,8 @@ contract TintHarness is Tint {
         for (uint256 i = 0; i < AGGREGATION_RING_SIZE; i++) {
             aggregationHashRing[i] = bytes32(uint256(i + 1));
         }
-        totalStaged = AGGREGATION_RING_SIZE;
-        totalConsumed = AGGREGATION_RING_SIZE;
+        staged = 0;
+        consumed = AGGREGATION_RING_SIZE;
     }
 
     function toPublicSignals(

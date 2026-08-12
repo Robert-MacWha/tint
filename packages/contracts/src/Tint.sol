@@ -19,14 +19,18 @@ import {
 import {ProofLib} from "./lib/ProofLib.sol";
 import {AggregationRing} from "./AggregationRing.sol";
 import {RootRegistry} from "./RootRegistry.sol";
+import {NullifierRegistry} from "./NullifierRegistry.sol";
 
 /// @notice Privacy-preserving token pool using zk-snarks and a merkle tree accumulator.
-contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
+contract Tint is
+    IPrivacyPool,
+    AggregationRing,
+    RootRegistry,
+    NullifierRegistry
+{
     using SafeERC20 for IERC20;
 
     IVerifier public immutable VERIFIER;
-
-    mapping(bytes32 nullifierHash => bool spent) public nullifierHashes;
 
     event Deposited(bytes32 commitment, bytes encryptedNote);
     event Committed(bytes32 commitment, bytes encryptedNote);
@@ -38,7 +42,6 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
     );
 
     error InvalidProof();
-    error NullifierAlreadySpent(bytes32 nullifier);
     error InvalidSpendability(address spendabilityAddress);
 
     constructor(address _verifier) RootRegistry(GENESIS_ROOT) {
@@ -138,11 +141,11 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
             revert InvalidProof();
         }
 
-        // Verify nullifier uniqueness
+        // Verify nullifier uniqueness & unspentness
+        ProofLib._requireUnique(op.nullifiers);
         for (uint256 i; i < N_INPUTS; ++i) {
             bytes32 hash = op.nullifiers[i];
-            if (hash == 0) continue;
-            if (nullifierHashes[hash]) revert NullifierAlreadySpent(hash);
+            _requireUnspent(hash);
         }
 
         // Verify spendability
@@ -150,6 +153,7 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
             .spendabilityAddresses(op);
         for (uint256 i; i < N_INPUTS; ++i) {
             if (spendabilityAddresses[i] == address(0)) continue;
+
             bool ok = ISpendability(spendabilityAddresses[i]).isSpendable(op);
             if (!ok) revert InvalidSpendability(spendabilityAddresses[i]);
         }
@@ -161,8 +165,7 @@ contract Tint is IPrivacyPool, AggregationRing, RootRegistry {
         // Nullify the input notes
         for (uint256 i; i < N_INPUTS; ++i) {
             bytes32 hash = op.nullifiers[i];
-            if (hash == 0) continue;
-            nullifierHashes[hash] = true;
+            _spend(hash);
             emit Nullified(hash);
         }
 

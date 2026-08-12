@@ -35,13 +35,17 @@
       rustfmtNightly = pkgs.rust-bin.nightly."2026-06-01".minimal.override {
         extensions = [ "rustfmt" ];
       };
+
+      yices = pkgs.callPackage ./nix/yices/package.nix { };
+      halmos = pkgs.callPackage ./nix/halmos/package.nix { };
     in
     {
       devShells.${system}.default = pkgs.mkShell {
         buildInputs = [
           pkgs.just
-          pkgs.pnpm
           pkgs.foundry
+          yices
+          halmos
 
           rustToolchain
           # required for bindgen

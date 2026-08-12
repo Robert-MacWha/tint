@@ -20,6 +20,8 @@ library ProofLib {
         uint256[2] pC;
     }
 
+    error DuplicateNullifier(bytes32 nullifier);
+
     /// @notice Builds the Groth16 public-signal vector, matching the order
     /// `JoinSplit::synthesize` allocates public gr1cs variables in.
     function toPublicSignals(
@@ -108,6 +110,23 @@ library ProofLib {
             if (!exists) {
                 output[count] = op.spendabilityAddresses[i];
                 count++;
+            }
+        }
+    }
+
+    /// @notice Reverts if the nullifier array contains duplicates.
+    ///
+    /// @dev Ignores nullifiers with the magic value of 0.
+    function _requireUnique(
+        bytes32[N_INPUTS] calldata nullifiers
+    ) internal pure {
+        for (uint256 i = 0; i < N_INPUTS; i++) {
+            if (nullifiers[i] == bytes32(0)) continue;
+
+            for (uint256 j = i + 1; j < N_INPUTS; j++) {
+                if (nullifiers[i] == nullifiers[j]) {
+                    revert DuplicateNullifier(nullifiers[i]);
+                }
             }
         }
     }

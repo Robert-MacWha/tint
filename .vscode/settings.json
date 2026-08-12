@@ -2,5 +2,6 @@
     "rust-analyzer.linkedProjects": [
         "packages/crates/Cargo.toml"
     ],
-    "solidity.packageDefaultDependenciesDirectory": "packages/app/lib",
+    // "solidity.packageDefaultDependenciesDirectory": "packages/app/lib",
+    "solidity.monoRepoSupport": true,
 }

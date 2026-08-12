@@ -12,21 +12,26 @@ contract RootRegistry {
     error InvalidOldRoot();
 
     constructor(bytes32 genesisRoot) {
-        roots[genesisRoot] = 1; // genesis root at one-based index 1
+        // starting root at index 1. Zero is a magic number for "unregistered root".
+        roots[genesisRoot] = 1;
         currentRootIndex = 1;
     }
 
-    /// Reverts if oldRoot has no recorded index.
+    /// @notice Reverts if oldRoot has no recorded index.
     function _validateOldRoot(bytes32 oldRoot) internal view {
         if (roots[oldRoot] == 0) revert InvalidOldRoot();
     }
 
-    /// Registers newRoot at roots[oldRoot]+1 if that index exceeds currentRootIndex.
+    /// @notice Increments the root index if oldRoot is the current tip, and
+    /// records newRoot at that index.
     function _updateRoot(bytes32 oldRoot, bytes32 newRoot) internal {
-        uint128 newIdx = roots[oldRoot] + 1;
-        if (newIdx > currentRootIndex) {
-            currentRootIndex = newIdx;
-            roots[newRoot] = newIdx;
-        }
+        if (oldRoot == newRoot) return;
+
+        uint128 oldIdx = roots[oldRoot];
+        if (oldIdx != currentRootIndex) return;
+
+        uint128 newIdx = oldIdx + 1;
+        roots[newRoot] = newIdx;
+        currentRootIndex = newIdx;
     }
 }

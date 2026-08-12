@@ -24,6 +24,10 @@ contract AggregationRingHarness is AggregationRing {
         return _getHash(idx);
     }
 
+    function requireCapacity(uint128 n) public view {
+        _requireCapacity(n);
+    }
+
     /// @dev Override poseidon2 with cheaper keccak256. The specifics of the hash function
     /// are irrelevant to the properties being tested.
     function _hash(
@@ -74,6 +78,23 @@ contract AggregationRingSymTest is Test, SymTest {
         } catch {
             //? Only legal failure is when the ring is full.
             assert(staged0 >= AGGREGATION_RING_SIZE);
+        }
+    }
+
+    /// Committing after requiring capacity should always succeed.
+    function check_capacityAllowsCommit(bytes32 commitment) public {
+        (uint128 consumed0, uint128 staged0) = _arbitraryState();
+
+        // SAFETY: Committing the magic value 0 is a no-op.
+        vm.assume(commitment != 0);
+
+        ring.requireCapacity(1);
+        try ring.commit(commitment) {
+            assert(ring.staged() == staged0 + 1);
+            assert(ring.consumed() == consumed0);
+        } catch {
+            //? Cannot fail since we assumed capacity.
+            assert(false);
         }
     }
 

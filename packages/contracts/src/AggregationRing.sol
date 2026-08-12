@@ -24,9 +24,7 @@ contract AggregationRing {
     /// @dev Reverts if the ring is full. No-op if the commitment is the magic value 0.
     function _commit(bytes32 commitment) internal {
         if (commitment == 0) return;
-
-        uint128 newStaged = staged + 1;
-        if (newStaged > AGGREGATION_RING_SIZE) revert StagingFull();
+        _requireCapacity(1);
 
         uint128 total = _total();
         bytes32 prevHash = total > 0
@@ -38,7 +36,7 @@ contract AggregationRing {
             commitment
         );
 
-        staged = newStaged;
+        ++staged;
     }
 
     /// @dev Overridable in test harnesses to swap out the hash function.
@@ -72,6 +70,11 @@ contract AggregationRing {
         staged -= (idx - consumed);
         consumed = idx;
         emit AdvanceAggregationRing(idx);
+    }
+
+    /// @notice Reverts if staging `count` commitments would overflow the ring.
+    function _requireCapacity(uint128 count) internal view {
+        if (staged + count > AGGREGATION_RING_SIZE) revert StagingFull();
     }
 
     /// @notice Reverts if idx is outside the live range of the ring (consumed, consumed + AGGREGATION_RING_SIZE].

@@ -140,6 +140,13 @@ contract Tint is
             revert InvalidProof();
         }
 
+        // Verify the ring has room for this operation's output commitments
+        uint128 outputs;
+        for (uint256 i; i < N_OUTPUTS; ++i) {
+            if (op.commitmentsOut[i] != 0) ++outputs;
+        }
+        _requireCapacity(outputs);
+
         // Verify nullifier uniqueness & unspentness
         ProofLib._requireUnique(op.nullifiers);
         for (uint256 i; i < N_INPUTS; ++i) {

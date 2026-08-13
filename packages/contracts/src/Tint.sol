@@ -165,7 +165,7 @@ contract Tint is
 
     /// @notice Executes the state changes specified by the operation.
     /// @dev Assumes the operation has already been verified.
-    function _executeOperation(IPrivacyPool.Operation calldata op) private {
+    function _executeOperation(IPrivacyPool.Operation calldata op) internal {
         _advanceConsumed(op.endAggregationIndex);
         _updateRoot(op.oldRoot, op.newRoot);
 

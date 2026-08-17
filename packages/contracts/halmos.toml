@@ -2,4 +2,4 @@
 storage-layout = "generic"
 panic-error-codes = "*"
 loop = 8
-default-bytes-length = 0
+# default-bytes-length = 0

@@ -78,7 +78,7 @@ contract AggregationRing {
     }
 
     /// @notice Reverts if idx is outside the live range of the ring (consumed, consumed + AGGREGATION_RING_SIZE].
-    function _requireLive(uint128 idx) internal view {
+    function _requireLive(uint128 idx) private view {
         uint128 total = _total();
         if (total < idx) revert InvalidAggregationIndex();
         if (total - idx >= AGGREGATION_RING_SIZE)

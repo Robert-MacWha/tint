@@ -11,7 +11,7 @@ pub enum Event {
     Committed(abis::tint::Tint::Committed),
     Nullified(abis::tint::Tint::Nullified),
     Withdrawn(abis::tint::Tint::Withdrawn),
-    AdvanceAggregationRing(abis::tint::Tint::AdvanceAggregationRing),
+    AggregationAdvanced(abis::tint::Tint::AggregationAdvanced),
 }
 
 #[async_trait::async_trait]
@@ -77,8 +77,8 @@ impl<P: Provider> Syncer for RpcSyncer<P> {
                 Tint::Withdrawn::SIGNATURE_HASH => {
                     Event::Withdrawn(log.log_decode::<Tint::Withdrawn>()?.inner.data)
                 }
-                Tint::AdvanceAggregationRing::SIGNATURE_HASH => Event::AdvanceAggregationRing(
-                    log.log_decode::<Tint::AdvanceAggregationRing>()?.inner.data,
+                Tint::AggregationAdvanced::SIGNATURE_HASH => Event::AggregationAdvanced(
+                    log.log_decode::<Tint::AggregationAdvanced>()?.inner.data,
                 ),
                 _ => continue,
             };

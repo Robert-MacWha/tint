@@ -91,7 +91,7 @@ impl IndexedAccount {
                     self.nullifiers.insert(nullifier);
                 }
             }
-            Event::Withdrawn(_) | Event::AdvanceAggregationRing(_) => {}
+            Event::Withdrawn(_) | Event::AggregationAdvanced(_) => {}
         }
     }
 

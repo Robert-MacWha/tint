@@ -177,7 +177,7 @@ impl Indexer {
 
         self.state.last_synced_block = latest;
         self.verifier
-            .verify(latest, self.root())
+            .verify(self.posted_aggregation_index(), self.root())
             .await
             .map_err(IndexerError::Verifier)?;
 
@@ -203,9 +203,11 @@ impl Indexer {
             Event::Committed(c) => {
                 self.stage(b256_to_fr(c.commitment));
             }
-            Event::AdvanceAggregationRing(a) => {
-                let count = a.idx - self.posted_aggregation_index();
+            Event::AggregationAdvanced(a) => {
+                let count = a.index - self.posted_aggregation_index();
+                // let expected_root = a.root;
                 let _ = self.advance(count as usize)?;
+                // self.root()
             }
             Event::Nullified(_) | Event::Withdrawn(_) => {}
         }

@@ -2,6 +2,7 @@ use alloy_node_bindings::{Anvil, AnvilInstance};
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_macro::sol;
+use anyhow::Context;
 use tracing::info;
 
 use crate::common::anvil::{MockToken::MockTokenInstance, Tint::TintInstance};
@@ -46,8 +47,12 @@ pub async fn setup() -> anyhow::Result<Instance> {
         .connect_http(rpc_url.parse().unwrap())
         .erased();
 
-    let verifier = Groth16Verifier::deploy(provider.clone()).await?;
-    let tint = Tint::deploy(provider.clone(), verifier.address().clone()).await?;
+    let verifier = Groth16Verifier::deploy(provider.clone())
+        .await
+        .context("Error deploying verifier")?;
+    let tint = Tint::deploy(provider.clone(), verifier.address().clone())
+        .await
+        .context("Error deploying tint")?;
 
     let token = MockToken::deploy(provider.clone()).await?;
 

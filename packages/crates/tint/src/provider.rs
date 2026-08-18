@@ -165,7 +165,7 @@ impl Provider {
             .build_circuit(inputs, &outputs, &withdrawals, rng)
             .await?;
 
-        let old_root = circuit.old_root;
+        // let old_root = circuit.old_root;
         let start_aggregation_index = circuit.start_aggregation_index;
         let end_aggregation_index = self.indexer.posted_aggregation_index();
 
@@ -182,7 +182,7 @@ impl Provider {
 
         Ok((
             IPrivacyPool::Operation {
-                oldRoot: fr_to_b256(old_root),
+                // oldRoot: fr_to_b256(old_root),
                 startAggregationIndex: start_aggregation_index,
                 endAggregationIndex: end_aggregation_index,
                 newRoot: fr_to_b256(outputs.new_root),

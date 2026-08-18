@@ -2,9 +2,11 @@
 pragma solidity ^0.8.24;
 
 import {LibCircularBuffer} from "./LibCircularBuffer.sol";
-import {GENESIS_ROOT} from "./Constants.sol";
+import {AGGREGATION_RING_SIZE, GENESIS_ROOT} from "./Constants.sol";
 
 library LibAggregationRing {
+    using LibCircularBuffer for LibCircularBuffer.CircularBuffer;
+
     struct AggregationRing {
         LibCircularBuffer.CircularBuffer buffer;
         mapping(uint128 index => bytes32 root) roots;
@@ -16,9 +18,24 @@ library LibAggregationRing {
     error InvalidRoot();
 
     /// @notice Initializes the aggregation ring with a genesis root and an empty circular buffer.
-    function init(AggregationRing storage self) internal {
+    function init(AggregationRing storage self, uint256 count) internal {
         self.roots[0] = GENESIS_ROOT;
-        LibCircularBuffer.init(self.buffer);
+        LibCircularBuffer.init(self.buffer, count);
+    }
+
+    /// @notice Reverts if staging `count` values would overflow the ring.
+    function requireSpace(
+        AggregationRing storage self,
+        uint128 count
+    ) internal view {
+        self.buffer.requireSpace(count);
+    }
+
+    /// @notice Returns the number of free slots in the ring.
+    function space(
+        AggregationRing storage self
+    ) internal view returns (uint128) {
+        return self.buffer.space();
     }
 
     /// @notice Stages a new value to the aggregation ring. Reverts if the ring is full.
@@ -31,36 +48,46 @@ library LibAggregationRing {
     ) internal {
         if (value == MAGIC_BYTES) return;
 
-        bytes32 prevHash = self.buffer.head == 0
-            ? bytes32(0)
-            : LibCircularBuffer.get(self.buffer, self.buffer.head - 1);
+        bytes32 prevHash = getHash(self, self.buffer.head);
 
         bytes32 newHash = hashFn(prevHash, value);
-        LibCircularBuffer.push(self.buffer, newHash);
+        self.buffer.push(newHash);
+    }
+
+    /// @notice Reverts if the aggregation ring cannot be advanced.
+    function requireAdvanceable(
+        AggregationRing storage self,
+        uint128 newTail,
+        bytes32 newRoot
+    ) internal view {
+        self.buffer.requireAdvancable(newTail);
+        if (newRoot == MAGIC_BYTES) revert InvalidRoot();
     }
 
     /// @notice Advances the aggregation ring to a new tail index and records the root hash at that index.
     /// Reverts if the new root is the magic value 0.
     ///
-    /// @dev No-op if the new tail is not greater than the current tail.
+    /// @dev No-op if the new tail is not an advancement.
     function advance(
         AggregationRing storage self,
         uint128 newTail,
         bytes32 newRoot
     ) internal {
         if (newTail <= self.buffer.tail) return;
-        if (newRoot == MAGIC_BYTES) revert InvalidRoot();
+        requireAdvanceable(self, newTail, newRoot);
 
-        LibCircularBuffer.advanceTail(self.buffer, newTail);
+        self.buffer.advanceTail(newTail);
         self.roots[newTail] = newRoot;
     }
 
-    /// @notice Returns the hash at the given index in the aggregation ring. Reverts if the index is out of bounds.
+    /// @notice Returns the hash after `index` values have been staged or 0 if none
+    /// have been staged. Reverts if the index is out of bounds.
     function getHash(
         AggregationRing storage self,
         uint128 index
     ) internal view returns (bytes32) {
-        return LibCircularBuffer.get(self.buffer, index);
+        if (index == 0) return bytes32(0);
+        return self.buffer.get(index - 1);
     }
 
     /// @notice Returns the root hash at a given index. Reverts if no root is recorded at that index.

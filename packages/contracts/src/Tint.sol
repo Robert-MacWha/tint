@@ -9,28 +9,20 @@ import {
 import {IVerifier} from "./interfaces/IVerifier.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
 import {ISpendability} from "./interfaces/ISpendability.sol";
-import {
-    N_INPUTS,
-    N_OUTPUTS,
-    N_WITHDRAWALS,
-    N_PUB,
-    GENESIS_ROOT
-} from "./lib/Constants.sol";
+import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB} from "./lib/Constants.sol";
 import {ProofLib} from "./lib/ProofLib.sol";
-import {AggregationRing} from "./AggregationRing.sol";
-import {RootRegistry} from "./RootRegistry.sol";
+import {LibAggregationRing} from "./lib/LibAggregationRing.sol";
+import {LibPoseidon2T2_BN254} from "./lib/LibPoseidon2T2_BN254.sol";
 import {NullifierRegistry} from "./NullifierRegistry.sol";
 
 /// @notice Privacy-preserving token pool using zk-snarks and a merkle tree accumulator.
-contract Tint is
-    IPrivacyPool,
-    AggregationRing,
-    RootRegistry,
-    NullifierRegistry
-{
+contract Tint is IPrivacyPool, NullifierRegistry {
     using SafeERC20 for IERC20;
+    using LibAggregationRing for LibAggregationRing.AggregationRing;
 
     IVerifier public immutable VERIFIER;
+
+    LibAggregationRing.AggregationRing internal ring;
 
     event Deposited(bytes32 commitment, bytes encryptedNote);
     event Committed(bytes32 commitment, bytes encryptedNote);
@@ -40,12 +32,16 @@ contract Tint is
         uint128 amount,
         address indexed recipient
     );
+    event AggregationAdvanced(uint128 index, bytes32 root);
 
     error InvalidProof();
 
-    constructor(address _verifier) RootRegistry(GENESIS_ROOT) {
+    constructor(address _verifier, uint256 count) {
         VERIFIER = IVerifier(_verifier);
+        ring.init(count);
     }
+
+    // -------------------- EXTERNAL STATE-CHANGING --------------------
 
     /// @notice Deposits an asset into the pool and queues the commitment for aggregation.
     ///
@@ -65,16 +61,21 @@ contract Tint is
             amount,
             partialCommitment
         );
-        _commit(commitment);
+        ring.stage(_hash, commitment);
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
         emit Deposited(commitment, encryptedNote);
     }
 
+    /// @notice Executes an operation against tint.
     function operate(IPrivacyPool.Operation calldata operation) public {
         verifyOperation(operation);
         _executeOperation(operation);
     }
 
+    /// @notice Pre-verifies an operation and stores its validity for later execution.
+    ///
+    /// @dev Pre-verified operations can be later executed with `executePreVerified`
+    /// without re-verification.
     function preVerify(
         bytes32 slot,
         IPrivacyPool.Operation calldata operation
@@ -86,6 +87,10 @@ contract Tint is
         }
     }
 
+    /// @notice Executes a pre-verified operation.
+    ///
+    /// @dev Assuming the operation has been pre-verified and that no erc20
+    /// transfers revert, this function is guaranteed to not revert.
     function executePreVerified(
         bytes32 slot,
         IPrivacyPool.Operation calldata operation
@@ -107,6 +112,33 @@ contract Tint is
         _executeOperation(operation);
     }
 
+    // -------------------- EXTERNAL VIEW --------------------
+
+    /// @notice Returns the aggregation index the pool has most recently advanced to.
+    function latestRootIndex() external view returns (uint128) {
+        return ring.latestRootIndex();
+    }
+
+    /// @notice Returns the root recorded at a given aggregation index.
+    function getRoot(uint128 index) external view returns (bytes32) {
+        return ring.getRoot(index);
+    }
+
+    /// @notice Returns the total number of commitments ever staged.
+    function head() external view returns (uint128) {
+        return ring.buffer.head;
+    }
+
+    /// @notice Returns the hash after `index` values have been staged.
+    function getHash(uint128 index) external view returns (bytes32) {
+        return ring.getHash(index);
+    }
+
+    /// @notice Returns the number of free slots in the aggregation ring.
+    function space() external view returns (uint128) {
+        return ring.space();
+    }
+
     /// @notice Computes the Groth16 public-signal vector `op` must satisfy.
     /// Exposed so a client can cross-check its locally-computed proof inputs
     /// against the contract's, rather than debugging an opaque
@@ -114,12 +146,13 @@ contract Tint is
     function computePublicSignals(
         IPrivacyPool.Operation calldata op
     ) public view returns (uint256[N_PUB] memory) {
-        _validateOldRoot(op.oldRoot);
-        bytes32 startAggregationHash = _getHash(op.startAggregationIndex);
-        bytes32 endAggregationHash = _getHash(op.endAggregationIndex);
+        bytes32 oldRoot = ring.getRoot(op.startAggregationIndex);
+        bytes32 startAggregationHash = ring.getHash(op.startAggregationIndex);
+        bytes32 endAggregationHash = ring.getHash(op.endAggregationIndex);
 
         return
             ProofLib.toPublicSignals(
+                oldRoot,
                 startAggregationHash,
                 endAggregationHash,
                 op
@@ -128,6 +161,24 @@ contract Tint is
 
     /// @notice Verifies that the provided operation is valid or reverts if not.
     function verifyOperation(IPrivacyPool.Operation calldata op) public view {
+        // Verify the ring has room for this operation's output commitments
+        uint128 outputs;
+        for (uint256 i; i < N_OUTPUTS; ++i) {
+            if (op.commitmentsOut[i] != 0) ++outputs;
+        }
+        ring.requireSpace(outputs);
+
+        // Verify the ring can be advanced to this operation's end index.
+        ring.requireAdvanceable(op.endAggregationIndex, op.newRoot);
+
+        // Verify nullifier uniqueness & unspentness
+        ProofLib._requireUnique(op.nullifiers);
+        for (uint256 i; i < N_INPUTS; ++i) {
+            bytes32 hash = op.nullifiers[i];
+            _requireUnspent(hash);
+        }
+
+        // Verify the zk proof
         uint256[N_PUB] memory pubSignals = computePublicSignals(op);
         if (
             !VERIFIER.verifyProof(
@@ -140,20 +191,6 @@ contract Tint is
             revert InvalidProof();
         }
 
-        // Verify the ring has room for this operation's output commitments
-        uint128 outputs;
-        for (uint256 i; i < N_OUTPUTS; ++i) {
-            if (op.commitmentsOut[i] != 0) ++outputs;
-        }
-        _requireCapacity(outputs);
-
-        // Verify nullifier uniqueness & unspentness
-        ProofLib._requireUnique(op.nullifiers);
-        for (uint256 i; i < N_INPUTS; ++i) {
-            bytes32 hash = op.nullifiers[i];
-            _requireUnspent(hash);
-        }
-
         // Verify spendability
         address[N_INPUTS] memory spendabilityAddresses = ProofLib
             .spendabilityAddresses(op);
@@ -163,11 +200,16 @@ contract Tint is
         }
     }
 
+    // -------------------- INTERNAL STATE-CHANGING --------------------
+
     /// @notice Executes the state changes specified by the operation.
     /// @dev Assumes the operation has already been verified.
     function _executeOperation(IPrivacyPool.Operation calldata op) internal {
-        _advanceConsumed(op.endAggregationIndex);
-        _updateRoot(op.oldRoot, op.newRoot);
+        uint128 tailBefore = ring.latestRootIndex();
+        ring.advance(op.endAggregationIndex, op.newRoot);
+        if (ring.latestRootIndex() != tailBefore) {
+            emit AggregationAdvanced(op.endAggregationIndex, op.newRoot);
+        }
 
         // Nullify the input notes
         for (uint256 i; i < N_INPUTS; ++i) {
@@ -179,7 +221,7 @@ contract Tint is
         // Stage any output commitments
         for (uint256 i; i < N_OUTPUTS; ++i) {
             bytes32 commitment = op.commitmentsOut[i];
-            _commit(commitment);
+            ring.stage(_hash, commitment);
             emit Committed(commitment, op.context.ciphertexts[i]);
         }
 
@@ -192,5 +234,22 @@ contract Tint is
             IERC20(asset).safeTransfer(recipient, amount);
             emit Withdrawn(asset, amount, recipient);
         }
+    }
+
+    // -------------------- INTERNAL VIEW --------------------
+
+    /// @dev Overridable in test harnesses to swap out the hash function.
+    function _hash(
+        bytes32 prevHash,
+        bytes32 commitment
+    ) internal pure virtual returns (bytes32) {
+        return
+            bytes32(
+                LibPoseidon2T2_BN254.compress(
+                    uint256(prevHash),
+                    uint256(commitment),
+                    0
+                )
+            );
     }
 }

@@ -22,25 +22,24 @@ contract NullifierRegistrySymTest is Test, SymTest {
         registry = new NullifierRegistryHarness();
     }
 
-    /// Checks that nullifiers are unspent by default.
-    function check_unspentIsUnspent(bytes32 hash) public view {
+    /// Checks that spending a nullifier marks it as spent and that it cannot be double-spent.
+    function check_spend(bytes32 hash, bytes32 probe, bool preSpend) public {
         vm.assume(hash != bytes32(0));
+        vm.assume(probe != bytes32(0));
 
-        try registry.requireUnspent(hash) {} catch {
-            assert(false);
+        if (preSpend) {
+            try registry.spend(probe) {} catch {
+                assert(false);
+            }
         }
-    }
+        bool before = registry.isSpent(probe);
 
-    /// Checks that spent nullifiers are no longer unspent.
-    function check_spentIsNotUnspent(bytes32 hash) public {
-        vm.assume(hash != bytes32(0));
-
+        vm.assume(probe != hash);
         try registry.spend(hash) {} catch {
             assert(false);
         }
-        try registry.requireUnspent(hash) {
-            assert(false);
-        } catch {}
+        assert(registry.isSpent(probe) == before);
+        assert(registry.isSpent(hash) == (hash != bytes32(0)));
     }
 
     /// Checks that spent nullifiers cannot be double-spent.
@@ -66,22 +65,6 @@ contract NullifierRegistrySymTest is Test, SymTest {
         try registry.requireUnspent(bytes32(0)) {} catch {
             assert(false);
         }
-        assert(registry.nullifierHashes(bytes32(0)) == false);
-    }
-
-    /// Checks that spending one nullifier does not affect the status of another nullifier.
-    function check_spendPreservesOthers(
-        bytes32 hash,
-        bytes32 probe,
-        bool preSpend
-    ) public {
-        if (preSpend) registry.spend(probe);
-        bool before = registry.nullifierHashes(probe);
-
-        vm.assume(probe != hash);
-        registry.spend(hash);
-
-        assert(registry.nullifierHashes(probe) == before);
-        assert(registry.nullifierHashes(hash) == (hash != bytes32(0)));
+        assert(registry.isSpent(bytes32(0)) == false);
     }
 }

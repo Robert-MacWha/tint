@@ -6,7 +6,6 @@ import {ProofLib} from "../lib/ProofLib.sol";
 
 interface IPrivacyPool {
     struct Operation {
-        bytes32 oldRoot;
         uint128 startAggregationIndex;
         bytes32 newRoot;
         uint128 endAggregationIndex;

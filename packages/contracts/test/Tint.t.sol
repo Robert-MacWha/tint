@@ -9,8 +9,7 @@ import {
 import {ISpendability} from "../src/interfaces/ISpendability.sol";
 import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {Tint} from "../src/Tint.sol";
-import {RootRegistry} from "../src/RootRegistry.sol";
-import {AggregationRing} from "../src/AggregationRing.sol";
+import {LibCircularBuffer} from "../src/lib/LibCircularBuffer.sol";
 import {NullifierRegistry} from "../src/NullifierRegistry.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
 import {
@@ -18,7 +17,6 @@ import {
     N_OUTPUTS,
     N_WITHDRAWALS,
     N_PUB,
-    GENESIS_ROOT,
     AGGREGATION_RING_SIZE
 } from "../src/lib/Constants.sol";
 
@@ -73,7 +71,7 @@ contract TintTests is Test {
         token = new MockToken();
         verifier = new MockVerifier();
         spendability = new MockSpendability();
-        tint = new Tint(address(verifier));
+        tint = new Tint(address(verifier), AGGREGATION_RING_SIZE);
         token.mint(address(this), type(uint128).max);
         token.approve(address(tint), type(uint256).max);
 
@@ -85,7 +83,6 @@ contract TintTests is Test {
         pure
         returns (IPrivacyPool.Operation memory op)
     {
-        op.oldRoot = GENESIS_ROOT;
         op.newRoot = bytes32(uint256(1));
         op.endAggregationIndex = 0;
     }
@@ -130,7 +127,9 @@ contract TintTests is Test {
         }
 
         vm.expectRevert(
-            abi.encodeWithSelector(AggregationRing.StagingFull.selector)
+            abi.encodeWithSelector(
+                LibCircularBuffer.CircularBufferFull.selector
+            )
         );
         tint.deposit(address(token), 1, bytes32(uint256(42)), "");
     }

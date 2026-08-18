@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {AGGREGATION_RING_SIZE} from "./Constants.sol";
-
 library LibCircularBuffer {
     struct CircularBuffer {
         uint128 head;
         uint128 tail;
-        bytes32[AGGREGATION_RING_SIZE] buffer;
+        bytes32[] buffer;
     }
 
     error CircularBufferFull();
     error OutOfBounds(uint128 index, uint128 tail, uint128 head);
 
     /// @notice Initializes the circular buffer.
-    function init(CircularBuffer storage self) internal {
+    function init(CircularBuffer storage self, uint256 count) internal {
+        self.buffer = new bytes32[](count);
         self.head = 0;
         self.tail = 0;
     }
@@ -30,20 +29,24 @@ library LibCircularBuffer {
     }
 
     /// @notice Returns the number of free slots in the circular buffer.
+    ///
+    /// @dev One slot is always reserved so the value at `tail - 1` (the
+    /// staging hash checkpoint for the current tail) is never overwritten
+    /// before it can be read via `get`.
     function space(
         CircularBuffer storage self
     ) internal view returns (uint128) {
-        return AGGREGATION_RING_SIZE - (self.head - self.tail);
+        return uint128(self.buffer.length) - 1 - (self.head - self.tail);
     }
 
     /// @notice Pushes a value to the circular buffer. Reverts if the buffer is full.
     function push(CircularBuffer storage self, bytes32 value) internal {
         uint128 head = self.head;
-        if (AGGREGATION_RING_SIZE <= head - self.tail) {
+        if (space(self) == 0) {
             revert CircularBufferFull();
         }
 
-        self.buffer[index(head)] = value;
+        self.buffer[index(self, head)] = value;
         self.head = head + 1;
     }
 
@@ -55,10 +58,20 @@ library LibCircularBuffer {
         if (_index >= self.head) {
             revert OutOfBounds(_index, self.tail, self.head);
         }
-        if (_index + AGGREGATION_RING_SIZE < self.head) {
+        if (_index + self.buffer.length < self.head) {
             revert OutOfBounds(_index, self.tail, self.head);
         }
-        return self.buffer[index(_index)];
+        return self.buffer[index(self, _index)];
+    }
+
+    /// @notice Reverts if the tail cannot be advanced to newTail.
+    function requireAdvancable(
+        CircularBuffer storage self,
+        uint128 newTail
+    ) internal view {
+        if (newTail < self.tail || newTail > self.head) {
+            revert OutOfBounds(newTail, self.tail, self.head);
+        }
     }
 
     /// @notice Advances the tail of the circular buffer. Reverts if the new tail is out of bounds.
@@ -66,14 +79,15 @@ library LibCircularBuffer {
         CircularBuffer storage self,
         uint128 newTail
     ) internal {
-        if (newTail < self.tail || newTail > self.head) {
-            revert OutOfBounds(newTail, self.tail, self.head);
-        }
+        requireAdvancable(self, newTail);
         self.tail = newTail;
     }
 
     /// @notice Returns x as an index in the circular buffer, wrapping if necessary.
-    function index(uint128 x) private pure returns (uint128) {
-        return x % AGGREGATION_RING_SIZE;
+    function index(
+        CircularBuffer storage self,
+        uint128 x
+    ) private view returns (uint128) {
+        return x % uint128(self.buffer.length);
     }
 }

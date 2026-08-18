@@ -6,12 +6,13 @@ import {Test} from "forge-std/Test.sol";
 import {LibCircularBuffer} from "../src/lib/LibCircularBuffer.sol";
 import {LibAggregationRing} from "../src/lib/LibAggregationRing.sol";
 import {LibCircularBufferInvariants} from "./LibCircularBufferSym.t.sol";
-import {AGGREGATION_RING_SIZE} from "../src/lib/Constants.sol";
 
 contract AggregationRingHarness {
     LibAggregationRing.AggregationRing ring;
 
-    constructor(LibCircularBuffer.CircularBuffer memory _buf) {
+    constructor() {}
+
+    function setBuffer(LibCircularBuffer.CircularBuffer memory _buf) public {
         ring.buffer = _buf;
     }
 
@@ -27,7 +28,7 @@ contract AggregationRingHarness {
         LibAggregationRing.advance(ring, newTail, newRoot);
     }
 
-    function hashes(uint128 index) public view returns (bytes32) {
+    function getHash(uint128 index) public view returns (bytes32) {
         return LibAggregationRing.getHash(ring, index);
     }
 
@@ -55,6 +56,8 @@ contract AggregationRingHarness {
         return ring.buffer;
     }
 
+    /// @dev Override poseidon2 with cheaper keccak256. The specific hash function
+    /// function is irrelevant.
     function _hashFn(bytes32 a, bytes32 b) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(a, b));
     }
@@ -63,14 +66,17 @@ contract AggregationRingHarness {
 contract LibAggregationRingSymTest is LibCircularBufferInvariants, SymTest {
     AggregationRingHarness harness;
 
+    function setUp() public {
+        harness = new AggregationRingHarness();
+    }
+
     /// Assumes an arbitrary reachable state for the circular buffer.
     function _assumeState(
         LibCircularBuffer.CircularBuffer memory _buf
     ) internal {
         // SAFETY 001: Assumes circular buffer is valid.
         _assumeCircularBufferState(_buf);
-
-        harness = new AggregationRingHarness(_buf);
+        harness.setBuffer(_buf);
 
         // SAFETY 002: The root at the tail index must be non-zero.
         bytes32 tailRoot = svm.createBytes32("tailRootValue");
@@ -96,7 +102,6 @@ contract LibAggregationRingSymTest is LibCircularBufferInvariants, SymTest {
         try harness.roots(tail) returns (bytes32 root) {
             assert(root != bytes32(0));
         } catch {
-            // Must never fail
             assert(false);
         }
     }
@@ -113,6 +118,7 @@ contract LibAggregationRingSymTest is LibCircularBufferInvariants, SymTest {
 
         bytes32 rootBefore = harness.roots(rootProbe);
         uint128 headBefore = harness.head();
+        bytes32 prevHash = harness.getHash(headBefore);
 
         try harness.stage(value) {} catch {
             assert(harness.space() == 0);
@@ -120,11 +126,8 @@ contract LibAggregationRingSymTest is LibCircularBufferInvariants, SymTest {
         }
         assertEq(harness.roots(rootProbe), rootBefore);
 
-        bytes32 prevHash = headBefore == 0
-            ? bytes32(0)
-            : harness.hashes(headBefore - 1);
         assertEq(
-            harness.hashes(harness.head() - 1),
+            harness.getHash(harness.head()),
             keccak256(abi.encodePacked(prevHash, value))
         );
 
@@ -146,6 +149,33 @@ contract LibAggregationRingSymTest is LibCircularBufferInvariants, SymTest {
         }
         assertEq(harness.roots(rootProbe), rootBefore);
         assertEq(harness.head(), headBefore);
+
+        _assertInvariants();
+    }
+
+    /// Checks that getHash behaves correctly: index 0 is always the zero
+    /// sentinel, and index > 0 succeeds if it's within the live window.
+    function check_getHash(
+        LibCircularBuffer.CircularBuffer memory _buf,
+        uint128 index
+    ) public {
+        _assumeState(_buf);
+
+        if (index == 0) {
+            assertEq(harness.getHash(index), bytes32(0));
+            _assertInvariants();
+            return;
+        }
+
+        try harness.getHash(index) {} catch {
+            assert(
+                index > harness.head() ||
+                    harness.head() >= index + _buf.buffer.length
+            );
+            return;
+        }
+        assertLe(index, harness.head());
+        assertLt(harness.head(), index + _buf.buffer.length);
 
         _assertInvariants();
     }

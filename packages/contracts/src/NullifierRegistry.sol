@@ -2,14 +2,14 @@
 pragma solidity ^0.8.24;
 
 contract NullifierRegistry {
-    mapping(bytes32 nullifierHash => bool spent) public nullifierHashes;
+    mapping(bytes32 nullifierHash => bool spent) public isSpent;
 
     error NullifierAlreadySpent(bytes32 nullifier);
 
     /// @notice Reverts if the nullifier has already been spent.
     function _requireUnspent(bytes32 hash) internal view {
         if (hash == bytes32(0)) return;
-        if (nullifierHashes[hash]) revert NullifierAlreadySpent(hash);
+        if (isSpent[hash]) revert NullifierAlreadySpent(hash);
     }
 
     /// @notice Marks the nullifier as spent. Reverts if the nullifier
@@ -19,6 +19,6 @@ contract NullifierRegistry {
     function _spend(bytes32 hash) internal {
         if (hash == bytes32(0)) return;
         _requireUnspent(hash);
-        nullifierHashes[hash] = true;
+        isSpent[hash] = true;
     }
 }

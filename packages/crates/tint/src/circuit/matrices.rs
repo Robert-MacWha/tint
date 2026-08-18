@@ -1,7 +1,10 @@
 use ark_ec::pairing::Pairing;
 use ark_ff::{PrimeField, UniformRand};
 use ark_groth16::{Proof, ProvingKey};
-use ark_relations::gr1cs::{ConstraintSynthesizer, ConstraintSystem, SynthesisError};
+use ark_relations::gr1cs::{
+    ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, R1CS_PREDICATE_LABEL,
+    SynthesisError,
+};
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
@@ -70,6 +73,27 @@ impl<F: PrimeField> Matrices<F> {
             num_constraints,
             num_witness_variables,
         }
+    }
+}
+
+impl<F: PrimeField> TryFrom<ConstraintSystemRef<F>> for Matrices<F> {
+    type Error = SynthesisError;
+
+    fn try_from(value: ConstraintSystemRef<F>) -> Result<Self, Self::Error> {
+        let matrices = value
+            .to_matrices()?
+            .get(R1CS_PREDICATE_LABEL)
+            .ok_or(SynthesisError::MissingCS)?
+            .clone();
+        let num_inputs = value.num_instance_variables();
+        let num_constraints = value.num_constraints();
+        let num_witness_variables = value.num_witness_variables();
+        Ok(Matrices::new(
+            matrices,
+            num_inputs,
+            num_constraints,
+            num_witness_variables,
+        ))
     }
 }
 

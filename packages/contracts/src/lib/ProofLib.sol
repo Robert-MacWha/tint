@@ -25,13 +25,14 @@ library ProofLib {
     /// @notice Builds the Groth16 public-signal vector, matching the order
     /// `JoinSplit::synthesize` allocates public gr1cs variables in.
     function toPublicSignals(
+        bytes32 oldRoot,
         bytes32 startAggregationHash,
         bytes32 endAggregationHash,
         IPrivacyPool.Operation calldata op
     ) internal pure returns (uint256[N_PUB] memory) {
         unchecked {
             uint256[N_PUB] memory pub;
-            pub[0] = uint256(op.oldRoot);
+            pub[0] = uint256(oldRoot);
             pub[1] = uint256(op.startAggregationIndex);
             pub[2] = uint256(startAggregationHash);
             pub[3] = toBoundParamsHash(op);

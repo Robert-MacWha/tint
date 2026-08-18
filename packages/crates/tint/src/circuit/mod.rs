@@ -3,9 +3,7 @@ use ark_ec::pairing::Pairing;
 use ark_ff::Field;
 use ark_groth16::{Groth16, ProvingKey, VerifyingKey};
 use ark_r1cs_std::{GR1CSVar, alloc::AllocVar};
-use ark_relations::gr1cs::{
-    ConstraintSynthesizer, ConstraintSystem, R1CS_PREDICATE_LABEL, SynthesisError,
-};
+use ark_relations::gr1cs::{ConstraintSynthesizer, ConstraintSystem, SynthesisError};
 use ark_snark::SNARK;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
@@ -59,15 +57,7 @@ fn generate_matrices<C: ConstraintSynthesizer<Fr> + Default>()
     C::default().generate_constraints(cs.clone())?;
     cs.finalize();
 
-    let matrices = cs
-        .to_matrices()?
-        .get(R1CS_PREDICATE_LABEL)
-        .ok_or(SynthesisError::MissingCS)?
-        .clone();
-    let num_inputs = cs.num_instance_variables();
-    let num_constraints = cs.num_constraints();
-    let num_witness_variables = cs.num_witness_variables();
-    let matrices = Matrices::new(matrices, num_inputs, num_constraints, num_witness_variables);
+    let matrices = cs.try_into()?;
     Ok(matrices)
 }
 

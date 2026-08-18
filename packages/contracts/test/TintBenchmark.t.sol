@@ -48,25 +48,27 @@ contract AlwaysTrueVerifier is IVerifier {
 }
 
 contract TintHarness is Tint {
-    constructor(address _verifier) Tint(_verifier) {}
+    constructor(address _verifier) Tint(_verifier, AGGREGATION_RING_SIZE) {}
 
     /// @dev Warms all storage slots touched by deposit() without calling deposit().
     /// This prevents warm-up writes from appearing in Forge's gas report for deposit().
     function warmStorage() external {
         for (uint256 i = 0; i < AGGREGATION_RING_SIZE; i++) {
-            aggregationHashRing[i] = bytes32(uint256(i + 1));
+            ring.buffer.buffer[i] = bytes32(uint256(i + 1));
         }
-        staged = 0;
-        consumed = AGGREGATION_RING_SIZE;
+        ring.buffer.head = AGGREGATION_RING_SIZE;
+        ring.buffer.tail = AGGREGATION_RING_SIZE;
     }
 
     function toPublicSignals(
+        bytes32 oldRoot,
         bytes32 startAggregationHash,
         bytes32 endAggregationHash,
         IPrivacyPool.Operation calldata op
     ) external pure returns (uint256[N_PUB] memory) {
         return
             ProofLib.toPublicSignals(
+                oldRoot,
                 startAggregationHash,
                 endAggregationHash,
                 op
@@ -97,17 +99,10 @@ contract TintGasReportTest is Test {
         bytes32 endAggregationHash = bytes32(uint256(2));
 
         IPrivacyPool.Operation memory op;
-        op.oldRoot = GENESIS_ROOT;
         op.newRoot = bytes32(uint256(1));
 
-        // Public signals fed to the verifier must be valid BN254 field
-        // elements, or it rejects them before running the real pairing
-        // check.
         for (uint256 i = 0; i < N_INPUTS; i++) {
-            op.nullifiers[i] = bytes32(
-                uint256(keccak256(abi.encode("nullifier", i))) %
-                    BN254_FR_MODULUS
-            );
+            op.nullifiers[i] = bytes32(i + 1);
         }
         op.commitmentsOut[0] = bytes32(
             uint256(keccak256(abi.encode("commitment", uint256(0)))) %
@@ -117,7 +112,12 @@ contract TintGasReportTest is Test {
         op.unshieldAssets[0] = address(token);
         op.context.unshieldRecipients[0] = address(1);
 
-        tint.toPublicSignals(startAggregationHash, endAggregationHash, op);
+        tint.toPublicSignals(
+            GENESIS_ROOT,
+            startAggregationHash,
+            endAggregationHash,
+            op
+        );
     }
 
     function test_operate_gas() public {
@@ -125,17 +125,10 @@ contract TintGasReportTest is Test {
         require(token.transfer(address(tint), 1_000), "Transfer failed");
 
         IPrivacyPool.Operation memory op;
-        op.oldRoot = GENESIS_ROOT;
         op.newRoot = bytes32(uint256(1));
 
-        // Public signals fed to the verifier must be valid BN254 field
-        // elements, or it rejects them before running the real pairing
-        // check.
         for (uint256 i = 0; i < N_INPUTS; i++) {
-            op.nullifiers[i] = bytes32(
-                uint256(keccak256(abi.encode("nullifier", i))) %
-                    BN254_FR_MODULUS
-            );
+            op.nullifiers[i] = bytes32(i + 1);
         }
         op.commitmentsOut[0] = bytes32(
             uint256(keccak256(abi.encode("commitment", uint256(0)))) %
@@ -153,23 +146,13 @@ contract TintGasReportTest is Test {
         require(token.transfer(address(tint), 1_000), "Transfer failed");
 
         IPrivacyPool.Operation memory op;
-        op.oldRoot = GENESIS_ROOT;
         op.newRoot = bytes32(uint256(1));
 
-        // Public signals fed to the verifier must be valid BN254 field
-        // elements, or it rejects them before running the real pairing
-        // check.
         for (uint256 i = 0; i < N_INPUTS; i++) {
-            op.nullifiers[i] = bytes32(
-                uint256(keccak256(abi.encode("nullifier", i))) %
-                    BN254_FR_MODULUS
-            );
+            op.nullifiers[i] = bytes32(i + 1);
         }
         for (uint256 i = 0; i < N_OUTPUTS; i++) {
-            op.commitmentsOut[i] = bytes32(
-                uint256(keccak256(abi.encode("commitment", i))) %
-                    BN254_FR_MODULUS
-            );
+            op.commitmentsOut[i] = bytes32(i + 1);
         }
         for (uint120 i = 0; i < N_WITHDRAWALS; i++) {
             op.unshieldAmounts[i] = 1;

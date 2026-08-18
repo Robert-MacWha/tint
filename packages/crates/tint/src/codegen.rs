@@ -126,7 +126,7 @@ pragma solidity ^0.8.24;
 
     uint16 constant pLastMem = 896;
 
-    function verifyProof(uint[2] calldata _pA, uint[2][2] calldata _pB, uint[2] calldata _pC, uint[{n_public}] calldata _pubSignals) public view returns (bool) {{
+    function verifyProof(uint256[2] calldata _pA, uint256[2][2] calldata _pB, uint256[2] calldata _pC, uint256[{n_public}] calldata _pubSignals) public view returns (bool) {{
         assembly {{
             function checkField(v) {{
                 if iszero(lt(v, r)) {{

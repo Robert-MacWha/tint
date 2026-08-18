@@ -9,7 +9,13 @@ import {
 import {IVerifier} from "./interfaces/IVerifier.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
 import {ISpendability} from "./interfaces/ISpendability.sol";
-import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB} from "./lib/Constants.sol";
+import {
+    N_INPUTS,
+    N_OUTPUTS,
+    N_WITHDRAWALS,
+    N_PUB,
+    AGGREGATION_RING_SIZE
+} from "./lib/Constants.sol";
 import {ProofLib} from "./lib/ProofLib.sol";
 import {LibAggregationRing} from "./lib/LibAggregationRing.sol";
 import {LibPoseidon2T2_BN254} from "./lib/LibPoseidon2T2_BN254.sol";
@@ -36,9 +42,9 @@ contract Tint is IPrivacyPool, NullifierRegistry {
 
     error InvalidProof();
 
-    constructor(address _verifier, uint256 count) {
+    constructor(address _verifier) {
         VERIFIER = IVerifier(_verifier);
-        ring.init(count);
+        ring.init(AGGREGATION_RING_SIZE);
     }
 
     // -------------------- EXTERNAL STATE-CHANGING --------------------

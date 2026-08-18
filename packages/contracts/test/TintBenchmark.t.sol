@@ -48,7 +48,7 @@ contract AlwaysTrueVerifier is IVerifier {
 }
 
 contract TintHarness is Tint {
-    constructor(address _verifier) Tint(_verifier, AGGREGATION_RING_SIZE) {}
+    constructor(address _verifier) Tint(_verifier) {}
 
     /// @dev Warms all storage slots touched by deposit() without calling deposit().
     /// This prevents warm-up writes from appearing in Forge's gas report for deposit().

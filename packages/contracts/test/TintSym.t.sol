@@ -39,7 +39,7 @@ contract SymSpendability is ISpendability {
 }
 
 contract TintHarness is Tint {
-    constructor(address verifier, uint256 count) Tint(verifier, count) {}
+    constructor(address verifier) Tint(verifier) {}
 
     function setBuffer(LibCircularBuffer.CircularBuffer memory _buf) public {
         ring.buffer = _buf;
@@ -83,7 +83,7 @@ contract TintSymTest is LibCircularBufferInvariants, SymTest {
     function setUp() public {
         token = new StubToken();
         spendability = new SymSpendability();
-        tint = new TintHarness(address(new MockVerifier()), 8);
+        tint = new TintHarness(address(new MockVerifier()));
     }
 
     /// Produces an arbitrary reachable pool state.

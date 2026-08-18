@@ -14,7 +14,7 @@ contract Deploy is Script {
         vm.startBroadcast();
 
         verifier = new Groth16Verifier();
-        tint = new Tint(address(verifier), AGGREGATION_RING_SIZE);
+        tint = new Tint(address(verifier));
 
         vm.stopBroadcast();
 

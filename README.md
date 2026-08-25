@@ -1,22 +1,11 @@
 # Tint
 
 Tint is an EVM-focused utxo-based proof-of-concept privacy protocol.  It's designed with the following goals:
-- Optimized gas usage, especially focused on cheap shielding.
-- Arbitrary note ownership rules.
+- Optimized gas (sub-50k shields!).
+- Arbitrary note ownership rules (multisigs, timelocks, hardware wallets, ...).
+- Interop with 4337 & 8141 transaction sponsorship.
 
-## Toybox CLI
-
-A very simple toybox CLI.  Currently operating on a tenderly virtual testnet. Demonstrates tint's basic features, including:
-
-- [x] ERC20 shields
-- [x] ERC20 internal transfers
-- [x] ERC20 unshields
-- [ ] Automatic multi-input note selection
-- [ ] 4337-relayed transfers and unshields
-- [ ] Paymaster support
-- [ ] Custom spendability policies
-
-### Requirements
+## Requirements
 
 **nix / nixos:** `nix develop`
 
@@ -33,7 +22,80 @@ A very simple toybox CLI.  Currently operating on a tenderly virtual testnet. De
 
 The first run will take a while, since it builds the smart contracts, rust CLI, and arkworks circuits. Following runs will be much faster.
 
-### Example
+## Optimized Gas
+
+Tint is designed to be maximally gas efficient. It achieves this primarily by reducing the gas cost to commit notes to the merkle tree, which is generally the most expensive part of tornadocash/railgun/ppv1. Tint does this by deferring merkle tree updates to inside the circuit.
+
+When shielding, the note's commitment hash is added to a staging queue on-chain. When any user next performs a transfer or unshield, they will include a batch of staged notes in their proof, which atomically inserts up to 64 notes into the merkle tree. Doing this:
+- The gas cost of shielding is reduced to two poseidon2 hashes and a single storage write.
+- The gas cost of transfers and unshields are increased by ~35k gas (2 additional public inputs to the circuit and 1 additional storage write).
+
+So long as each transfer / unshield includes on average at least 0.14 shields, this results in a net gas savings.
+
+### Benchmarks
+
+All below gas costs are based on Ethereum Mainnet and exclude the cost of token transfers.
+
+**Shields:** 43,303
+
+**Transfers / Unshields:**
+
+| Circuit | Gas Cost | Cost per addition |
+| ------- | -------- | ----------------- |
+| 1x1x1   | 341,964  | N/A               |
+| 5x1x1   | 495,774  | 38,452            |
+| 1x5x1   | 371,766  | 7,450             |
+| 1x1x5   | 401,786  | 14,955            |
+
+### Flamegraphs
+
+| Circuit | Flamegraph                              |
+| ------- | --------------------------------------- |
+| Shield  | ![shield](./docs/benchmarks/shield.png) |
+| 5x1x1   | ![5x1x1](./docs/benchmarks/5x1x1.png)   |
+| 1x5x1   | ![1x5x1](./docs/benchmarks/1x5x1.png)   |
+| 1x1x5   | ![1x1x5](./docs/benchmarks/1x1x5.png)   |
+
+## Arbitrary Note Ownership Rules
+
+Tint allows for arbitrary note ownership rules. This means the conditions under which a note can be spent are decided by the note creator. Each note commits itself to some "spendability address". When a note is spent, the contract calls the `spendable` function on the spendability address, which determines whether the note can be spent.
+
+This allows for numerous spendability rules, including:
+- Multi-sigs
+- Hardware wallet compatibility via `eth_signTypedData_v4`
+- Timelocks
+- Limit orders
+
+By default users can use a nullifying key to spend notes (similar to railgun or privacy pools). Additional rules can increase security but will also increase gas (~300k per rule) and partially reduce privacy.
+
+For more information, see the [Spendability Docs](./docs/spendability.md).
+
+### Current Implementations
+
+**[tint-multisig-spendability](./packages/crates/tint-multisig-spendability/)**
+
+The multisig spendability crate allows creating notes that can only be spent with a threshold number of ecdsa signatures from a set of public keys. This way multisigs can be implemented directly in-circuit, without revealing any information about the signers, threshold, or signatures to the outside world.
+
+Current Limitations:
+- Only supports ECDSA secp256k1 signatures
+- Only supports 2-of-3 multisigs (can be extended via generic circuits)
+- Only supports blind signatures (can be extended to use either eth_signTypedData_v4 given a *very* expensive circuit, or a custom signature schema using a more circuit-friendly hash function like sha256).
+
+**[tint-password-spendability](./packages/crates/tint-password-spendability/)**
+
+The password spendability crate allows creating notes that can only be spent given knowledge of a password. This is mostly a toy example, useful for testing and demonstrating the spendability interface. It does not offer any additional security since the default note spendability rule is already knowledge of a secret (the nullifying key).
+
+## Paymaster / Frame transaction compatibility
+
+Tint prioritizes interoperability with permissionless 4337 and 8141 transaction sponsorship. This allows users to transact anonymously without needing to expose an EOA by paying for gas with shielded tokens. Tint achieves this through two mechanisms:
+1. Tint exposes two methods - `preVerify` and `executePreVerified`. `preVerify` verifies that an operation is valid, and `executePreVerified` executes an already-verified operation. Using halmos, we've formally verified that `executePreVerified` will never revert if `preVerify` has returned true, meaning paymasters can call the stateless `executePreVerified` and be guaranteed that the operation they are sponsoring is valid.
+2. Tint has highly optimized gas costs, which allows paymasters to sponsor transactions at a lower cost and, more importantly, refund excess fees directly to the user's shielded account.
+
+Tint is currently designed to work with unstaked 4337 paymasters.
+
+TODO: Implement 8141 spender support on the hegota devnet using the same principles.
+
+## CLI Examples
 
 **Environment Variables**
 
@@ -95,60 +157,5 @@ just run create dave --spendability multisig
 
 just run shield dave $TOKEN 1000
 just run transfer dave alice $TOKEN 500
-# > Enter 2-of-3 signatures for multisig as prompted
+# > Enter 2-of-3 signatures for multisig as prompted. For example, you may use `cast wallet sign 0xdata --no-hash`
 ```
-
-## Gas Costs
-
-Tint is designed to be maximally gas efficient. It achieves this primarily by reducing the gas cost to commit notes to the merkle tree, which is generally the most expensive part of tornadocash/railgun/ppv1. Tint does this by deferring merkle tree updates to inside the circuit.
-
-When shielding, the note's commitment hash is added to a staging queue on-chain. When any user next performs a transfer or unshield, they will include a batch of staged notes in their proof, which atomically inserts up to 64 notes into the merkle tree. Doing this:
-- The gas cost of shielding is reduced to two poseidon2 hashes and a single storage write.
-- The gas cost of transfers and unshields are increased by ~35k gas (2 additional public inputs to the circuit and 1 additional storage write).
-
-So long as each transfer / unshield includes on average at least 0.14 shields, this results in a net gas savings.
-
-### Gas Benchmarks
-
-All below gas costs are based on Ethereum Mainnet and exclude the cost of token transfers.
-
-**Shields:** 43,303
-
-**Transfers / Unshields:**
-
-| Circuit | Gas Cost | Cost per addition |
-| ------- | -------- | ----------------- |
-| 1x1x1   | 341,964  | N/A               |
-| 5x1x1   | 495,774  | 38,452            |
-| 1x5x1   | 371,766  | 7,450             |
-| 1x1x5   | 401,786  | 14,955            |
-
-### Flamegraphs
-
-| Circuit | Flamegraph                              |
-| ------- | --------------------------------------- |
-| Shield  | ![shield](./docs/benchmarks/shield.png) |
-| 5x1x1   | ![5x1x1](./docs/benchmarks/5x1x1.png)   |
-| 1x5x1   | ![1x5x1](./docs/benchmarks/1x5x1.png)   |
-| 1x1x5   | ![1x1x5](./docs/benchmarks/1x1x5.png)   |
-
-## Arbitrary Note Ownership Rules
-
-Tint allows for arbitrary note ownership rules, meaning the conditions under which a note can be spent are decided by the note creator. Each note commits itself to a "spendability address". When a note is spent, the contract calls the `spendable` function on the spendability address, which determines whether the note can be spent.
-
-This allows for numerous spendability rules, including:
-- Secret key ownership
-- Multi-sigs
-- Hardware wallet compatibility via `eth_signTypedData_v4`
-- Timelocks
-- Limit orders
-
-To preserve privacy, spendability circuits will generally require a zk-proof.  This means spendability rules will generally cost an additional ~300k.
-
-## Programmable Spendability
-
-Tint enables assigning arbitrary spendability rules to each note. These rules are enforced by the contracts when a note is spent and can be used to implement features like hardware wallet support, time locks, multi-sigs, p2p swaps, and more.  For more information, see the [Spendability Docs](./docs/spendability.md).
-
-## Paymaster / Frame transaction compatibility
-
-Tint seperates the validation & execution phases for transfers and unshields.  This allows for improved compatibility with paymasters and frame transactions.  The validation phase can be performed in the `validatePaymasterUserOp` or `VERIFY` frame (in the former case writing a state marker to tstore, in the latter case that not being required).  

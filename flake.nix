@@ -38,6 +38,7 @@
 
       yices = pkgs.callPackage ./nix/yices/package.nix { };
       halmos = pkgs.callPackage ./nix/halmos/package.nix { };
+      picus = pkgs.callPackage ./nix/picus/package.nix { };
     in
     {
       devShells.${system}.default = pkgs.mkShell {
@@ -46,6 +47,7 @@
           pkgs.foundry
           yices
           halmos
+          # picus
 
           rustToolchain
           # required for bindgen

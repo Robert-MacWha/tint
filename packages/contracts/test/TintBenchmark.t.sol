@@ -56,8 +56,8 @@ contract TintHarness is Tint {
         for (uint256 i = 0; i < AGGREGATION_RING_SIZE; i++) {
             ring.buffer.buffer[i] = bytes32(uint256(i + 1));
         }
-        ring.buffer.head = AGGREGATION_RING_SIZE;
-        ring.buffer.tail = AGGREGATION_RING_SIZE;
+        ring.buffer.head = 0;
+        ring.buffer.tail = 0;
     }
 
     function toPublicSignals(

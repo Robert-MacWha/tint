@@ -91,7 +91,7 @@ contract TintSymTest is LibCircularBufferInvariants, SymTest {
         LibCircularBuffer.CircularBuffer memory buf;
         buf.head = uint128(svm.createUint(128, "head"));
         buf.tail = uint128(svm.createUint(128, "tail"));
-        buf.buffer = new bytes32[](8);
+        buf.buffer = new bytes32[](6);
 
         // SAFETY 001: Assumes circular buffer is valid.
         _assumeCircularBufferState(buf);

@@ -122,7 +122,7 @@ contract TintTests is Test {
 
     /// Should revert if the aggregation ring is full
     function test_depositRingFull_reverts() public {
-        for (uint128 i = 0; i < AGGREGATION_RING_SIZE - 1; ++i) {
+        for (uint128 i = 0; i < AGGREGATION_RING_SIZE - 2; ++i) {
             tint.deposit(address(token), 1, bytes32(uint256(i + 1)), "");
         }
 

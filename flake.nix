@@ -65,8 +65,8 @@
       ci = pkgs.mkShell {
         buildInputs = [
           pkgs.foundry
-
           rustToolchain
+          pkgs.rustPlatform.bindgenHook
           pkgs.go
         ];
       };

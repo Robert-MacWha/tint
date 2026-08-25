@@ -17,8 +17,9 @@ Tint is an EVM-focused utxo-based proof-of-concept privacy protocol.  It's desig
 ### Usage
 
 1. Ensure you have installed the above requirements.
-2. Ask Robert to share the `RPC_URL` for the tenderly virtual testnet or add your key to the `.sops.yaml` file.
-3. Run `just run help` or `cargo run --release -- help` to see the available commands.
+2. Run `just build` to build the contracts, artifacts, and CLI.
+3. Ask Robert to share the `RPC_URL` for the tenderly virtual testnet or add your key to the `.sops.yaml` file.
+4. Run `just run help` to see the available commands.
 
 The first run will take a while, since it builds the smart contracts, rust CLI, and arkworks circuits. Following runs will be much faster.
 

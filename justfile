@@ -19,12 +19,12 @@ env:
     fi
 
 build:
-    cd packages/contracts && forge build
-    cd packages/crates && cargo build --release
     cd packages/crates/tint-multisig-spendability/go && go run cmd/setup/main.go
     cp packages/crates/tint-multisig-spendability/artifacts/verifier.sol packages/contracts/src/spendability/multisig/MultisigSpendabilityVerifier.sol
+    cd packages/contracts && forge build
+    cd packages/crates && cargo build --release
 
-run *ARGS: build
+run *ARGS:
     set -euo pipefail
     eval "$(just env)"
     cd packages/crates/cli && cargo run --release -- {{ARGS}}

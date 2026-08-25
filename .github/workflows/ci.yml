@@ -21,6 +21,8 @@ jobs:
         primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
 
     - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: "packages/crates"
 
     - run: nix develop .#ci
     - run: nix develop .#ci --command bash -c "just build"

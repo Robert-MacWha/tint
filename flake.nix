@@ -39,36 +39,39 @@
       picus = pkgs.callPackage ./nix/picus/package.nix { };
     in
     {
-      devShells.${system}.default = pkgs.mkShell {
-        buildInputs = [
-          pkgs.just
-          pkgs.foundry
-          yices
-          halmos
-          picus
+      devShells.${system} = {
+        default = pkgs.mkShell {
+          buildInputs = [
+            pkgs.just
+            pkgs.foundry
+            yices
+            halmos
+            picus
 
-          rustfmtNightly
-          rustToolchain
-          # required for bindgen
-          # https://wiki.nixos.org/wiki/Rust#Installating_with_bindgen_support
-          pkgs.rustPlatform.bindgenHook
+            rustfmtNightly
+            rustToolchain
+            # required for bindgen
+            # https://wiki.nixos.org/wiki/Rust#Installating_with_bindgen_support
+            pkgs.rustPlatform.bindgenHook
 
-          pkgs.cargo-insta
-          pkgs.bacon
-          pkgs.wasm-pack
+            pkgs.cargo-insta
+            pkgs.bacon
+            pkgs.wasm-pack
 
-          pkgs.go
-          pkgs.gopls
-        ];
-      };
+            pkgs.go
+            pkgs.gopls
+          ];
+        };
 
-      ci = pkgs.mkShell {
-        buildInputs = [
-          pkgs.foundry
-          rustToolchain
-          pkgs.rustPlatform.bindgenHook
-          pkgs.go
-        ];
+        ci = pkgs.mkShell {
+          buildInputs = [
+            pkgs.just
+            pkgs.foundry
+            rustToolchain
+            pkgs.rustPlatform.bindgenHook
+            pkgs.go
+          ];
+        };
       };
     };
 }

@@ -23,6 +23,7 @@ jobs:
     - uses: Swatinem/rust-cache@v2
 
     - run: nix develop .#ci
+    - run: nix develop .#ci --command bash -c "just build"
     - run: nix develop .#ci --command bash -c "cd packages/contracts && forge test"
     - run: nix develop .#ci --command bash -c "cd packages/crates && cargo test --release"
     - run: nix develop .#ci --command bash -c "cd packages/crates && cargo test --release -- --ignored"

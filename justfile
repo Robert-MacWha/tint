@@ -21,6 +21,7 @@ env:
 build:
     cd packages/contracts && forge build
     cd packages/crates && cargo build --release
+    cd packages/crates/tint-multisig-spendability/go && go run cmd/setup/main.go
 
 run *ARGS: build
     set -euo pipefail

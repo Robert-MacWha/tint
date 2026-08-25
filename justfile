@@ -20,6 +20,7 @@ env:
 
 build:
     cd packages/crates/tint-multisig-spendability/go && go run cmd/setup/main.go
+    cd packages/crates/tint-multisig-spendability/go && go run cmd/gen_solidity_verifier/main.go
     cp packages/crates/tint-multisig-spendability/artifacts/verifier.sol packages/contracts/src/spendability/multisig/MultisigSpendabilityVerifier.sol
     cd packages/contracts && forge build
     cd packages/crates && cargo build --release

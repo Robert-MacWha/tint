@@ -18,10 +18,11 @@ env:
         echo "secrets/secrets.yaml not found, skipping secrets" >&2
     fi
 
-setup:
+build:
     cd packages/contracts && forge build
+    cd packages/crates && cargo build --release
 
-run *ARGS: setup
+run *ARGS: build
     set -euo pipefail
     eval "$(just env)"
     cd packages/crates/cli && cargo run --release -- {{ARGS}}

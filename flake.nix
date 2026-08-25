@@ -32,9 +32,7 @@
         ];
       };
 
-      rustfmtNightly = pkgs.rust-bin.nightly."2026-06-01".minimal.override {
-        extensions = [ "rustfmt" ];
-      };
+      rustfmtNightly = pkgs.rust-bin.nightly.latest.rustfmt;
 
       yices = pkgs.callPackage ./nix/yices/package.nix { };
       halmos = pkgs.callPackage ./nix/halmos/package.nix { };
@@ -47,8 +45,9 @@
           pkgs.foundry
           yices
           halmos
-          # picus
+          picus
 
+          rustfmtNightly
           rustToolchain
           # required for bindgen
           # https://wiki.nixos.org/wiki/Rust#Installating_with_bindgen_support
@@ -61,11 +60,15 @@
           pkgs.go
           pkgs.gopls
         ];
+      };
 
-        # Use nightly rustfmt for the `imports_granularity` rules.
-        shellHook = ''
-          export RUSTFMT="${rustfmtNightly}/bin/rustfmt"
-        '';
+      ci = pkgs.mkShell {
+        buildInputs = [
+          pkgs.foundry
+
+          rustToolchain
+          pkgs.go
+        ];
       };
     };
 }

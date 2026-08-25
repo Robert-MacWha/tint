@@ -22,6 +22,6 @@ jobs:
 
     - uses: Swatinem/rust-cache@v2
 
-    - run: nix develop --command bash -c "cd packages/contracts && forge test"
-    - run: nix develop --command bash -c "cd packages/crates && cargo test --release"
-    - run: nix develop --command bash -c "cd packages/crates && cargo test --release -- --ignored"
+    - run: nix develop .#ci --command bash -c "cd packages/contracts && forge test"
+    - run: nix develop .#ci --command bash -c "cd packages/crates && cargo test --release"
+    - run: nix develop .#ci --command bash -c "cd packages/crates && cargo test --release -- --ignored"

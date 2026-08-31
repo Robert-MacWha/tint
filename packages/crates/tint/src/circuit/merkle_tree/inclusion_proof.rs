@@ -24,7 +24,7 @@ pub struct InclusionProofVar<const D: usize, const K: usize> {
 }
 
 impl<const D: usize, const K: usize> InclusionProofVar<D, K> {
-    #[must_use] 
+    #[must_use]
     pub fn new(leaf: FrVar, path: [UInt8<Fr>; D], siblings: [[FrVar; K]; D]) -> Self {
         Self {
             leaf,

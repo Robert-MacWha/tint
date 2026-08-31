@@ -19,7 +19,7 @@
 */
 // AUTO-GENERATED — do not edit; see tint_rs::codegen
 
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.28;
 
 import {IVerifier} from "./interfaces/IVerifier.sol";
 

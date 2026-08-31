@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.28;
 
 import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS} from "../lib/Constants.sol";
 import {ProofLib} from "../lib/ProofLib.sol";

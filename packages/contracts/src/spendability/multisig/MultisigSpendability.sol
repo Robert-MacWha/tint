@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.28;
 
 import {ISpendability} from "../../interfaces/ISpendability.sol";
 import {IPrivacyPool} from "../../interfaces/IPrivacyPool.sol";

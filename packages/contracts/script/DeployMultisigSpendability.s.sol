@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.28;
 
 import {Script, console} from "forge-std/Script.sol";
 import {Verifier} from "../src/spendability/multisig/MultisigSpendabilityVerifier.sol";

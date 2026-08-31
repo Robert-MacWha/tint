@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.28;
 
 import {Poseidon2T2_BN254} from "@taceo/poseidon2/Poseidon2T2_BN254.sol";
 

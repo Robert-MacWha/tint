@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.28;
 
 uint128 constant N_CONST = 7;
 uint128 constant N_INPUTS = 5;

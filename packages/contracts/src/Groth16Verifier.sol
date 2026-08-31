@@ -25,17 +25,17 @@ import {IVerifier} from "./interfaces/IVerifier.sol";
 
 contract Groth16Verifier is IVerifier {
     // Scalar field size
-    uint256 constant r    = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+    uint256 constant r = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
     // Base field size
-    uint256 constant q   = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
+    uint256 constant q = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
 
     // Verification Key data
-    uint256 constant alphax  = 10314683402145919335415264089338013869151872735661243528435829273762895412475;
-    uint256 constant alphay  = 15311410802386913807174485311770598542990692773058369166097347676916826427424;
-    uint256 constant betax1  = 8742476040979126669529512667270167370972734897784767815803986702043271844587;
-    uint256 constant betax2  = 21546977338313367449764778081974431327514198880463503495700342085596869133184;
-    uint256 constant betay1  = 9289809140465907199790286310535739942219483053026485452107542051245760617369;
-    uint256 constant betay2  = 10645240371221413259645920038475973272479052146228783657329287031421083633145;
+    uint256 constant alphax = 10314683402145919335415264089338013869151872735661243528435829273762895412475;
+    uint256 constant alphay = 15311410802386913807174485311770598542990692773058369166097347676916826427424;
+    uint256 constant betax1 = 8742476040979126669529512667270167370972734897784767815803986702043271844587;
+    uint256 constant betax2 = 21546977338313367449764778081974431327514198880463503495700342085596869133184;
+    uint256 constant betay1 = 9289809140465907199790286310535739942219483053026485452107542051245760617369;
+    uint256 constant betay2 = 10645240371221413259645920038475973272479052146228783657329287031421083633145;
     uint256 constant gammax1 = 19786488175694835941529082486176010093671788452701050737945948286615958246569;
     uint256 constant gammax2 = 20330634461338860209244322586166193708999379153762374339780730602203574324967;
     uint256 constant gammay1 = 5928072313096986966179943778308363878908435360419431578510684278352903202909;
@@ -106,7 +106,12 @@ contract Groth16Verifier is IVerifier {
 
     uint16 constant pLastMem = 896;
 
-    function verifyProof(uint[2] calldata _pA, uint[2][2] calldata _pB, uint[2] calldata _pC, uint[26] calldata _pubSignals) public view returns (bool) {
+    function verifyProof(
+        uint256[2] calldata _pA,
+        uint256[2][2] calldata _pB,
+        uint256[2] calldata _pC,
+        uint256[26] calldata _pubSignals
+    ) public view returns (bool) {
         assembly {
             function checkField(v) {
                 if iszero(lt(v, r)) {
@@ -200,7 +205,6 @@ contract Groth16Verifier is IVerifier {
                 mstore(add(_pPairing, 384), mload(add(pMem, pVk)))
                 mstore(add(_pPairing, 416), mload(add(pMem, add(pVk, 32))))
 
-
                 // gamma2
                 mstore(add(_pPairing, 448), gammax1)
                 mstore(add(_pPairing, 480), gammax2)
@@ -216,7 +220,6 @@ contract Groth16Verifier is IVerifier {
                 mstore(add(_pPairing, 672), deltax2)
                 mstore(add(_pPairing, 704), deltay1)
                 mstore(add(_pPairing, 736), deltay2)
-
 
                 let success := staticcall(sub(gas(), 2000), 8, _pPairing, 768, _pPairing, 0x20)
 
@@ -258,7 +261,7 @@ contract Groth16Verifier is IVerifier {
             let isValid := checkPairing(_pA, _pB, _pC, _pubSignals, pMem)
 
             mstore(0, isValid)
-             return(0, 0x20)
-         }
-     }
- }
+            return(0, 0x20)
+        }
+    }
+}

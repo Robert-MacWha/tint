@@ -1,21 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {
-    SafeERC20,
-    IERC20
-} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {IVerifier} from "./interfaces/IVerifier.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
 import {ISpendability} from "./interfaces/ISpendability.sol";
-import {
-    N_INPUTS,
-    N_OUTPUTS,
-    N_WITHDRAWALS,
-    N_PUB,
-    AGGREGATION_RING_SIZE
-} from "./lib/Constants.sol";
+import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB, AGGREGATION_RING_SIZE} from "./lib/Constants.sol";
 import {ProofLib} from "./lib/ProofLib.sol";
 import {LibAggregationRing} from "./lib/LibAggregationRing.sol";
 import {LibPoseidon2T2_BN254} from "./lib/LibPoseidon2T2_BN254.sol";
@@ -33,11 +24,7 @@ contract Tint is IPrivacyPool, NullifierRegistry {
     event Deposited(bytes32 commitment, bytes encryptedNote);
     event Committed(bytes32 commitment, bytes encryptedNote);
     event Nullified(bytes32 nullifier);
-    event Withdrawn(
-        address indexed asset,
-        uint128 amount,
-        address indexed recipient
-    );
+    event Withdrawn(address indexed asset, uint128 amount, address indexed recipient);
     event AggregationAdvanced(uint128 index, bytes32 root);
 
     error InvalidProof();
@@ -56,17 +43,8 @@ contract Tint is IPrivacyPool, NullifierRegistry {
     /// @param partialCommitment The partial commitment for the private output note.
     ///
     /// @dev The caller must have approved this contract to spend at least `amount` of `asset`.
-    function deposit(
-        address asset,
-        uint128 amount,
-        bytes32 partialCommitment,
-        bytes calldata encryptedNote
-    ) external {
-        bytes32 commitment = ProofLib.toCommitment(
-            asset,
-            amount,
-            partialCommitment
-        );
+    function deposit(address asset, uint128 amount, bytes32 partialCommitment, bytes calldata encryptedNote) external {
+        bytes32 commitment = ProofLib.toCommitment(asset, amount, partialCommitment);
         ring.stage(_hash, commitment);
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
         emit Deposited(commitment, encryptedNote);
@@ -82,10 +60,7 @@ contract Tint is IPrivacyPool, NullifierRegistry {
     ///
     /// @dev Pre-verified operations can be later executed with `executePreVerified`
     /// without re-verification.
-    function preVerify(
-        bytes32 slot,
-        IPrivacyPool.Operation calldata operation
-    ) public {
+    function preVerify(bytes32 slot, IPrivacyPool.Operation calldata operation) public {
         verifyOperation(operation);
         bytes32 operationHash = ProofLib.toOperationHash(operation);
         assembly {
@@ -97,10 +72,7 @@ contract Tint is IPrivacyPool, NullifierRegistry {
     ///
     /// @dev Assuming the operation has been pre-verified and that no erc20
     /// transfers revert, this function is guaranteed to not revert.
-    function executePreVerified(
-        bytes32 slot,
-        IPrivacyPool.Operation calldata operation
-    ) public {
+    function executePreVerified(bytes32 slot, IPrivacyPool.Operation calldata operation) public {
         bytes32 operationHash = ProofLib.toOperationHash(operation);
         bytes32 storedHash;
 
@@ -149,20 +121,12 @@ contract Tint is IPrivacyPool, NullifierRegistry {
     /// Exposed so a client can cross-check its locally-computed proof inputs
     /// against the contract's, rather than debugging an opaque
     /// `InvalidProof` revert.
-    function computePublicSignals(
-        IPrivacyPool.Operation calldata op
-    ) public view returns (uint256[N_PUB] memory) {
+    function computePublicSignals(IPrivacyPool.Operation calldata op) public view returns (uint256[N_PUB] memory) {
         bytes32 oldRoot = ring.getRoot(op.startAggregationIndex);
         bytes32 startAggregationHash = ring.getHash(op.startAggregationIndex);
         bytes32 endAggregationHash = ring.getHash(op.endAggregationIndex);
 
-        return
-            ProofLib.toPublicSignals(
-                oldRoot,
-                startAggregationHash,
-                endAggregationHash,
-                op
-            );
+        return ProofLib.toPublicSignals(oldRoot, startAggregationHash, endAggregationHash, op);
     }
 
     /// @notice Verifies that the provided operation is valid or reverts if not.
@@ -186,20 +150,12 @@ contract Tint is IPrivacyPool, NullifierRegistry {
 
         // Verify the zk proof
         uint256[N_PUB] memory pubSignals = computePublicSignals(op);
-        if (
-            !VERIFIER.verifyProof(
-                op.proof.pA,
-                op.proof.pB,
-                op.proof.pC,
-                pubSignals
-            )
-        ) {
+        if (!VERIFIER.verifyProof(op.proof.pA, op.proof.pB, op.proof.pC, pubSignals)) {
             revert InvalidProof();
         }
 
         // Verify spendability
-        address[N_INPUTS] memory spendabilityAddresses = ProofLib
-            .spendabilityAddresses(op);
+        address[N_INPUTS] memory spendabilityAddresses = ProofLib.spendabilityAddresses(op);
         for (uint256 i; i < N_INPUTS; ++i) {
             if (spendabilityAddresses[i] == address(0)) continue;
             ISpendability(spendabilityAddresses[i]).requireSpendable(op);
@@ -245,17 +201,7 @@ contract Tint is IPrivacyPool, NullifierRegistry {
     // -------------------- INTERNAL VIEW --------------------
 
     /// @dev Overridable in test harnesses to swap out the hash function.
-    function _hash(
-        bytes32 prevHash,
-        bytes32 commitment
-    ) internal pure virtual returns (bytes32) {
-        return
-            bytes32(
-                LibPoseidon2T2_BN254.compress(
-                    uint256(prevHash),
-                    uint256(commitment),
-                    0
-                )
-            );
+    function _hash(bytes32 prevHash, bytes32 commitment) internal pure virtual returns (bytes32) {
+        return bytes32(LibPoseidon2T2_BN254.compress(uint256(prevHash), uint256(commitment), 0));
     }
 }

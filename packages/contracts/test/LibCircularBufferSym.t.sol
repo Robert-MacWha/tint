@@ -43,20 +43,14 @@ contract CircularBufferHarness {
         return buf.tail;
     }
 
-    function buffer()
-        public
-        view
-        returns (LibCircularBuffer.CircularBuffer memory)
-    {
+    function buffer() public view returns (LibCircularBuffer.CircularBuffer memory) {
         return buf;
     }
 }
 
 contract LibCircularBufferInvariants is Test {
     /// Assumes an arbitrary reachable state for the circular buffer.
-    function _assumeCircularBufferState(
-        LibCircularBuffer.CircularBuffer memory _buf
-    ) internal pure {
+    function _assumeCircularBufferState(LibCircularBuffer.CircularBuffer memory _buf) internal pure {
         // SAFETY 001: Avoids uint128 overflow false positives.
         vm.assume(_buf.head < type(uint16).max);
 
@@ -70,9 +64,7 @@ contract LibCircularBufferInvariants is Test {
     }
 
     /// Asserts the circular buffer's invariants. Should be called after every operation.
-    function _assertCircularBufferInvariants(
-        LibCircularBuffer.CircularBuffer memory buffer
-    ) internal pure {
+    function _assertCircularBufferInvariants(LibCircularBuffer.CircularBuffer memory buffer) internal pure {
         // SAFETY 002
         assert(buffer.head >= buffer.tail);
 
@@ -91,17 +83,15 @@ contract LibCircularBufferSymTest is LibCircularBufferInvariants {
     }
 
     /// Checks that pushing a value to the circular buffer behaves correctly.
-    function check_push(
-        LibCircularBuffer.CircularBuffer memory _buf,
-        bytes32 value
-    ) public {
+    function check_push(LibCircularBuffer.CircularBuffer memory _buf, bytes32 value) public {
         _setState(_buf);
 
         uint128 headBefore = harness.head();
         uint128 tailBefore = harness.tail();
         uint128 spaceBefore = harness.space();
 
-        try harness.push(value) {} catch {
+        try harness.push(value) {}
+        catch {
             // If the push fails, it must be because the buffer is full.
             assertEq(spaceBefore, 0);
             return;
@@ -121,25 +111,21 @@ contract LibCircularBufferSymTest is LibCircularBufferInvariants {
     }
 
     /// Checks that `push` never reverts where `requireSpace` succeeded.
-    function check_requireSpaceAllowsPush(
-        LibCircularBuffer.CircularBuffer memory _buf,
-        bytes32 value
-    ) public {
+    function check_requireSpaceAllowsPush(LibCircularBuffer.CircularBuffer memory _buf, bytes32 value) public {
         _setState(_buf);
 
         harness.requireSpace(1);
-        try harness.push(value) {} catch {
+        try harness.push(value) {}
+        catch {
             assert(false);
         }
         _assertCircularBufferInvariants(harness.buffer());
     }
 
     /// Checks that `push` only affects the last value in the circular buffer.
-    function check_push_readsAllButLast(
-        LibCircularBuffer.CircularBuffer memory _buf,
-        bytes32 value,
-        uint128 probe
-    ) public {
+    function check_push_readsAllButLast(LibCircularBuffer.CircularBuffer memory _buf, bytes32 value, uint128 probe)
+        public
+    {
         _setState(_buf);
 
         bytes32 probeBefore = harness.get(probe);
@@ -154,15 +140,13 @@ contract LibCircularBufferSymTest is LibCircularBufferInvariants {
     }
 
     /// Checks that advancing the tail of the circular buffer behaves correctly.
-    function check_advanceTail(
-        LibCircularBuffer.CircularBuffer memory _buf,
-        uint128 newTail
-    ) public {
+    function check_advanceTail(LibCircularBuffer.CircularBuffer memory _buf, uint128 newTail) public {
         _setState(_buf);
 
         uint128 headBefore = harness.head();
 
-        try harness.advanceTail(newTail) {} catch {
+        try harness.advanceTail(newTail) {}
+        catch {
             // Failiures must be because the new tail is out of bounds.
             assert(newTail < harness.tail() || newTail > harness.head());
             return;
@@ -174,14 +158,14 @@ contract LibCircularBufferSymTest is LibCircularBufferInvariants {
     }
 
     /// Checks that `advanceTail` never reverts where `requireAdvancable` passed.
-    function check_requireAdvancableAllowsAdvance(
-        LibCircularBuffer.CircularBuffer memory _buf,
-        uint128 newTail
-    ) public {
+    function check_requireAdvancableAllowsAdvance(LibCircularBuffer.CircularBuffer memory _buf, uint128 newTail)
+        public
+    {
         _setState(_buf);
 
         harness.requireAdvancable(newTail);
-        try harness.advanceTail(newTail) {} catch {
+        try harness.advanceTail(newTail) {}
+        catch {
             assert(false);
         }
         _assertCircularBufferInvariants(harness.buffer());
@@ -207,17 +191,12 @@ contract LibCircularBufferSymTest is LibCircularBufferInvariants {
     }
 
     /// Checks that getting a value from the circular buffer behaves correctly.
-    function check_get(
-        LibCircularBuffer.CircularBuffer memory _buf,
-        uint128 probe
-    ) public {
+    function check_get(LibCircularBuffer.CircularBuffer memory _buf, uint128 probe) public {
         _setState(_buf);
 
-        try harness.get(probe) {} catch {
-            assert(
-                probe >= harness.head() ||
-                    probe + _buf.buffer.length < harness.head()
-            );
+        try harness.get(probe) {}
+        catch {
+            assert(probe >= harness.head() || probe + _buf.buffer.length < harness.head());
             return;
         }
         assertLt(probe, harness.head());
@@ -227,11 +206,9 @@ contract LibCircularBufferSymTest is LibCircularBufferInvariants {
     }
 
     /// Checks that two gets to the same physical slot in the circular buffer cannot both succeed.
-    function check_get_no_aliasing(
-        LibCircularBuffer.CircularBuffer memory _buf,
-        uint128 probe1,
-        uint128 probe2
-    ) public {
+    function check_get_no_aliasing(LibCircularBuffer.CircularBuffer memory _buf, uint128 probe1, uint128 probe2)
+        public
+    {
         _setState(_buf);
 
         vm.assume(probe1 != probe2);
@@ -239,11 +216,13 @@ contract LibCircularBufferSymTest is LibCircularBufferInvariants {
         vm.assume(probe1 % _buf.buffer.length == probe2 % _buf.buffer.length);
 
         bool valid1 = true;
-        try harness.get(probe1) {} catch {
+        try harness.get(probe1) {}
+        catch {
             valid1 = false;
         }
         bool valid2 = true;
-        try harness.get(probe2) {} catch {
+        try harness.get(probe2) {}
+        catch {
             valid2 = false;
         }
         assertFalse(valid1 && valid2);

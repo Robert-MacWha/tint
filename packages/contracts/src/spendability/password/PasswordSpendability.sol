@@ -19,24 +19,14 @@ contract PasswordSpendability is ISpendability {
         VERIFIER = verifier;
     }
 
-    function requireSpendable(
-        IPrivacyPool.Operation calldata operation
-    ) external view {
+    function requireSpendable(IPrivacyPool.Operation calldata operation) external view {
         for (uint256 i = 0; i < N_INPUTS; i++) {
             if (operation.spendabilityAddresses[i] != address(this)) continue;
 
-            ProofLib.Proof memory proof = abi.decode(
-                operation.context.spendabilityInputs[i],
-                (ProofLib.Proof)
-            );
-            uint256[2] memory pubSignals = [
-                uint256(uint160(address(this))),
-                uint256(operation.operationHash)
-            ];
+            ProofLib.Proof memory proof = abi.decode(operation.context.spendabilityInputs[i], (ProofLib.Proof));
+            uint256[2] memory pubSignals = [uint256(uint160(address(this))), uint256(operation.operationHash)];
 
-            if (
-                !VERIFIER.verifyProof(proof.pA, proof.pB, proof.pC, pubSignals)
-            ) {
+            if (!VERIFIER.verifyProof(proof.pA, proof.pB, proof.pC, pubSignals)) {
                 revert InvalidProof();
             }
 

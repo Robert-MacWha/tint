@@ -18,16 +18,11 @@ contract MultisigSpendability is ISpendability {
         VERIFIER = verifier;
     }
 
-    function requireSpendable(
-        IPrivacyPool.Operation calldata operation
-    ) external view {
+    function requireSpendable(IPrivacyPool.Operation calldata operation) external view {
         for (uint256 i = 0; i < N_INPUTS; i++) {
             if (operation.spendabilityAddresses[i] != address(this)) continue;
             bytes calldata proof = operation.context.spendabilityInputs[i];
-            uint256[2] memory pubSignals = [
-                uint256(uint160(address(this))),
-                uint256(operation.operationHash)
-            ];
+            uint256[2] memory pubSignals = [uint256(uint160(address(this))), uint256(operation.operationHash)];
 
             VERIFIER.verifyProof(proof, pubSignals);
             return;

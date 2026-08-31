@@ -2,23 +2,14 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {
-    ERC20,
-    IERC20Errors
-} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC20, IERC20Errors} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ISpendability} from "../src/interfaces/ISpendability.sol";
 import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {Tint} from "../src/Tint.sol";
 import {LibCircularBuffer} from "../src/lib/LibCircularBuffer.sol";
 import {NullifierRegistry} from "../src/NullifierRegistry.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
-import {
-    N_INPUTS,
-    N_OUTPUTS,
-    N_WITHDRAWALS,
-    N_PUB,
-    AGGREGATION_RING_SIZE
-} from "../src/lib/Constants.sol";
+import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB, AGGREGATION_RING_SIZE} from "../src/lib/Constants.sol";
 
 contract MockToken is ERC20 {
     constructor() ERC20("Mock", "MCK") {}
@@ -35,12 +26,11 @@ contract MockVerifier is IVerifier {
         shouldPass = v;
     }
 
-    function verifyProof(
-        uint256[2] calldata,
-        uint256[2][2] calldata,
-        uint256[2] calldata,
-        uint256[N_PUB] memory
-    ) external view returns (bool) {
+    function verifyProof(uint256[2] calldata, uint256[2][2] calldata, uint256[2] calldata, uint256[N_PUB] memory)
+        external
+        view
+        returns (bool)
+    {
         return shouldPass;
     }
 }
@@ -78,11 +68,7 @@ contract TintTests is Test {
         tint.deposit(address(token), 1, bytes32(uint256(0xdeadbeef)), "");
     }
 
-    function _operation()
-        internal
-        pure
-        returns (IPrivacyPool.Operation memory op)
-    {
+    function _operation() internal pure returns (IPrivacyPool.Operation memory op) {
         op.newRoot = bytes32(uint256(1));
         op.endAggregationIndex = 0;
     }
@@ -109,14 +95,7 @@ contract TintTests is Test {
         MockToken fresh = new MockToken();
         fresh.mint(address(this), 1000);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IERC20Errors.ERC20InsufficientAllowance.selector,
-                address(tint),
-                0,
-                500
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, address(tint), 0, 500));
         tint.deposit(address(fresh), 500, bytes32(uint256(42)), "");
     }
 
@@ -126,11 +105,7 @@ contract TintTests is Test {
             tint.deposit(address(token), 1, bytes32(uint256(i + 1)), "");
         }
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                LibCircularBuffer.CircularBufferFull.selector
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(LibCircularBuffer.CircularBufferFull.selector));
         tint.deposit(address(token), 1, bytes32(uint256(42)), "");
     }
 
@@ -170,19 +145,12 @@ contract TintTests is Test {
 
         for (uint256 i; i < N_OUTPUTS; ++i) {
             vm.expectEmit();
-            emit Tint.Committed(
-                op.commitmentsOut[i],
-                op.context.ciphertexts[i]
-            );
+            emit Tint.Committed(op.commitmentsOut[i], op.context.ciphertexts[i]);
         }
 
         for (uint256 i; i < N_WITHDRAWALS; ++i) {
             vm.expectEmit();
-            emit Tint.Withdrawn(
-                op.unshieldAssets[i],
-                op.unshieldAmounts[i],
-                op.context.unshieldRecipients[i]
-            );
+            emit Tint.Withdrawn(op.unshieldAssets[i], op.unshieldAmounts[i], op.context.unshieldRecipients[i]);
         }
 
         tint.operate(op);
@@ -207,12 +175,7 @@ contract TintTests is Test {
         op.nullifiers[0] = bytes32(uint256(123));
         tint.operate(op);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                NullifierRegistry.NullifierAlreadySpent.selector,
-                bytes32(uint256(123))
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(NullifierRegistry.NullifierAlreadySpent.selector, bytes32(uint256(123))));
         tint.operate(op);
     }
 

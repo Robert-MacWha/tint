@@ -9,12 +9,7 @@ import {ISpendability} from "../src/interfaces/ISpendability.sol";
 import {MockVerifier} from "../src/mocks/MockVerifier.sol";
 import {LibCircularBuffer} from "../src/lib/LibCircularBuffer.sol";
 import {LibCircularBufferInvariants} from "./LibCircularBufferSym.t.sol";
-import {
-    N_INPUTS,
-    N_OUTPUTS,
-    N_WITHDRAWALS,
-    AGGREGATION_RING_SIZE
-} from "../src/lib/Constants.sol";
+import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, AGGREGATION_RING_SIZE} from "../src/lib/Constants.sol";
 
 /// @notice ERC20 stub whose transfers always succeed.
 contract StubToken {
@@ -57,20 +52,13 @@ contract TintHarness is Tint {
         _executeOperation(op);
     }
 
-    function buffer()
-        public
-        view
-        returns (LibCircularBuffer.CircularBuffer memory)
-    {
+    function buffer() public view returns (LibCircularBuffer.CircularBuffer memory) {
         return ring.buffer;
     }
 
     /// @dev Override poseidon2 with cheaper keccak256. The specific hash function
     /// function is irrelevant.
-    function _hash(
-        bytes32 prevHash,
-        bytes32 commitment
-    ) internal pure override returns (bytes32) {
+    function _hash(bytes32 prevHash, bytes32 commitment) internal pure override returns (bytes32) {
         return keccak256(abi.encode(prevHash, commitment));
     }
 }
@@ -105,10 +93,7 @@ contract TintSymTest is LibCircularBufferInvariants, SymTest {
         // STATE: Assumes a random root at a random index so the aggregation ring is not empty.
         bytes32 randomRoot = svm.createBytes32("randomRootValue");
         vm.assume(randomRoot != bytes32(0));
-        tint.setRoot(
-            uint128(svm.createUint(128, "randomRootIndex")),
-            randomRoot
-        );
+        tint.setRoot(uint128(svm.createUint(128, "randomRootIndex")), randomRoot);
 
         // STATE: Assume some arbitrary historical nullifier has been spent.
         bytes32 spentNullifier = svm.createBytes32("spentNullifier");
@@ -186,9 +171,7 @@ contract TintSymTest is LibCircularBufferInvariants, SymTest {
     /// succeeds but `executeOperation` reverts.
     ///
     /// @dev Takes 5+ minutes to run.
-    function check_verifiedOperationAlwaysExecutes(
-        IPrivacyPool.Operation calldata op
-    ) public {
+    function check_verifiedOperationAlwaysExecutes(IPrivacyPool.Operation calldata op) public {
         _assumeState();
         _narrowOperation(op);
 
@@ -198,7 +181,8 @@ contract TintSymTest is LibCircularBufferInvariants, SymTest {
         }
 
         tint.verifyOperation(op);
-        try tint.executeOperation(op) {} catch {
+        try tint.executeOperation(op) {}
+        catch {
             assert(false);
         }
     }
@@ -215,7 +199,8 @@ contract TintSymTest is LibCircularBufferInvariants, SymTest {
         op.startAggregationIndex = tint.latestRootIndex();
         op.endAggregationIndex = tint.head();
 
-        try tint.operate(op) {} catch {
+        try tint.operate(op) {}
+        catch {
             assert(false);
         }
         assert(tint.latestRootIndex() == tint.head());

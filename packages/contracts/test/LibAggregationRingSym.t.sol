@@ -48,11 +48,7 @@ contract AggregationRingHarness {
         return LibCircularBuffer.space(ring.buffer);
     }
 
-    function buffer()
-        public
-        view
-        returns (LibCircularBuffer.CircularBuffer memory)
-    {
+    function buffer() public view returns (LibCircularBuffer.CircularBuffer memory) {
         return ring.buffer;
     }
 
@@ -71,9 +67,7 @@ contract LibAggregationRingSymTest is LibCircularBufferInvariants, SymTest {
     }
 
     /// Assumes an arbitrary reachable state for the circular buffer.
-    function _assumeState(
-        LibCircularBuffer.CircularBuffer memory _buf
-    ) internal {
+    function _assumeState(LibCircularBuffer.CircularBuffer memory _buf) internal {
         // SAFETY 001: Assumes circular buffer is valid.
         _assumeCircularBufferState(_buf);
         harness.setBuffer(_buf);
@@ -86,10 +80,7 @@ contract LibAggregationRingSymTest is LibCircularBufferInvariants, SymTest {
         // STATE: Assumes a random root at a random index so the aggregation ring is not empty.
         bytes32 randomRoot = svm.createBytes32("randomRootValue");
         vm.assume(randomRoot != bytes32(0));
-        harness.setRoot(
-            uint128(svm.createUint(128, "randomRootIndex")),
-            randomRoot
-        );
+        harness.setRoot(uint128(svm.createUint(128, "randomRootIndex")), randomRoot);
     }
 
     /// Asserts the aggregation ring's invariants. Should be called after every operation.
@@ -107,11 +98,7 @@ contract LibAggregationRingSymTest is LibCircularBufferInvariants, SymTest {
     }
 
     /// Checks that staging a value in the aggregation ring produces the correct hash and does not modify the roots.
-    function check_stage(
-        LibCircularBuffer.CircularBuffer memory _buf,
-        bytes32 value,
-        uint128 rootProbe
-    ) public {
+    function check_stage(LibCircularBuffer.CircularBuffer memory _buf, bytes32 value, uint128 rootProbe) public {
         _assumeState(_buf);
 
         vm.assume(value != bytes32(0));
@@ -120,31 +107,27 @@ contract LibAggregationRingSymTest is LibCircularBufferInvariants, SymTest {
         uint128 headBefore = harness.head();
         bytes32 prevHash = harness.getHash(headBefore);
 
-        try harness.stage(value) {} catch {
+        try harness.stage(value) {}
+        catch {
             assert(harness.space() == 0);
             return;
         }
         assertEq(harness.roots(rootProbe), rootBefore);
 
-        assertEq(
-            harness.getHash(harness.head()),
-            keccak256(abi.encodePacked(prevHash, value))
-        );
+        assertEq(harness.getHash(harness.head()), keccak256(abi.encodePacked(prevHash, value)));
 
         _assertInvariants();
     }
 
     /// Checks that staging the magic value 0 is a no-op
-    function check_stageMagicValue(
-        LibCircularBuffer.CircularBuffer memory _buf,
-        uint128 rootProbe
-    ) public {
+    function check_stageMagicValue(LibCircularBuffer.CircularBuffer memory _buf, uint128 rootProbe) public {
         _assumeState(_buf);
 
         bytes32 rootBefore = harness.roots(rootProbe);
         uint128 headBefore = harness.head();
 
-        try harness.stage(bytes32(0)) {} catch {
+        try harness.stage(bytes32(0)) {}
+        catch {
             assert(false);
         }
         assertEq(harness.roots(rootProbe), rootBefore);
@@ -155,10 +138,7 @@ contract LibAggregationRingSymTest is LibCircularBufferInvariants, SymTest {
 
     /// Checks that getHash behaves correctly: index 0 is always the zero
     /// sentinel, and index > 0 succeeds if it's within the live window.
-    function check_getHash(
-        LibCircularBuffer.CircularBuffer memory _buf,
-        uint128 index
-    ) public {
+    function check_getHash(LibCircularBuffer.CircularBuffer memory _buf, uint128 index) public {
         _assumeState(_buf);
 
         if (index == 0) {
@@ -167,11 +147,9 @@ contract LibAggregationRingSymTest is LibCircularBufferInvariants, SymTest {
             return;
         }
 
-        try harness.getHash(index) {} catch {
-            assert(
-                index > harness.head() ||
-                    harness.head() >= index + _buf.buffer.length
-            );
+        try harness.getHash(index) {}
+        catch {
+            assert(index > harness.head() || harness.head() >= index + _buf.buffer.length);
             return;
         }
         assertLe(index, harness.head());
@@ -194,7 +172,8 @@ contract LibAggregationRingSymTest is LibCircularBufferInvariants, SymTest {
         uint128 tailBefore = harness.tail();
         bytes32 rootProbeBefore = harness.roots(rootProbe);
 
-        try harness.advance(newTail, newRoot) {} catch {
+        try harness.advance(newTail, newRoot) {}
+        catch {
             // Reverts for either zero root or out-of-bounds tail.
             assert(newTail > tailBefore);
             assert(newRoot == bytes32(0) || newTail > headBefore);

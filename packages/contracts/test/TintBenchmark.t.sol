@@ -66,13 +66,7 @@ contract TintHarness is Tint {
         bytes32 endAggregationHash,
         IPrivacyPool.Operation calldata op
     ) external pure returns (uint256[N_PUB] memory) {
-        return
-            ProofLib.toPublicSignals(
-                oldRoot,
-                startAggregationHash,
-                endAggregationHash,
-                op
-            );
+        return ProofLib.toPublicSignals(oldRoot, startAggregationHash, endAggregationHash, op);
     }
 }
 
@@ -104,20 +98,12 @@ contract TintGasReportTest is Test {
         for (uint256 i = 0; i < N_INPUTS; i++) {
             op.nullifiers[i] = bytes32(i + 1);
         }
-        op.commitmentsOut[0] = bytes32(
-            uint256(keccak256(abi.encode("commitment", uint256(0)))) %
-                BN254_FR_MODULUS
-        );
+        op.commitmentsOut[0] = bytes32(uint256(keccak256(abi.encode("commitment", uint256(0)))) % BN254_FR_MODULUS);
         op.unshieldAmounts[0] = 1;
         op.unshieldAssets[0] = address(token);
         op.context.unshieldRecipients[0] = address(1);
 
-        tint.toPublicSignals(
-            GENESIS_ROOT,
-            startAggregationHash,
-            endAggregationHash,
-            op
-        );
+        tint.toPublicSignals(GENESIS_ROOT, startAggregationHash, endAggregationHash, op);
     }
 
     function test_operate_gas() public {
@@ -130,10 +116,7 @@ contract TintGasReportTest is Test {
         for (uint256 i = 0; i < N_INPUTS; i++) {
             op.nullifiers[i] = bytes32(i + 1);
         }
-        op.commitmentsOut[0] = bytes32(
-            uint256(keccak256(abi.encode("commitment", uint256(0)))) %
-                BN254_FR_MODULUS
-        );
+        op.commitmentsOut[0] = bytes32(uint256(keccak256(abi.encode("commitment", uint256(0)))) % BN254_FR_MODULUS);
         op.unshieldAmounts[0] = 1;
         op.unshieldAssets[0] = address(token);
         op.context.unshieldRecipients[0] = address(1);

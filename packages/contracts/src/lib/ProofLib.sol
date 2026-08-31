@@ -3,14 +3,7 @@ pragma solidity ^0.8.24;
 
 import {LibPoseidon2T3_BN254} from "./LibPoseidon2T3_BN254.sol";
 import {IPrivacyPool} from "../interfaces/IPrivacyPool.sol";
-import {
-    N_CONST,
-    N_INPUTS,
-    N_OUTPUTS,
-    N_WITHDRAWALS,
-    N_PUB,
-    BN254_FR_MODULUS
-} from "./Constants.sol";
+import {N_CONST, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB, BN254_FR_MODULUS} from "./Constants.sol";
 
 library ProofLib {
     /// @notice Groth16 proof structure.
@@ -42,9 +35,7 @@ library ProofLib {
 
             for (uint256 i = 0; i < N_INPUTS; i++) {
                 pub[N_CONST + 2 * i] = uint256(op.nullifiers[i]);
-                pub[N_CONST + 2 * i + 1] = uint256(
-                    uint160(op.spendabilityAddresses[i])
-                );
+                pub[N_CONST + 2 * i + 1] = uint256(uint160(op.spendabilityAddresses[i]));
             }
 
             for (uint256 i = 0; i < N_OUTPUTS; i++) {
@@ -52,11 +43,8 @@ library ProofLib {
             }
 
             for (uint256 i = 0; i < N_WITHDRAWALS; i++) {
-                pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i] = op
-                    .unshieldAmounts[i];
-                pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i + 1] = uint256(
-                    uint160(op.unshieldAssets[i])
-                );
+                pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i] = op.unshieldAmounts[i];
+                pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i + 1] = uint256(uint160(op.unshieldAssets[i]));
             }
 
             return pub;
@@ -64,40 +52,29 @@ library ProofLib {
     }
 
     /// @notice Computes the operation hash, used to uniquely identify an operation.
-    function toOperationHash(
-        IPrivacyPool.Operation calldata op
-    ) internal pure returns (bytes32) {
+    function toOperationHash(IPrivacyPool.Operation calldata op) internal pure returns (bytes32) {
         return keccak256(abi.encode(op));
     }
 
     /// @notice Computes the hash of the bound parameters in an operation.
-    function toBoundParamsHash(
-        IPrivacyPool.Operation calldata op
-    ) internal pure returns (uint256) {
+    function toBoundParamsHash(IPrivacyPool.Operation calldata op) internal pure returns (uint256) {
         return uint256(keccak256(abi.encode(op.context))) % BN254_FR_MODULUS;
     }
 
     /// @notice Computes the commitment for a deposit.
-    function toCommitment(
-        address asset,
-        uint128 amount,
-        bytes32 partialCommitment
-    ) internal pure returns (bytes32) {
+    function toCommitment(address asset, uint128 amount, bytes32 partialCommitment) internal pure returns (bytes32) {
         return
             bytes32(
-                LibPoseidon2T3_BN254.compress(
-                    uint256(uint160(asset)),
-                    uint256(amount),
-                    uint256(partialCommitment),
-                    0
-                )
+                LibPoseidon2T3_BN254.compress(uint256(uint160(asset)), uint256(amount), uint256(partialCommitment), 0)
             );
     }
 
     /// @notice Returns the unique spendability addresses in an operation.
-    function spendabilityAddresses(
-        IPrivacyPool.Operation calldata op
-    ) internal pure returns (address[N_INPUTS] memory output) {
+    function spendabilityAddresses(IPrivacyPool.Operation calldata op)
+        internal
+        pure
+        returns (address[N_INPUTS] memory output)
+    {
         uint256 count = 0;
 
         for (uint256 i = 0; i < op.spendabilityAddresses.length; i++) {
@@ -118,9 +95,7 @@ library ProofLib {
     /// @notice Reverts if the nullifier array contains duplicates.
     ///
     /// @dev Ignores nullifiers with the magic value of 0.
-    function _requireUnique(
-        bytes32[N_INPUTS] calldata nullifiers
-    ) internal pure {
+    function _requireUnique(bytes32[N_INPUTS] calldata nullifiers) internal pure {
         for (uint256 i = 0; i < N_INPUTS; i++) {
             if (nullifiers[i] == bytes32(0)) continue;
 

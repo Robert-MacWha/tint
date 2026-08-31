@@ -24,17 +24,12 @@ library LibAggregationRing {
     }
 
     /// @notice Reverts if staging `count` values would overflow the ring.
-    function requireSpace(
-        AggregationRing storage self,
-        uint128 count
-    ) internal view {
+    function requireSpace(AggregationRing storage self, uint128 count) internal view {
         self.buffer.requireSpace(count);
     }
 
     /// @notice Returns the number of free slots in the ring.
-    function space(
-        AggregationRing storage self
-    ) internal view returns (uint128) {
+    function space(AggregationRing storage self) internal view returns (uint128) {
         return self.buffer.space();
     }
 
@@ -55,11 +50,7 @@ library LibAggregationRing {
     }
 
     /// @notice Reverts if the aggregation ring cannot be advanced.
-    function requireAdvanceable(
-        AggregationRing storage self,
-        uint128 newTail,
-        bytes32 newRoot
-    ) internal view {
+    function requireAdvanceable(AggregationRing storage self, uint128 newTail, bytes32 newRoot) internal view {
         self.buffer.requireAdvancable(newTail);
         if (newRoot == MAGIC_BYTES) revert InvalidRoot();
     }
@@ -68,11 +59,7 @@ library LibAggregationRing {
     /// Reverts if the new root is the magic value 0.
     ///
     /// @dev No-op if the new tail is not an advancement.
-    function advance(
-        AggregationRing storage self,
-        uint128 newTail,
-        bytes32 newRoot
-    ) internal {
+    function advance(AggregationRing storage self, uint128 newTail, bytes32 newRoot) internal {
         if (newTail <= self.buffer.tail) return;
         requireAdvanceable(self, newTail, newRoot);
 
@@ -82,19 +69,13 @@ library LibAggregationRing {
 
     /// @notice Returns the hash after `index` values have been staged or 0 if none
     /// have been staged. Reverts if the index is out of bounds.
-    function getHash(
-        AggregationRing storage self,
-        uint128 index
-    ) internal view returns (bytes32) {
+    function getHash(AggregationRing storage self, uint128 index) internal view returns (bytes32) {
         if (index == 0) return bytes32(0);
         return self.buffer.get(index - 1);
     }
 
     /// @notice Returns the root hash at a given index. Reverts if no root is recorded at that index.
-    function getRoot(
-        AggregationRing storage self,
-        uint128 index
-    ) internal view returns (bytes32) {
+    function getRoot(AggregationRing storage self, uint128 index) internal view returns (bytes32) {
         bytes32 root = self.roots[index];
         if (root == MAGIC_BYTES) {
             revert MissingRoot(index);
@@ -103,9 +84,7 @@ library LibAggregationRing {
     }
 
     /// @notice Returns the index of the latest root added to the aggregation ring.
-    function latestRootIndex(
-        AggregationRing storage self
-    ) internal view returns (uint128) {
+    function latestRootIndex(AggregationRing storage self) internal view returns (uint128) {
         return self.buffer.tail;
     }
 }

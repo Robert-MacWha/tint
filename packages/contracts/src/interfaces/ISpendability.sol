@@ -4,7 +4,5 @@ pragma solidity ^0.8.24;
 import {IPrivacyPool} from "./IPrivacyPool.sol";
 
 interface ISpendability {
-    function requireSpendable(
-        IPrivacyPool.Operation calldata operation
-    ) external view;
+    function requireSpendable(IPrivacyPool.Operation calldata operation) external view;
 }

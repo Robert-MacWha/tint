@@ -170,6 +170,8 @@ contract TintSymTest is LibCircularBufferInvariants, SymTest {
     /// Checks the invariant that there is no operation for which `verifyOperation`
     /// succeeds but `executeOperation` reverts.
     ///
+    /// @dev Assumes that all ERC20 transfers are infallible. In practice not true,
+    /// but implementors could have erc20 whitelists to reduce risk.
     /// @dev Takes 5+ minutes to run.
     function check_verifiedOperationAlwaysExecutes(IPrivacyPool.Operation calldata op) public {
         _assumeState();

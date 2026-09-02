@@ -34,6 +34,23 @@ pub trait Commitment {
     }
 }
 
+/// A commitment that can be spent and nullified.
+#[derive(Clone, Debug)]
+pub struct SpendableCommitment {
+    pub inner: BaseCommitment,
+    pub nullifier_key: NullifierKey,
+    pub spendability_address: Address,
+    pub spendability_witness: Fr,
+    pub spendability_input: Bytes,
+}
+
+/// A commitment that can be nullified.
+#[derive(Copy, Clone, Debug)]
+pub struct NullifiableCommitment {
+    pub inner: BaseCommitment,
+    pub nullifier_key: NullifierKey,
+}
+
 /// A receivable commitment.
 #[serde_with::serde_as]
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,21 +63,13 @@ pub struct BaseCommitment {
     pub nullifier_pub_key: NullifierPubKey,
 }
 
-/// A commitment that can be nullified.
-#[derive(Copy, Clone, Debug)]
-pub struct NullifiableCommitment {
-    pub inner: BaseCommitment,
-    pub nullifier_key: NullifierKey,
-}
-
-/// A commitment that can be spent and nullified.
-#[derive(Clone, Debug)]
-pub struct SpendableCommitment {
-    pub inner: BaseCommitment,
-    pub nullifier_key: NullifierKey,
-    pub spendability_address: Address,
-    pub spendability_witness: Fr,
-    pub spendability_input: Bytes,
+#[serde_with::serde_as]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PartialCommitment {
+    #[serde_as(as = "crate::serde::field::FieldAsBytes")]
+    pub spendability_hash: Fr,
+    pub random: B256,
+    pub nullifier_pub_key: NullifierPubKey,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, thiserror::Error)]
@@ -69,77 +78,6 @@ pub enum CommitmentError {
     Encryption(#[from] crate::crypto::aaed::EncryptionError),
     #[error("serialization error")]
     Serialization(#[from] postcard::Error),
-}
-
-impl BaseCommitment {
-    #[must_use] 
-    pub fn new(
-        asset: AssetId,
-        amount: u128,
-        spendability_hash: Fr,
-        nullifier_pub_key: NullifierPubKey,
-        random: B256,
-    ) -> Self {
-        BaseCommitment {
-            asset,
-            amount,
-            spendability_hash,
-            random,
-            nullifier_pub_key,
-        }
-    }
-
-    pub fn from_encrypted(
-        encrypted: &[u8],
-        my_priv: &EncryptionKey,
-    ) -> Result<Self, CommitmentError> {
-        let encrypted: EncryptedEnvelope = postcard::from_bytes(encrypted)?;
-        let plaintext = encrypted.decrypt(my_priv)?;
-        Ok(postcard::from_bytes(&plaintext)?)
-    }
-
-    #[must_use] 
-    pub fn nullifier(&self, nullifier_key: &NullifierKey) -> Fr {
-        poseidon2_compress(&[nullifier_key.0, self.hash()])
-    }
-
-    pub fn encrypt<R: RngCore + CryptoRng>(
-        &self,
-        keys: &[EncryptionPubKey],
-        rng: &mut R,
-    ) -> Result<Vec<u8>, CommitmentError> {
-        let plaintext = postcard::to_stdvec(&self)?;
-        let encrypted = EncryptedEnvelope::encrypt(&plaintext, keys, rng)?;
-        Ok(postcard::to_stdvec(&encrypted)?)
-    }
-}
-
-impl NullifiableCommitment {
-    #[must_use] 
-    pub fn new(inner: BaseCommitment, nullifier_key: NullifierKey) -> Self {
-        NullifiableCommitment {
-            inner,
-            nullifier_key,
-        }
-    }
-
-    #[must_use] 
-    pub fn nullifier(&self) -> Fr {
-        self.inner.nullifier(&self.nullifier_key)
-    }
-
-    /// Builds a [`SpendableCommitment`] carrying this note's real
-    /// committed data but no resolved spendability rule.
-    #[must_use] 
-    pub fn as_pending_spendable(&self) -> SpendableCommitment {
-        SpendableCommitment {
-            inner: self.inner,
-            nullifier_key: self.nullifier_key,
-            spendability_address: Address::default(),
-            spendability_witness: Fr::default(),
-            spendability_input: Bytes::default(),
-        }
-    }
 }
 
 impl SpendableCommitment {
@@ -182,24 +120,128 @@ impl SpendableCommitment {
     }
 }
 
-impl Default for SpendableCommitment {
-    fn default() -> Self {
-        let nullifier_key = NullifierKey::default();
-        let base = BaseCommitment::new(
-            AssetId::default(),
-            0,
-            Fr::from(0),
-            nullifier_key.pub_key(),
-            B256::default(),
-        );
-
-        SpendableCommitment {
-            inner: base,
+impl NullifiableCommitment {
+    #[must_use]
+    pub fn new(inner: BaseCommitment, nullifier_key: NullifierKey) -> Self {
+        NullifiableCommitment {
+            inner,
             nullifier_key,
+        }
+    }
+
+    #[must_use]
+    pub fn nullifier(&self) -> Fr {
+        self.inner.nullifier(&self.nullifier_key)
+    }
+
+    /// Builds a [`SpendableCommitment`] carrying this note's real
+    /// committed data but no resolved spendability rule.
+    #[must_use]
+    pub fn as_pending_spendable(&self) -> SpendableCommitment {
+        SpendableCommitment {
+            inner: self.inner,
+            nullifier_key: self.nullifier_key,
             spendability_address: Address::default(),
             spendability_witness: Fr::default(),
             spendability_input: Bytes::default(),
         }
+    }
+}
+
+impl BaseCommitment {
+    #[must_use]
+    pub fn new(
+        asset: AssetId,
+        amount: u128,
+        spendability_hash: Fr,
+        nullifier_pub_key: NullifierPubKey,
+        random: B256,
+    ) -> Self {
+        BaseCommitment {
+            asset,
+            amount,
+            spendability_hash,
+            random,
+            nullifier_pub_key,
+        }
+    }
+
+    #[must_use]
+    pub fn from_encrypted(
+        encrypted: &[u8],
+        my_priv: &EncryptionKey,
+    ) -> Result<Self, CommitmentError> {
+        let encrypted: EncryptedEnvelope = postcard::from_bytes(encrypted)?;
+        let plaintext = encrypted.decrypt(my_priv)?;
+        Ok(postcard::from_bytes(&plaintext)?)
+    }
+
+    #[must_use]
+    pub fn from_partial(asset: AssetId, amount: u128, partial: PartialCommitment) -> Self {
+        BaseCommitment {
+            asset,
+            amount,
+            spendability_hash: partial.spendability_hash,
+            random: partial.random,
+            nullifier_pub_key: partial.nullifier_pub_key,
+        }
+    }
+
+    #[must_use]
+    pub fn partial(&self) -> PartialCommitment {
+        PartialCommitment {
+            spendability_hash: self.spendability_hash,
+            random: self.random,
+            nullifier_pub_key: self.nullifier_pub_key,
+        }
+    }
+
+    #[must_use]
+    pub fn nullifier(&self, nullifier_key: &NullifierKey) -> Fr {
+        poseidon2_compress(&[nullifier_key.0, self.hash()])
+    }
+
+    #[must_use]
+    pub fn encrypt<R: RngCore + CryptoRng>(
+        &self,
+        keys: &[EncryptionPubKey],
+        rng: &mut R,
+    ) -> Result<Vec<u8>, CommitmentError> {
+        let plaintext = postcard::to_stdvec(&self)?;
+        let encrypted = EncryptedEnvelope::encrypt(&plaintext, keys, rng)?;
+        Ok(postcard::to_stdvec(&encrypted)?)
+    }
+}
+
+impl PartialCommitment {
+    #[must_use]
+    pub fn new(spendability_hash: Fr, nullifier_pub_key: NullifierPubKey, random: B256) -> Self {
+        PartialCommitment {
+            spendability_hash,
+            nullifier_pub_key,
+            random,
+        }
+    }
+
+    #[must_use]
+    pub fn from_encrypted(
+        encrypted: &[u8],
+        my_priv: &EncryptionKey,
+    ) -> Result<Self, CommitmentError> {
+        let encrypted: EncryptedEnvelope = postcard::from_bytes(encrypted)?;
+        let plaintext = encrypted.decrypt(my_priv)?;
+        Ok(postcard::from_bytes(&plaintext)?)
+    }
+
+    #[must_use]
+    pub fn encrypt<R: RngCore + CryptoRng>(
+        &self,
+        keys: &[EncryptionPubKey],
+        rng: &mut R,
+    ) -> Result<Vec<u8>, CommitmentError> {
+        let plaintext = postcard::to_stdvec(&self)?;
+        let encrypted = EncryptedEnvelope::encrypt(&plaintext, keys, rng)?;
+        Ok(postcard::to_stdvec(&encrypted)?)
     }
 }
 
@@ -266,6 +308,27 @@ impl Commitment for SpendableCommitment {
 
     fn nullifier_pub_key(&self) -> NullifierPubKey {
         self.inner.nullifier_pub_key()
+    }
+}
+
+impl Default for SpendableCommitment {
+    fn default() -> Self {
+        let nullifier_key = NullifierKey::default();
+        let base = BaseCommitment::new(
+            AssetId::default(),
+            0,
+            Fr::from(0),
+            nullifier_key.pub_key(),
+            B256::default(),
+        );
+
+        SpendableCommitment {
+            inner: base,
+            nullifier_key,
+            spendability_address: Address::default(),
+            spendability_witness: Fr::default(),
+            spendability_input: Bytes::default(),
+        }
     }
 }
 

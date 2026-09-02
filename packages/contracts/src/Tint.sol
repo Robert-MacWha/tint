@@ -21,7 +21,7 @@ contract Tint is IPrivacyPool, NullifierRegistry {
 
     LibAggregationRing.AggregationRing internal ring;
 
-    event Deposited(bytes32 commitment, bytes encryptedNote);
+    event Deposited(bytes32 commitment, address indexed asset, uint128 amount, bytes encryptedPartial);
     event Committed(bytes32 commitment, bytes encryptedNote);
     event Nullified(bytes32 nullifier);
     event Withdrawn(address indexed asset, uint128 amount, address indexed recipient);
@@ -43,11 +43,13 @@ contract Tint is IPrivacyPool, NullifierRegistry {
     /// @param partialCommitment The partial commitment for the private output note.
     ///
     /// @dev The caller must have approved this contract to spend at least `amount` of `asset`.
-    function deposit(address asset, uint128 amount, bytes32 partialCommitment, bytes calldata encryptedNote) external {
+    function deposit(address asset, uint128 amount, bytes32 partialCommitment, bytes calldata encryptedPartial)
+        external
+    {
         bytes32 commitment = ProofLib.toCommitment(asset, amount, partialCommitment);
         ring.stage(_hash, commitment);
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
-        emit Deposited(commitment, encryptedNote);
+        emit Deposited(commitment, asset, amount, encryptedPartial);
     }
 
     /// @notice Executes an operation against tint.

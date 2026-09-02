@@ -83,7 +83,7 @@ contract TintTests is Test {
 
         vm.expectEmit();
         bytes32 commitment = 0x2ee5225f16cda90e5c31a84c3ff505613050d79f01b022a6a629ee951a050715;
-        emit Tint.Deposited(commitment, "");
+        emit Tint.Deposited(commitment, address(token), 100, "");
         tint.deposit(address(token), 100, bytes32(uint256(1)), "");
 
         assertEq(token.balanceOf(address(this)), callerBefore - 100);

@@ -92,7 +92,7 @@ Tint prioritizes interoperability with permissionless 4337 and 8141 transaction 
 1. Tint exposes two methods - `preVerify` and `executePreVerified`. `preVerify` verifies that an operation is valid, and `executePreVerified` executes an already-verified operation. Using halmos, we've formally verified that `executePreVerified` will never revert if `preVerify` has returned true, meaning paymasters can call the stateless `executePreVerified` and be guaranteed that the operation they are sponsoring is valid.
 2. Tint has highly optimized gas costs, which allows paymasters to sponsor transactions at a lower cost and, more importantly, refund excess fees directly to the user's shielded account.
 
-Tint is currently designed to work with unstaked 4337 paymasters.
+Tint is currently designed to work with staked 4337 paymasters.
 
 TODO: Implement 8141 spender support on the hegota devnet using the same principles.
 

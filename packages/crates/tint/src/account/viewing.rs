@@ -1,6 +1,6 @@
 use crate::{
     account::keys::{EncryptionKey, EncryptionPubKey},
-    note::commitment::{BaseCommitment, CommitmentError},
+    note::commitment::{BaseCommitment, CommitmentError, PartialCommitment},
 };
 
 /// An account that can view its own transactions.
@@ -24,7 +24,18 @@ impl ViewingAccount {
     ///
     /// # Errors
     /// Errors if the provided encrypted note cannot be decrypted with this account's key.
-    pub fn decrypt(&self, encrypted: &[u8]) -> Result<BaseCommitment, CommitmentError> {
+    pub fn decrypt_commitment(&self, encrypted: &[u8]) -> Result<BaseCommitment, CommitmentError> {
         BaseCommitment::from_encrypted(encrypted, &self.key)
+    }
+
+    /// Decrypts a partial note encrypted to this account.
+    ///
+    /// # Errors
+    /// Errors if the provided encrypted partial note cannot be decrypted with this account's key.
+    pub fn decrypt_partial_commitment(
+        &self,
+        encrypted_partial: &[u8],
+    ) -> Result<PartialCommitment, CommitmentError> {
+        PartialCommitment::from_encrypted(encrypted_partial, &self.key)
     }
 }

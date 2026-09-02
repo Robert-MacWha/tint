@@ -1,5 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
+use alloy_primitives::Address;
 use ark_bn254::Fr;
 use serde::{Deserialize, Serialize};
 
@@ -80,7 +81,7 @@ impl IndexedAccount {
     pub fn apply_event(&mut self, event: &Event) {
         match event {
             Event::Deposit(d) => {
-                self.decrypt_commitment(&d.encryptedNote);
+                self.decrypt_deposit(d.asset, d.amount, &d.encryptedPartial);
             }
             Event::Committed(c) => {
                 self.decrypt_commitment(&c.encryptedNote);
@@ -95,11 +96,24 @@ impl IndexedAccount {
         }
     }
 
+    fn decrypt_deposit(&mut self, asset: Address, amount: u128, encrypted_partial: &[u8]) {
+        let Ok(partial) = self.viewing.decrypt_partial_commitment(encrypted_partial) else {
+            return;
+        };
+        let commitment = BaseCommitment::from_partial(asset.into(), amount, partial);
+
+        self.insert_nullifiable_commitment(commitment);
+    }
+
     fn decrypt_commitment(&mut self, encrypted: &[u8]) {
-        let Ok(commitment) = self.viewing.decrypt(encrypted) else {
+        let Ok(commitment) = self.viewing.decrypt_commitment(encrypted) else {
             return;
         };
 
+        self.insert_nullifiable_commitment(commitment);
+    }
+
+    fn insert_nullifiable_commitment(&mut self, commitment: BaseCommitment) {
         let nullifiable_commitment = self.nullifying.into_nullifiable(commitment);
 
         self.note_nullifiers

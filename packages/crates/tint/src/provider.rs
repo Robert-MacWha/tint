@@ -106,13 +106,15 @@ impl Provider {
     ) -> Result<Tint::depositCall, ProviderError> {
         let random = B256::new(rng.r#gen());
         let commitment = receiver.commitment(asset, amount, random);
-        let encrypted = commitment.encrypt(&[receiver.encryption_pub_key], rng)?;
+        let encrypted = commitment
+            .partial()
+            .encrypt(&[receiver.encryption_pub_key], rng)?;
 
         Ok(Tint::depositCall {
             asset: asset.into(),
             amount,
             partialCommitment: fr_to_b256(commitment.partial_hash()),
-            encryptedNote: Bytes::from(encrypted),
+            encryptedPartial: Bytes::from(encrypted),
         })
     }
 

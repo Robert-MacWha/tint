@@ -8,4 +8,5 @@ via_ir = true
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "@taceo/poseidon2/=lib/poseidon2-solidity/src/",
+    "@account-abstraction/contracts/=lib/account-abstraction/contracts/",
 ]

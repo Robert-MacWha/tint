@@ -48,7 +48,7 @@ contract AlwaysTrueVerifier is IVerifier {
 }
 
 contract TintHarness is Tint {
-    constructor(address _verifier) Tint(_verifier) {}
+    constructor(IVerifier _verifier) Tint(_verifier) {}
 
     /// @dev Warms all storage slots touched by deposit() without calling deposit().
     /// This prevents warm-up writes from appearing in Forge's gas report for deposit().
@@ -78,7 +78,7 @@ contract TintGasReportTest is Test {
         token = new MockToken();
         Groth16Verifier groth16Verifier = new Groth16Verifier();
         AlwaysTrueVerifier verifier = new AlwaysTrueVerifier(groth16Verifier);
-        tint = new TintHarness(address(verifier));
+        tint = new TintHarness(verifier);
         token.approve(address(tint), type(uint256).max);
     }
 

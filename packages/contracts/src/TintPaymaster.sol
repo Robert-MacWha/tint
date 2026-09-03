@@ -7,6 +7,8 @@ import {UserOperationLib} from "@account-abstraction/contracts/core/UserOperatio
 import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
 
+import {Tint} from "./Tint.sol";
+import {IVerifier} from "./interfaces/IVerifier.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
 
 /// @notice EIP-7562-compatible paymaster contract for Tint, designed to work with
@@ -14,20 +16,7 @@ import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
 ///
 /// @dev This paymaster intentionally only supports WETH as its fee token. This can be
 /// changed if needed using a TWAP oracle.
-///
-/// @dev This paymaster is vulnerable to front-running attacks. If a user
-/// invalidates their operation between `validatePaymasterUserOp` and `postOp`
-/// (for example by nullifying the utxo in `executeUserOp`) the paymaster will
-/// be unable to recover its fee.
-///
-/// This can be prevented by either:
-///  1. Using the v0.6.0 EntryPoint, which allows the paymaster to revert in `postOp`
-///     which unwinds the userOp and calls `postOp` again.
-///  2. Enforcing a particular sender impl that always immediately executes the operation.
-///  3. Using a 8141-style paymaster. This way different calls are represented by
-///     frames. The validation frame can assert that the subsequent frame MUST
-///     be a call to `POOL.executePreVerified` with the same slot & operation.
-contract TintPaymaster is BasePaymaster {
+contract TintPaymaster is Tint, BasePaymaster {
     using UserOperationLib for PackedUserOperation;
     using SafeERC20 for IERC20;
 
@@ -46,16 +35,13 @@ contract TintPaymaster is BasePaymaster {
     }
 
     IERC20 public immutable WETH;
-    IPrivacyPool public immutable POOL;
     /// @dev The amount of gas required to execute postOp. Actual gas may be lower.
     uint128 public constant POST_OP_GAS_COST = 100_000;
     uint128 public constant MIN_REFUND = 10_000 gwei;
 
-    constructor(IEntryPoint _entryPoint, IPrivacyPool _pool, IERC20 _weth) BasePaymaster(_entryPoint) {
+    constructor(IEntryPoint _entryPoint, IVerifier _verifier, IERC20 _weth) BasePaymaster(_entryPoint) Tint(_verifier) {
         WETH = _weth;
-        POOL = _pool;
-
-        WETH.forceApprove(address(POOL), type(uint256).max);
+        WETH.forceApprove(address(this), type(uint256).max);
     }
 
     // -------------------- BasePaymaster overrides --------------------
@@ -66,15 +52,12 @@ contract TintPaymaster is BasePaymaster {
         returns (bytes memory context, uint256 validationData)
     {
         bytes calldata paymasterData = _unpackPaymasterData(userOp.paymasterAndData);
-        PaymasterData memory data = abi.decode(paymasterData, (PaymasterData));
+        PaymasterData calldata data = _asPaymasterData(paymasterData);
 
         require(data.sender == userOp.sender, "sender mismatch");
-        _requireSufficientPostOpGas(userOp);
         _requireFeePayment(data, maxCost);
 
-        bytes32 associatedSlot = _getAssociatedSlot(data);
-        POOL.preVerify(associatedSlot, data.operation);
-
+        operate(data.operation);
         return (paymasterData, 0);
     }
 
@@ -83,36 +66,29 @@ contract TintPaymaster is BasePaymaster {
         virtual
         override
     {
-        PaymasterData memory data = abi.decode(context, (PaymasterData));
-
-        bytes32 associatedSlot = _getAssociatedSlot(data);
-        POOL.executePreVerified(associatedSlot, data.operation);
-
-        // forge-lint: disable-next-line(unsafe-typecast)
-        _refund(data, uint128(actualGasCost), uint128(actualUserOpFeePerGas));
+        _refund(_asPaymasterData(context), uint128(actualGasCost), uint128(actualUserOpFeePerGas));
     }
 
+    // -------------------- Internal helpers --------------------
+
     function _unpackPaymasterData(bytes calldata paymasterAndData) internal pure returns (bytes calldata data) {
-        require(paymasterAndData.length >= UserOperationLib.PAYMASTER_DATA_OFFSET, "payamsterAndData too short");
+        require(paymasterAndData.length >= UserOperationLib.PAYMASTER_DATA_OFFSET, "paymasterAndData too short");
         return paymasterAndData[UserOperationLib.PAYMASTER_DATA_OFFSET:];
     }
 
-    /// EIP-7562 allows staked entities to write "Associated Storage" slots,
-    /// where associated slots include the sender address and various hashes
-    /// of the address.
+    /// Reinterprets `data` as `PaymasterData calldata` with no copy, relying on `data` being
+    /// exactly the ABI tuple encoding `abi.decode(data, (PaymasterData))` would expect.
     ///
-    /// https://eips.ethereum.org/EIPS/eip-7562#definitions
-    function _getAssociatedSlot(PaymasterData memory data) internal pure returns (bytes32) {
-        return bytes32(uint256(uint160(data.sender)));
-    }
-
-    function _requireSufficientPostOpGas(PackedUserOperation calldata userOp) internal pure {
-        uint256 postOpGasLimit = userOp.unpackPostOpGasLimit();
-        require(postOpGasLimit >= POST_OP_GAS_COST, "postOp gas limit too low");
+    /// @dev A calldata struct is represented as a single word (the offset of its head), so this
+    /// is safe as long as `PaymasterData`'s field layout matches what's encoded into `data`.
+    function _asPaymasterData(bytes calldata data) internal pure returns (PaymasterData calldata paymasterData) {
+        assembly {
+            paymasterData := data.offset
+        }
     }
 
     /// Requires that the operation pays at least `requiredFee` in WETH to the paymaster.
-    function _requireFeePayment(PaymasterData memory data, uint256 requiredFee) internal view {
+    function _requireFeePayment(PaymasterData calldata data, uint256 requiredFee) internal view {
         if (_feePaid(data) < requiredFee) {
             revert("insufficient fee paid");
         }
@@ -123,7 +99,7 @@ contract TintPaymaster is BasePaymaster {
     ///
     /// @dev Refunds the payer as a deposit into the privacy pool which can be withdrawn later.
     /// @dev Refunds are skipped if no refund commitment is provided, or if the refund is below the minimum threshold.
-    function _refund(PaymasterData memory data, uint128 actualGasCost, uint128 actualUserOpFeePerGas) internal {
+    function _refund(PaymasterData calldata data, uint128 actualGasCost, uint128 actualUserOpFeePerGas) internal {
         uint128 totalFeePaid = _feePaid(data);
 
         uint128 actualFee = actualGasCost + POST_OP_GAS_COST * actualUserOpFeePerGas;
@@ -137,10 +113,10 @@ contract TintPaymaster is BasePaymaster {
             return;
         }
 
-        POOL.deposit(address(WETH), refund, data.refundPartialCommitment, data.refundPartialEncrypted);
+        this.deposit(address(WETH), refund, data.refundPartialCommitment, data.refundPartialEncrypted);
     }
 
-    function _feePaid(PaymasterData memory data) internal view returns (uint128) {
+    function _feePaid(PaymasterData calldata data) internal view returns (uint128) {
         uint128 feePaid = 0;
         for (uint256 i = 0; i < data.operation.unshieldAmounts.length; i++) {
             if (data.operation.unshieldAssets[i] != address(WETH)) {

@@ -29,8 +29,8 @@ contract Tint is IPrivacyPool, NullifierRegistry {
 
     error InvalidProof();
 
-    constructor(address _verifier) {
-        VERIFIER = IVerifier(_verifier);
+    constructor(IVerifier _verifier) {
+        VERIFIER = _verifier;
         ring.init(AGGREGATION_RING_SIZE);
     }
 

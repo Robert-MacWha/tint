@@ -61,7 +61,7 @@ contract TintTests is Test {
         token = new MockToken();
         verifier = new MockVerifier();
         spendability = new MockSpendability();
-        tint = new Tint(address(verifier));
+        tint = new Tint(verifier);
         token.mint(address(this), type(uint128).max);
         token.approve(address(tint), type(uint256).max);
 

@@ -28,6 +28,6 @@ interface IPrivacyPool {
     function deposit(address asset, uint128 amount, bytes32 partialCommitment, bytes calldata encryptedNote) external;
 
     function operate(Operation calldata operation) external;
-    function preVerify(bytes32 slot, Operation calldata operation) external;
-    function executePreVerified(bytes32 slot, Operation calldata operation) external;
+    // function preVerify(bytes32 slot, Operation calldata operation) external;
+    // function executePreVerified(bytes32 slot, Operation calldata operation) external;
 }

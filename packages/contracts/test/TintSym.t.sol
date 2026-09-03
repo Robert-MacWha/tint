@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {SymTest} from "halmos-cheatcodes/SymTest.sol";
 import {Test} from "forge-std/Test.sol";
 import {Tint} from "../src/Tint.sol";
+import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
 import {ISpendability} from "../src/interfaces/ISpendability.sol";
 import {MockVerifier} from "../src/mocks/MockVerifier.sol";
@@ -34,7 +35,7 @@ contract SymSpendability is ISpendability {
 }
 
 contract TintHarness is Tint {
-    constructor(address verifier) Tint(verifier) {}
+    constructor(IVerifier verifier) Tint(verifier) {}
 
     function setBuffer(LibCircularBuffer.CircularBuffer memory _buf) public {
         ring.buffer = _buf;
@@ -71,7 +72,7 @@ contract TintSymTest is LibCircularBufferInvariants, SymTest {
     function setUp() public {
         token = new StubToken();
         spendability = new SymSpendability();
-        tint = new TintHarness(address(new MockVerifier()));
+        tint = new TintHarness(new MockVerifier());
     }
 
     /// Produces an arbitrary reachable pool state.

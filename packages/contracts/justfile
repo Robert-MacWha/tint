@@ -1,0 +1,8 @@
+test:
+    forge test
+
+bench:
+    forge test --gas-report
+
+flamechart *ARGS:
+    forge test --flamechart --match-test {{ARGS}}

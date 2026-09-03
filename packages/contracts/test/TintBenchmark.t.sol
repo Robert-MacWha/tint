@@ -79,10 +79,11 @@ contract TintGasReportTest is Test {
     function test_shield_gas() public {
         tint.warmStorage();
 
+        vm.resetGasMetering();
         tint.deposit(address(token), 1, bytes32(uint256(1)), "");
     }
 
-    function test_toPublicInputs_gas() public view {
+    function test_toPublicInputs_gas() public {
         bytes32 startAggregationHash = bytes32(uint256(1));
         bytes32 endAggregationHash = bytes32(uint256(2));
 
@@ -97,7 +98,27 @@ contract TintGasReportTest is Test {
         op.unshieldAssets[0] = address(token);
         op.context.unshieldRecipients[0] = address(1);
 
+        vm.resetGasMetering();
         tint.toPublicSignals(GENESIS_ROOT, startAggregationHash, endAggregationHash, op);
+    }
+
+    function test_verifyOperation_gas() public {
+        tint.warmStorage();
+        require(token.transfer(address(tint), 1_000), "Transfer failed");
+
+        IPrivacyPool.Operation memory op;
+        op.newRoot = bytes32(uint256(1));
+
+        for (uint256 i = 0; i < N_INPUTS; i++) {
+            op.nullifiers[i] = bytes32(i + 1);
+        }
+        op.commitmentsOut[0] = bytes32(uint256(keccak256(abi.encode("commitment", uint256(0)))) % BN254_FR_MODULUS);
+        op.unshieldAmounts[0] = 1;
+        op.unshieldAssets[0] = address(token);
+        op.context.unshieldRecipients[0] = address(1);
+
+        vm.resetGasMetering();
+        tint.verifyOperation(op);
     }
 
     function test_operate_gas() public {
@@ -115,6 +136,7 @@ contract TintGasReportTest is Test {
         op.unshieldAssets[0] = address(token);
         op.context.unshieldRecipients[0] = address(1);
 
+        vm.resetGasMetering();
         tint.operate(op);
     }
 
@@ -137,6 +159,7 @@ contract TintGasReportTest is Test {
             op.context.unshieldRecipients[i] = address(uint160(i + 1));
         }
 
+        vm.resetGasMetering();
         tint.operate(op);
     }
 }

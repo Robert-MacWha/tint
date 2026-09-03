@@ -2,13 +2,13 @@ use std::time::Instant;
 
 use ark_bn254::Bn254;
 use ark_groth16::Groth16;
+use ark_profiler::{
+    format::{self, Style},
+    profiling::{profile_constraints, profile_time},
+};
 use ark_relations::gr1cs::ConstraintSynthesizer;
 use ark_snark::SNARK;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
-use circuit_profiler::{
-    format::{self, OutputFormat},
-    profiling::{profile_constraints, profile_time},
-};
 use tint::circuit::join_split::JoinSplit;
 
 fn main() {
@@ -50,10 +50,10 @@ fn main() {
     println!("groth16 prove: {:?}", start.elapsed());
 }
 
-fn output_format_from_args(mut args: impl Iterator<Item = String>) -> OutputFormat {
+fn output_format_from_args(mut args: impl Iterator<Item = String>) -> Style {
     match args.nth(1).as_deref() {
-        Some("--tree") => OutputFormat::Tree,
-        Some("--folded") => OutputFormat::Folded,
-        _ => OutputFormat::Flat,
+        Some("--tree") => Style::Tree,
+        Some("--folded") => Style::Folded,
+        _ => Style::Flat,
     }
 }

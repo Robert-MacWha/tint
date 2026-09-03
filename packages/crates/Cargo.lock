@@ -1046,6 +1046,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-profiler"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "142108b111d3af23e943404a3643c5f291f693419b53bb137f5850f46a1946a5"
+dependencies = [
+ "ark-ff 0.6.0",
+ "ark-relations",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "ark-r1cs-std"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1667,16 +1679,6 @@ dependencies = [
  "crypto-common 0.1.6",
  "inout",
  "zeroize",
-]
-
-[[package]]
-name = "circuit-profiler"
-version = "0.1.0"
-dependencies = [
- "ark-ff 0.6.0",
- "ark-relations",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -5066,6 +5068,7 @@ dependencies = [
  "ark-ff 0.6.0",
  "ark-groth16",
  "ark-poly",
+ "ark-profiler",
  "ark-r1cs-std",
  "ark-relations",
  "ark-serialize 0.6.0",
@@ -5073,7 +5076,6 @@ dependencies = [
  "ark-std 0.6.0",
  "async-trait",
  "chacha20poly1305",
- "circuit-profiler",
  "criterion",
  "getrandom 0.2.17",
  "hkdf",

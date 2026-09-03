@@ -52,7 +52,7 @@ alloy-contract = { workspace = true }
 alloy-node-bindings = { workspace = true }
 alloy-signer-local = { workspace = true }
 anyhow = { workspace = true }
-circuit-profiler = { workspace = true }
+ark-profiler = { workspace = true }
 criterion = { workspace = true }
 insta = { workspace = true }
 serde_json = { workspace = true }

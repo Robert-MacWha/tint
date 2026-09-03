@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "circuit-profiler",
     "cli",
     "tint",
     "tint-multisig-spendability",
@@ -47,7 +46,7 @@ async-trait = "0.1.89"
 bindgen = "0.72"
 brotli = "8.0.4"
 chacha20poly1305 = "0.10.1"
-circuit-profiler = { path = "./circuit-profiler" }
+ark-profiler = "0.1.0"
 clap = { version = "4.5", features = ["derive"] }
 criterion = "0.8.2"
 hkdf = "0.12.4"

@@ -14,7 +14,6 @@ Monorepo split into two independently-built packages:
 - `packages/crates/` — Rust workspace (members: `tint`, `cli`, `circuit-profiler`).
   - `tint/` — the core protocol crate: circuits (`src/circuit/`, arkworks + Groth16/BN254), accounts and key derivation (`src/account/`), notes/commitments (`src/note/`), note encryption (`src/crypto/`), on-chain state sync (`src/indexer/`), and the `Provider` (`src/provider.rs`) that assembles shield/transfer/unshield calls + proofs. `src/codegen.rs` emits the Solidity verifier from a Groth16 `VerifyingKey`.
   - `cli/` — a minimal demo CLI (`tint-cli`) wrapping the `tint` crate; `src/chain.rs` handles RPC/tx flow, `src/config.rs` handles local account storage.
-  - `circuit-profiler/` — standalone constraint/timing profiler for arkworks circuits, used by the flamegraphs in `docs/benchmarks/`.
   - `tint-aml/` — separate circuit crate (AML-related), not part of the main protocol flow.
 
 

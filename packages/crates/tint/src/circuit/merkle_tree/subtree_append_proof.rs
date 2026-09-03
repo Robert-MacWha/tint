@@ -19,7 +19,7 @@ use crate::{
         poseidon2::poseidon2_compress_gadget,
         variable,
     },
-    indexer::merkle_tree::SubtreeAppendProof,
+    merkle_tree::SubtreeAppendProof,
 };
 
 /// Proof for appending up to `SUBTREE_SIZE` leaves into a Merkle tree of

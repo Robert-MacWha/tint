@@ -19,11 +19,21 @@ env:
     fi
 
 build:
-    cd packages/crates/tint-multisig-spendability/go && go run cmd/setup/main.go
-    cd packages/crates/tint-multisig-spendability/go && go run cmd/gen_solidity_verifier/main.go
-    cp packages/crates/tint-multisig-spendability/artifacts/verifier.sol packages/contracts/src/spendability/multisig/MultisigSpendabilityVerifier.sol
+    just build-artifacts
+    just build-solidity
+
     cd packages/contracts && forge build
     cd packages/crates && cargo build --release
+
+build-artifacts:
+    cd packages/crates/tint && just build-artifacts
+    cd packages/crates/tint-password-spendability && just build-artifacts
+    cd packages/crates/tint-multisig-spendability && just build-artifacts
+
+build-solidity:
+    cd packages/crates/tint && just build-solidity
+    cd packages/crates/tint-password-spendability && just build-solidity
+    cd packages/crates/tint-multisig-spendability && just build-solidity
 
 run *ARGS:
     set -euo pipefail

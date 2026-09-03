@@ -8,20 +8,18 @@ use ark_groth16::Groth16;
 use ark_snark::SNARK;
 use ark_std::rand::Rng;
 use rand_core::{CryptoRng, RngCore};
+use tint_groth16::{artifacts::Artifacts, prove::prove_with_matrices};
 use tracing::info;
 
 use crate::{
     abis::tint::{IPrivacyPool, Tint},
     account::{Account, keys::NullifierPubKey, receiver::Receiver},
     array::try_from_fn,
-    circuit::{
-        Artifacts,
-        join_split::{JoinSplit, K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, TREE_DEPTH},
-        matrices::prove_with_matrices,
-    },
+    circuit::join_split::{JoinSplit, K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, TREE_DEPTH},
     database::DatabaseError,
     fr::fr_to_b256,
-    indexer::{Indexer, merkle_tree::InclusionProof},
+    indexer::Indexer,
+    merkle_tree::InclusionProof,
     note::{
         asset::AssetId,
         commitment::{BaseCommitment, Commitment, NullifiableCommitment, SpendableCommitment},
@@ -41,7 +39,7 @@ pub enum ProviderError {
     #[error("indexer error: {0}")]
     Indexer(#[from] crate::indexer::IndexerError),
     #[error("merkle tree error: {0}")]
-    MerkleTree(#[from] crate::indexer::merkle_tree::MerkleTreeError),
+    MerkleTree(#[from] crate::merkle_tree::MerkleTreeError),
     #[error("circuit error: {0}")]
     Synthesis(#[from] ark_relations::gr1cs::SynthesisError),
     #[error("commitment error: {0}")]

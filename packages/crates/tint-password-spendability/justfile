@@ -1,0 +1,7 @@
+# Builds the circuit artifacts to the artifacts directory. 
+build-artifacts:
+    echo "TODO: Build circuit artifacts"
+
+# Generates the Solidity verifier contract and copies it to the contracts directory.
+build-solidity:
+    cargo run --no-default-features --release --bin gen_verifier --features codegen

@@ -14,13 +14,14 @@ use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{
     account::{Account, keys::Keys, spending::NoopSpendingAccount},
-    circuit::{generate_artifacts, join_split::JoinSplit},
+    circuit::join_split::JoinSplit,
     database::memory::MemoryDatabase,
     fr::u256_to_fr,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
     note::asset::AssetId,
     provider::Provider,
 };
+use tint_groth16::artifacts::Artifacts;
 use tracing::info;
 
 use crate::common::anvil::{self};
@@ -44,7 +45,7 @@ async fn public_signals_match_onchain() {
 
     // Setup circuits
     info!("Setting up circuits...");
-    let artifacts = generate_artifacts::<JoinSplit>().unwrap();
+    let artifacts = Artifacts::generate_deterministic::<JoinSplit>().unwrap();
 
     // Setup tint provider
     info!("Setting up tint provider...");

@@ -1,65 +1,14 @@
-use ark_bn254::{Bn254, Fr};
-use ark_ec::pairing::Pairing;
 use ark_ff::Field;
-use ark_groth16::{Groth16, ProvingKey, VerifyingKey};
 use ark_r1cs_std::{GR1CSVar, alloc::AllocVar};
-use ark_relations::gr1cs::{ConstraintSynthesizer, ConstraintSystem, SynthesisError};
-use ark_snark::SNARK;
-use ark_std::rand::rngs::StdRng;
-use rand_core::SeedableRng;
-use tracing::{info, warn};
 
-use crate::circuit::matrices::Matrices;
-
-pub mod artifacts;
+// pub mod artifacts;
 pub mod commitment;
 pub mod join_split;
-pub mod matrices;
 pub mod merkle_tree;
 pub mod operation;
 pub mod poseidon2;
 
 pub type FrVar = ark_r1cs_std::fields::fp::FpVar<ark_bn254::Fr>;
-
-#[derive(Clone, Debug)]
-pub struct Artifacts<E: Pairing> {
-    pub matrices: Matrices<E::ScalarField>,
-    pub pk: ProvingKey<E>,
-    pub vk: VerifyingKey<E>,
-}
-
-/// Sets up the circuit `C` and returns its proving and verifying keys.
-///
-/// This circuit setup is deterministic using a fixed seed. It is not cryptographically
-/// secure and should only be used for testing and development.
-pub fn generate_artifacts<C: ConstraintSynthesizer<Fr> + Default>()
--> Result<Artifacts<Bn254>, ark_relations::gr1cs::SynthesisError> {
-    let mut rng = StdRng::seed_from_u64(42);
-
-    warn!("Circuit setup with fixed seed. Only use for testing and development.");
-    let (pk, vk) = Groth16::<Bn254>::circuit_specific_setup(C::default(), &mut rng)?;
-    let matrices = generate_matrices::<C>()?;
-
-    info!("Circuit setup complete.");
-    Ok(Artifacts { matrices, pk, vk })
-}
-
-/// Generates the constraint matrices for the circuit `C`.
-fn generate_matrices<C: ConstraintSynthesizer<Fr> + Default>()
--> Result<Matrices<Fr>, SynthesisError> {
-    let cs = ConstraintSystem::new_ref();
-    cs.set_optimization_goal(ark_relations::gr1cs::OptimizationGoal::Constraints);
-    cs.set_mode(ark_relations::gr1cs::SynthesisMode::Prove {
-        construct_matrices: true,
-        generate_lc_assignments: false,
-    });
-
-    C::default().generate_constraints(cs.clone())?;
-    cs.finalize();
-
-    let matrices = cs.try_into()?;
-    Ok(matrices)
-}
 
 /// Helper to create a new constant variable in the constraint system with the given
 /// value.
@@ -119,11 +68,16 @@ pub fn variable<T, F: Field, TVar: AllocVar<T, F>>(
 
 #[cfg(test)]
 mod tests {
+    use ark_bn254::{Bn254, Fr};
+    use ark_groth16::Groth16;
     use ark_r1cs_std::eq::EqGadget;
-    use ark_relations::gr1cs::ConstraintSystemRef;
+    use ark_relations::gr1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
+    use ark_snark::SNARK;
+    use ark_std::rand::rngs::StdRng;
+    use rand_core::SeedableRng;
+    use tint_groth16::{artifacts::Artifacts, prove::prove_with_matrices};
 
     use super::*;
-    use crate::circuit::matrices::prove_with_matrices;
 
     #[derive(Clone, Default)]
     struct XEqualsY {
@@ -145,7 +99,7 @@ mod tests {
     /// the same circuit's setup.
     #[test]
     fn generated_matrices_produce_valid_proof() {
-        let artifacts = generate_artifacts::<XEqualsY>().unwrap();
+        let artifacts = Artifacts::generate_deterministic::<XEqualsY>().unwrap();
 
         let circuit = XEqualsY {
             x: Fr::from(5u64),

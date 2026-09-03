@@ -19,8 +19,8 @@ pub struct Instance {
 
 sol!(
     #[sol(rpc)]
-    Groth16Verifier,
-    "../../contracts/out/Groth16Verifier.sol/Groth16Verifier.json"
+    TintVerifier,
+    "../../contracts/out/TintVerifier.sol/TintVerifier.json"
 );
 
 sol!(
@@ -47,7 +47,7 @@ pub async fn setup() -> anyhow::Result<Instance> {
         .connect_http(rpc_url.parse().unwrap())
         .erased();
 
-    let verifier = Groth16Verifier::deploy(provider.clone())
+    let verifier = TintVerifier::deploy(provider.clone())
         .await
         .context("Error deploying verifier")?;
     let tint = Tint::deploy(provider.clone(), verifier.address().clone())

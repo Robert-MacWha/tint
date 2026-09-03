@@ -7,7 +7,7 @@ use rayon::iter::{
 };
 use tracing::instrument;
 
-use crate::circuit::matrices::Matrices;
+use crate::matrices::Matrices;
 
 /// This trait is used to convert the witness into QAP witness as part of a Groth16 proof.
 /// Refer to <https://docs.rs/ark-groth16/latest/ark_groth16/r1cs_to_qap/trait.R1CSToQAP.html>

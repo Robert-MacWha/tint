@@ -1,12 +1,10 @@
 //! Generates groth16 proving & verifying artifacts for the `JoinSplit` circuit,
 //! compresses them, and writes them to disk.
-//!
-//! Run with `cargo run --release --bin gen_artifacts`.
 
-use tint::circuit::{
-    artifacts::{serialize_matrices, serialize_pk, serialize_vk},
-    generate_artifacts,
-    join_split::JoinSplit,
+use tint::circuit::join_split::JoinSplit;
+use tint_groth16::{
+    artifacts::Artifacts,
+    serde::{serialize_matrices, serialize_pk, serialize_vk},
 };
 
 const ARTIFACTS_DIR: &str = "artifacts/";
@@ -14,8 +12,8 @@ const ARTIFACTS_DIR: &str = "artifacts/";
 #[allow(clippy::expect_used)]
 fn main() {
     println!("Generating artifacts");
-    let artifacts =
-        generate_artifacts::<JoinSplit>().expect("failed to generate JoinSplit artifacts");
+    let artifacts = Artifacts::generate_deterministic::<JoinSplit>()
+        .expect("failed to generate JoinSplit artifacts");
 
     println!("Serializing artifacts");
     let pk_bytes = serialize_pk(&artifacts.pk).expect("failed to serialize proving key");

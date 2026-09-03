@@ -1,16 +1,10 @@
-use ark_ec::pairing::Pairing;
-use ark_ff::{PrimeField, UniformRand};
-use ark_groth16::{Proof, ProvingKey};
+use ark_ff::PrimeField;
 use ark_relations::gr1cs::{
     ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, R1CS_PREDICATE_LABEL,
     SynthesisError,
 };
-use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
-/// Constraint matrices for a circuit, including the number of inputs, constraints, and witness variables.
-///
-/// Can be pre-computed for more efficient proving.
 #[serde_with::serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Matrices<F: PrimeField> {
@@ -19,44 +13,6 @@ pub struct Matrices<F: PrimeField> {
     pub num_inputs: usize,
     pub num_constraints: usize,
     pub num_witness_variables: usize,
-}
-
-/// Proves a circuit using pre-computed constraint matrices.
-///
-/// Returns the public inputs and the proof.
-pub fn prove_with_matrices<
-    E: Pairing,
-    C: ConstraintSynthesizer<E::ScalarField> + Clone,
-    R: RngCore + CryptoRng,
->(
-    matrices: &Matrices<E::ScalarField>,
-    pk: &ProvingKey<E>,
-    circuit: &C,
-    rng: &mut R,
-) -> Result<(Vec<E::ScalarField>, Proof<E>), SynthesisError> {
-    let r = E::ScalarField::rand(rng);
-    let s = E::ScalarField::rand(rng);
-
-    let cs = ConstraintSystem::new_ref();
-    cs.set_optimization_goal(ark_relations::gr1cs::OptimizationGoal::Constraints);
-    cs.set_mode(ark_relations::gr1cs::SynthesisMode::Prove {
-        construct_matrices: false,
-        generate_lc_assignments: false,
-    });
-    circuit.clone().generate_constraints(cs.clone())?;
-
-    let public_inputs = cs.instance_assignment()?[1..].to_vec();
-    let full_assignment = [cs.instance_assignment()?, cs.witness_assignment()?].concat();
-
-    let proof = crate::groth16::Groth16::prove::<crate::groth16::LibSnarkReduction>(
-        pk,
-        r,
-        s,
-        matrices,
-        &full_assignment,
-    )?;
-
-    Ok((public_inputs, proof))
 }
 
 impl<F: PrimeField> Matrices<F> {
@@ -73,6 +29,23 @@ impl<F: PrimeField> Matrices<F> {
             num_constraints,
             num_witness_variables,
         }
+    }
+
+    /// Generates the constraint matrices for the generic circuit `C`.
+    #[must_use]
+    pub fn generate<C: ConstraintSynthesizer<F> + Default>() -> Result<Self, SynthesisError> {
+        let cs = ConstraintSystem::new_ref();
+        cs.set_optimization_goal(ark_relations::gr1cs::OptimizationGoal::Constraints);
+        cs.set_mode(ark_relations::gr1cs::SynthesisMode::Prove {
+            construct_matrices: true,
+            generate_lc_assignments: false,
+        });
+
+        C::default().generate_constraints(cs.clone())?;
+        cs.finalize();
+
+        let matrices = cs.try_into()?;
+        Ok(matrices)
     }
 }
 

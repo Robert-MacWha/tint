@@ -8,12 +8,13 @@ use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{
     account::{Account, keys::Keys, spending::NoopSpendingAccount},
-    circuit::{generate_artifacts, join_split::JoinSplit},
+    circuit::join_split::JoinSplit,
     database::memory::MemoryDatabase,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
     note::asset::AssetId,
     provider::Provider,
 };
+use tint_groth16::artifacts::Artifacts;
 use tint_password_spendability::{account::PasswordSpendingAccount, circuit::PasswordSpendability};
 use tracing::info;
 
@@ -40,8 +41,9 @@ async fn password() {
 
     // Setup circuits
     info!("Setting up circuits...");
-    let artifacts = generate_artifacts::<JoinSplit>().unwrap();
-    let spendability_artifacts = generate_artifacts::<PasswordSpendability>().unwrap();
+    let artifacts = Artifacts::generate_deterministic::<JoinSplit>().unwrap();
+    let spendability_artifacts =
+        Artifacts::generate_deterministic::<PasswordSpendability>().unwrap();
 
     // Setup spendability account
     info!("Setting up spendability account...");

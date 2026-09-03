@@ -7,15 +7,14 @@ use rand_core::OsRng;
 use tint::{
     account::spending::{SpendingAccount, SpendingAccountError},
     circuit::{
-        Artifacts,
         join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
-        matrices::prove_with_matrices,
         poseidon2::poseidon2_compress,
     },
     fr::address_to_fr,
     note::commitment::{NullifiableCommitment, SpendableCommitment},
     operation::Operation,
 };
+use tint_groth16::{artifacts::Artifacts, prove::prove_with_matrices};
 use tracing::info;
 
 use crate::{abis::ProofLib, circuit::PasswordSpendability};

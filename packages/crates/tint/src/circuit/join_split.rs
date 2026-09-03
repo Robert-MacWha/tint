@@ -22,7 +22,7 @@ use crate::{
         output, variable, witness,
     },
     fr::{fr_to_address, fr_to_u128},
-    indexer::merkle_tree::{InclusionProof, SubtreeAppendProof},
+    merkle_tree::{InclusionProof, SubtreeAppendProof},
     note::asset::AssetId,
     operation::Operation,
 };

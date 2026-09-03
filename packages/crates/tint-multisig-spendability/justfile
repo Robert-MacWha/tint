@@ -1,0 +1,8 @@
+# Builds the circuit artifacts to the artifacts directory. 
+build-artifacts:
+    cd go && go run cmd/setup/main.go
+
+# Generates the Solidity verifier contract and copies it to the contracts directory.
+build-solidity:
+    cd go && go run cmd/gen_solidity_verifier/main.go
+    cp artifacts/verifier.sol ../../contracts/src/codegen/MultisigVerifier.sol

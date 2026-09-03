@@ -2,6 +2,7 @@
 members = [
     "cli",
     "tint",
+    "tint-groth16",
     "tint-multisig-spendability",
     "tint-password-spendability",
 ]
@@ -63,7 +64,8 @@ sha2 = "0.10.9"
 signature = "3"
 taceo-poseidon2 = { git = "https://github.com/Robert-MacWha/eddsa-babyjubjub" }
 thiserror = "2.0.18"
-tint = { path = "./tint" }
+tint = { path = "./tint", default-features = false }
+tint-groth16 = { path = "./tint-groth16" }
 tint-multisig-spendability = { path = "./tint-multisig-spendability" }
 tint-password-spendability = { path = "./tint-password-spendability" }
 tokio = { version = "1" }

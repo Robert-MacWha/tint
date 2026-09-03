@@ -12,7 +12,7 @@ use ark_relations::gr1cs::{Namespace, SynthesisError};
 use crate::{
     array::try_from_fn,
     circuit::{FrVar, poseidon2::poseidon2_compress_gadget, variable},
-    indexer::merkle_tree::InclusionProof,
+    merkle_tree::InclusionProof,
 };
 
 /// Inclusion proof for a Merkle tree of depth `D` and arity `K`. Each `path`
@@ -100,7 +100,7 @@ mod tests {
     use ark_relations::gr1cs::ConstraintSystem;
 
     use super::*;
-    use crate::{circuit::witness, indexer::merkle_tree::IncrementalMerkleTree};
+    use crate::{circuit::witness, merkle_tree::IncrementalMerkleTree};
 
     /// Expect that the inclusion proof verifies correctly in circuit.
     #[test]

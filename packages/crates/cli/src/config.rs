@@ -9,14 +9,14 @@ use ark_bn254::{Bn254, Fr};
 use ark_relations::gr1cs::ConstraintSynthesizer;
 use serde::{Deserialize, Serialize};
 use tint::{
+    self,
     account::{Account, keys::Keys, receiver::Receiver, spending::NoopSpendingAccount},
-    circuit::{
-        Artifacts,
-        artifacts::{
-            deserialize_matrices, deserialize_pk, deserialize_vk, serialize_matrices, serialize_pk,
-            serialize_vk,
-        },
-        generate_artifacts,
+};
+use tint_groth16::{
+    artifacts::Artifacts,
+    serde::{
+        deserialize_matrices, deserialize_pk, deserialize_vk, serialize_matrices, serialize_pk,
+        serialize_vk,
     },
 };
 use tint_multisig_spendability::N_SIGNERS;
@@ -173,7 +173,7 @@ pub fn load_circuit<C: ConstraintSynthesizer<Fr> + Default>(
     }
 
     info!("Generating circuit keys (first run)...");
-    let artifacts = generate_artifacts::<C>()?;
+    let artifacts = Artifacts::generate_deterministic::<C>()?;
 
     fs::create_dir_all(circuit_dir)?;
     let pk_bytes = serialize_pk(&artifacts.pk).context("serializing proving key")?;

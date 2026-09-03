@@ -15,7 +15,7 @@ use crate::{
 pub struct Receiver {
     pub nullifier_pub_key: NullifierPubKey,
     pub encryption_pub_key: EncryptionPubKey,
-    #[serde_as(as = "crate::serde::field::FieldAsBytes")]
+    #[serde_as(as = "tint_groth16::serde::field::FieldAsBytes")]
     pub spendability_hash: Fr,
 }
 

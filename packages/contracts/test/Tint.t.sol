@@ -26,12 +26,10 @@ contract MockVerifier is IVerifier {
         shouldPass = v;
     }
 
-    function verifyProof(uint256[2] calldata, uint256[2][2] calldata, uint256[2] calldata, uint256[N_PUB] memory)
-        external
-        view
-        returns (bool)
-    {
-        return shouldPass;
+    function verify(uint256[8] calldata, uint256[N_PUB] calldata) external view {
+        if (!shouldPass) {
+            revert("Invalid proof");
+        }
     }
 }
 

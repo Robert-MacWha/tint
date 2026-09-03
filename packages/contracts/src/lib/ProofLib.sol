@@ -8,9 +8,7 @@ import {N_CONST, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB, BN254_FR_MODULUS} fr
 library ProofLib {
     /// @notice Groth16 proof structure.
     struct Proof {
-        uint256[2] pA;
-        uint256[2][2] pB;
-        uint256[2] pC;
+        uint256[8] proof;
     }
 
     error DuplicateNullifier(bytes32 nullifier);

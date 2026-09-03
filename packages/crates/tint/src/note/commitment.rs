@@ -57,7 +57,7 @@ pub struct NullifiableCommitment {
 pub struct BaseCommitment {
     pub asset: AssetId,
     pub amount: u128,
-    #[serde_as(as = "crate::serde::field::FieldAsBytes")]
+    #[serde_as(as = "tint_groth16::serde::field::FieldAsBytes")]
     pub spendability_hash: Fr,
     pub random: B256,
     pub nullifier_pub_key: NullifierPubKey,
@@ -66,7 +66,7 @@ pub struct BaseCommitment {
 #[serde_with::serde_as]
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PartialCommitment {
-    #[serde_as(as = "crate::serde::field::FieldAsBytes")]
+    #[serde_as(as = "tint_groth16::serde::field::FieldAsBytes")]
     pub spendability_hash: Fr,
     pub random: B256,
     pub nullifier_pub_key: NullifierPubKey,

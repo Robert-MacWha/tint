@@ -1,5 +1,4 @@
 pub mod indexed_account;
-pub mod merkle_tree;
 pub mod syncer;
 pub mod verifier;
 
@@ -19,10 +18,10 @@ use crate::{
     fr::b256_to_fr,
     indexer::{
         indexed_account::IndexedAccount,
-        merkle_tree::{InclusionProof, IncrementalMerkleTree, MerkleTreeError, SubtreeAppendProof},
         syncer::{Event, Syncer},
         verifier::Verifier,
     },
+    merkle_tree::{InclusionProof, IncrementalMerkleTree, MerkleTreeError, SubtreeAppendProof},
     note::commitment::NullifiableCommitment,
 };
 
@@ -45,9 +44,9 @@ pub struct IndexerState {
     tree: IncrementalMerkleTree<TREE_DEPTH, K>,
 
     total_staged: u64,
-    #[serde_as(as = "Vec<crate::serde::field::FieldAsBytes>")]
+    #[serde_as(as = "Vec<tint_groth16::serde::field::FieldAsBytes>")]
     staged_commitments: Vec<Fr>,
-    #[serde_as(as = "crate::serde::field::FieldAsBytes")]
+    #[serde_as(as = "tint_groth16::serde::field::FieldAsBytes")]
     posted_aggregation_hash: Fr,
 
     last_synced_block: u64,

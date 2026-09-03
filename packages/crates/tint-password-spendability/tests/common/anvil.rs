@@ -22,8 +22,8 @@ pub struct Instance {
 
 sol!(
     #[sol(rpc)]
-    Groth16Verifier,
-    "../../contracts/out/Groth16Verifier.sol/Groth16Verifier.json"
+    TintVerifier,
+    "../../contracts/out/TintVerifier.sol/TintVerifier.json"
 );
 
 sol!(
@@ -43,8 +43,8 @@ pub mod spendability {
 
     sol!(
         #[sol(rpc)]
-        PasswordSpendabilityVerifier,
-        "../../contracts/out/PasswordSpendabilityVerifier.sol/PasswordSpendabilityVerifier.json"
+        PasswordVerifier,
+        "../../contracts/out/PasswordVerifier.sol/Verifier.json"
     );
 
     sol!(
@@ -67,12 +67,11 @@ pub async fn setup() -> anyhow::Result<Instance> {
         .connect_http(rpc_url.parse().unwrap())
         .erased();
 
-    let verifier = Groth16Verifier::deploy(provider.clone()).await?;
+    let verifier = TintVerifier::deploy(provider.clone()).await?;
     let tint = Tint::deploy(provider.clone(), *verifier.address()).await?;
     let token = MockToken::deploy(provider.clone()).await?;
 
-    let spendability_verifier =
-        spendability::PasswordSpendabilityVerifier::deploy(provider.clone()).await?;
+    let spendability_verifier = spendability::PasswordVerifier::deploy(provider.clone()).await?;
     let spendability = spendability::PasswordSpendability::deploy(
         provider.clone(),
         *spendability_verifier.address(),

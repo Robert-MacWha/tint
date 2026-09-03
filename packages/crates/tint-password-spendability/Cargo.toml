@@ -7,6 +7,9 @@ edition = "2024"
 ignored = ["alloy-contract"]
 
 [features]
+default = ["onchain"]
+onchain = ["tint/onchain"]
+codegen = ["taceo-groth16-sol"]
 parallel = ["ark-groth16/parallel"]
 
 [dependencies]
@@ -25,6 +28,8 @@ async-trait = { workspace = true }
 rand_core = { workspace = true }
 tint = { workspace = true }
 tracing = { workspace = true }
+taceo-groth16-sol = { version = "0.4.2", optional = true }
+tint-groth16 = { workspace = true }
 
 [dev-dependencies]
 alloy-node-bindings = { workspace = true }
@@ -37,3 +42,7 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "gen_verifier"
+required-features = ["codegen"]

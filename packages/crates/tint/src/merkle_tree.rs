@@ -285,7 +285,7 @@ impl<const SUBTREE_PATH_LEN: usize, const SUBTREE_SIZE: usize, const K: usize> D
 #[serde_with::serde_as]
 #[derive(Serialize, Deserialize)]
 struct IMTLeaves {
-    #[serde_as(as = "Vec<crate::serde::field::FieldAsBytes>")]
+    #[serde_as(as = "Vec<tint_groth16::serde::field::FieldAsBytes>")]
     pub leaves: Vec<Fr>,
 }
 

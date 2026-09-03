@@ -1228,6 +1228,58 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
 
 [[package]]
+name = "askama"
+version = "0.15.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b8246bcbf8eb97abef10c2d92166449680d41d55c0fc6978a91dec2e3619608"
+dependencies = [
+ "askama_macros",
+ "itoa",
+ "percent-encoding",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "askama_derive"
+version = "0.15.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f9670bc84a28bb3da91821ef74226949ab63f1265aff7c751634f1dd0e6f97c"
+dependencies = [
+ "askama_parser",
+ "basic-toml",
+ "memchr",
+ "proc-macro2",
+ "quote",
+ "rustc-hash",
+ "serde",
+ "serde_derive",
+ "syn 2.0.118",
+]
+
+[[package]]
+name = "askama_macros"
+version = "0.15.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0756b45480437dded0565dfc568af62ccce146fb6cfe902e808ba86e445f44f"
+dependencies = [
+ "askama_derive",
+]
+
+[[package]]
+name = "askama_parser"
+version = "0.15.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d0af3691ba3af77949c0b5a3925444b85cb58a0184cc7fec16c68ba2e7be868"
+dependencies = [
+ "rustc-hash",
+ "serde",
+ "serde_derive",
+ "unicode-ident",
+ "winnow",
+]
+
+[[package]]
 name = "async-stream"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1338,6 +1390,15 @@ name = "base64ct"
 version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
+
+[[package]]
+name = "basic-toml"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba62675e8242a4c4e806d12f11d136e626e6c8361d6b829310732241652a178a"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "bindgen"
@@ -1751,6 +1812,7 @@ dependencies = [
  "serde_json",
  "signature 3.0.0",
  "tint",
+ "tint-groth16",
  "tint-multisig-spendability",
  "tint-password-spendability",
  "tokio",
@@ -2404,6 +2466,17 @@ checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "eyre"
+version = "0.6.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c08309dbcc659c5549a24ddb9b27027640641b282ef5768267c7e675558986a3"
+dependencies = [
+ "autocfg",
+ "indenter",
+ "once_cell",
 ]
 
 [[package]]
@@ -3081,6 +3154,12 @@ dependencies = [
  "quote",
  "syn 2.0.118",
 ]
+
+[[package]]
+name = "indenter"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "964de6e86d545b246d84badc0fef527924ace5134f30641c203ef52ba83f58d5"
 
 [[package]]
 name = "indexmap"
@@ -4952,6 +5031,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "taceo-groth16-sol"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28ef11218070383cd71cc84a7650587646e316f57b24ee48091d109b77fb8661"
+dependencies = [
+ "alloy-primitives",
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff 0.6.0",
+ "ark-groth16",
+ "askama",
+ "eyre",
+ "ruint",
+]
+
+[[package]]
 name = "taceo-poseidon2"
 version = "0.2.1"
 source = "git+https://github.com/Robert-MacWha/eddsa-babyjubjub#3eb7c6c8a7362d699edbc6e2c79c913f234e0a8f"
@@ -5088,12 +5183,38 @@ dependencies = [
  "serde_json",
  "serde_with",
  "sha2 0.10.9",
+ "taceo-groth16-sol",
  "taceo-poseidon2",
  "thiserror",
+ "tint-groth16",
  "tokio",
  "tracing",
  "tracing-subscriber",
  "x25519-dalek",
+]
+
+[[package]]
+name = "tint-groth16"
+version = "0.1.0"
+dependencies = [
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff 0.6.0",
+ "ark-groth16",
+ "ark-poly",
+ "ark-r1cs-std",
+ "ark-relations",
+ "ark-serialize 0.6.0",
+ "ark-snark",
+ "ark-std 0.6.0",
+ "postcard",
+ "rand_core 0.6.4",
+ "rayon",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -5122,6 +5243,7 @@ dependencies = [
  "taceo-poseidon2",
  "thiserror",
  "tint",
+ "tint-groth16",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -5148,7 +5270,9 @@ dependencies = [
  "ark-std 0.6.0",
  "async-trait",
  "rand_core 0.6.4",
+ "taceo-groth16-sol",
  "tint",
+ "tint-groth16",
  "tokio",
  "tracing",
  "tracing-subscriber",

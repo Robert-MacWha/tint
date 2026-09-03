@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Tint} from "../src/Tint.sol";
-import {Groth16Verifier} from "../src/Groth16Verifier.sol";
+import {TintVerifier} from "../src/TintVerifier.sol";
 import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
 import {ProofLib} from "../src/lib/ProofLib.sol";
@@ -24,26 +24,20 @@ contract MockToken is ERC20 {
     }
 }
 
-/// @notice Forwards to the real Groth16Verifier so proof verification pays
+/// @notice Forwards to the real Verifier so proof verification pays
 /// realistic pairing/precompile gas, but discards the result and always
 /// reports success. A dummy all-zero proof takes the same EC-precompile
 /// code path as a real one, so this is a close stand-in for a valid proof
 /// without needing to generate one.
 contract AlwaysTrueVerifier is IVerifier {
-    Groth16Verifier public immutable INNER;
+    TintVerifier public immutable INNER;
 
-    constructor(Groth16Verifier _inner) {
+    constructor(TintVerifier _inner) {
         INNER = _inner;
     }
 
-    function verifyProof(
-        uint256[2] calldata pA,
-        uint256[2][2] calldata pB,
-        uint256[2] calldata pC,
-        uint256[N_PUB] calldata pubSignals
-    ) external view returns (bool) {
-        INNER.verifyProof(pA, pB, pC, pubSignals);
-        return true;
+    function verify(uint256[8] calldata proof, uint256[N_PUB] calldata pubSignals) external view {
+        try INNER.verify(proof, pubSignals) {} catch {}
     }
 }
 
@@ -76,7 +70,7 @@ contract TintGasReportTest is Test {
 
     function setUp() public {
         token = new MockToken();
-        Groth16Verifier groth16Verifier = new Groth16Verifier();
+        TintVerifier groth16Verifier = new TintVerifier();
         AlwaysTrueVerifier verifier = new AlwaysTrueVerifier(groth16Verifier);
         tint = new TintHarness(verifier);
         token.approve(address(tint), type(uint256).max);

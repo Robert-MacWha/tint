@@ -3,19 +3,19 @@ pragma solidity ^0.8.28;
 
 import {ISpendability} from "../../interfaces/ISpendability.sol";
 import {IPrivacyPool} from "../../interfaces/IPrivacyPool.sol";
+import {Verifier} from "../../codegen/PasswordVerifier.sol";
 import {ProofLib} from "../../lib/ProofLib.sol";
 import {N_INPUTS} from "../../lib/Constants.sol";
-import {PasswordSpendabilityVerifier} from "./PasswordSpendabilityVerifier.sol";
 
 /// @notice Password spendability rule that verifies knowledge of a password
 /// when spending a note.
 contract PasswordSpendability is ISpendability {
-    PasswordSpendabilityVerifier public immutable VERIFIER;
+    Verifier public immutable VERIFIER;
 
     error InvalidProof();
     error NoInputsForThisSpendability();
 
-    constructor(PasswordSpendabilityVerifier verifier) {
+    constructor(Verifier verifier) {
         VERIFIER = verifier;
     }
 
@@ -26,9 +26,7 @@ contract PasswordSpendability is ISpendability {
             ProofLib.Proof memory proof = abi.decode(operation.context.spendabilityInputs[i], (ProofLib.Proof));
             uint256[2] memory pubSignals = [uint256(uint160(address(this))), uint256(operation.operationHash)];
 
-            if (!VERIFIER.verifyProof(proof.pA, proof.pB, proof.pC, pubSignals)) {
-                revert InvalidProof();
-            }
+            VERIFIER.verifyProof(proof.proof, pubSignals);
 
             return;
         }

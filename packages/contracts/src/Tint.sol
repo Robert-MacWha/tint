@@ -152,7 +152,8 @@ contract Tint is IPrivacyPool, NullifierRegistry {
 
         // Verify the zk proof
         uint256[N_PUB] memory pubSignals = computePublicSignals(op);
-        if (!VERIFIER.verifyProof(op.proof.pA, op.proof.pB, op.proof.pC, pubSignals)) {
+        try VERIFIER.verify(op.proof.proof, pubSignals) {}
+        catch {
             revert InvalidProof();
         }
 

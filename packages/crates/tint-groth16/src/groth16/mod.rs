@@ -11,10 +11,12 @@ use std::marker::PhantomData;
 use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM, pairing::Pairing};
 pub use ark_groth16::{Proof, ProvingKey};
 use ark_relations::gr1cs::SynthesisError;
-pub use reduction::LibSnarkReduction;
 use tracing::instrument;
 
+use crate::matrices::Matrices;
+
 mod reduction;
+pub use reduction::LibSnarkReduction;
 
 macro_rules! rayon_join5 {
     ($t1: expr, $t2: expr, $t3: expr, $t4: expr, $t5: expr) => {{
@@ -25,8 +27,6 @@ macro_rules! rayon_join5 {
         (v, w, x, y, z)
     }};
 }
-
-use crate::circuit::matrices::Matrices;
 
 /// A Groth16 proof protocol.
 ///

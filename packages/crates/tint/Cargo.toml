@@ -7,9 +7,11 @@ edition = "2024"
 ignored = ["ruint"]
 
 [features]
-default = []
-parallel = ["ark-groth16/parallel"]
+default = ["onchain"]
 asm = ["ark-ff/asm"]
+codegen = ["taceo-groth16-sol"]
+onchain = []
+parallel = ["ark-groth16/parallel"]
 print-trace = ["ark-std/print-trace"]
 
 [dependencies]
@@ -38,11 +40,13 @@ ruint = { workspace = true, features = ["ark-ff-06"] }
 serde = { workspace = true }
 serde_with = { workspace = true }
 sha2 = { workspace = true }
+taceo-groth16-sol = { version = "0.4.2", optional = true }
 taceo-poseidon2 = { workspace = true, features = ["t2", "t3", "t8"] }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing = { workspace = true }
 x25519-dalek = { workspace = true, features = ["static_secrets", "serde"] }
+tint-groth16 = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
@@ -68,3 +72,10 @@ harness = false
 [[bench]]
 name = "groth16_matrices"
 harness = false
+
+[[bin]]
+name = "gen_verifier"
+required-features = ["codegen"]
+
+[[bin]]
+name = "gen_artifacts"

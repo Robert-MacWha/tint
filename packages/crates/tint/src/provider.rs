@@ -48,7 +48,7 @@ pub enum ProviderError {
     #[error("commitment error: {0}")]
     Commitment(#[from] crate::note::commitment::CommitmentError),
     #[error("hybrid-compression error: {0}")]
-    Compression(#[from] ark_hybrid_compression_circuit::CompressError),
+    Compression(#[from] ark_hybrid_compression::circuit::CompressError),
     #[error("spending account error: {0}")]
     Spending(#[from] crate::account::spending::SpendingAccountError),
     #[error(
@@ -177,7 +177,7 @@ impl Provider {
         info!("Proving operation...");
 
         let mut circuit = JoinSplitCircuit::new((), inner);
-        let ark_hybrid_compression_circuit::Compressed {
+        let ark_hybrid_compression::circuit::Compressed {
             output: result_var,
             stmt,
             alpha,

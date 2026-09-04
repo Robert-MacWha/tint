@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 
 use alloy_primitives::Address;
 use ark_bn254::Fr;
-use ark_hybrid_compression_circuit::{CompressedCircuit, CompressibleCircuit, Flatten};
+use ark_hybrid_compression::circuit::{CompressedCircuit, CompressibleCircuit, Flatten};
 use ark_r1cs_std::{
     GR1CSVar,
     alloc::{AllocVar, AllocationMode},

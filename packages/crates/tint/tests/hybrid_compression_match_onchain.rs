@@ -42,7 +42,7 @@ async fn hybrid_compression_match_onchain() {
 
     let stmt: Vec<Fr> = (0..N_PUB).map(|i| Fr::from(i as u64 + 1)).collect();
     let (alpha, beta, gamma) =
-        ark_hybrid_compression_circuit::compress::<Fr, Poseidon2ChainCrh>(&(), &stmt).unwrap();
+        ark_hybrid_compression::circuit::compress::<Fr, Poseidon2ChainCrh>(&(), &stmt).unwrap();
 
     let sol_stmt: [U256; N_PUB] = std::array::from_fn(|i| fr_to_u256(stmt[i]));
     let (sol_alpha, sol_gamma) = {

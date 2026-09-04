@@ -1034,7 +1034,7 @@ dependencies = [
 [[package]]
 name = "ark-hybrid-compression"
 version = "0.0.1"
-source = "git+https://github.com/Robert-MacWha/ark-hybrid-compression?rev=df5e357692c73d56dc335a7813120b3adf586c3c#df5e357692c73d56dc335a7813120b3adf586c3c"
+source = "git+https://github.com/Robert-MacWha/ark-hybrid-compression#b18d317ad8c6725cb689dafa20e840868aea4552"
 dependencies = [
  "alloy-primitives",
  "ark-crypto-primitives",
@@ -1042,17 +1042,6 @@ dependencies = [
  "ark-r1cs-std",
  "ark-relations",
  "ark-std 0.6.0",
-]
-
-[[package]]
-name = "ark-hybrid-compression-circuit"
-version = "0.1.0"
-dependencies = [
- "ark-crypto-primitives",
- "ark-ff 0.6.0",
- "ark-hybrid-compression",
- "ark-r1cs-std",
- "ark-relations",
  "thiserror",
 ]
 
@@ -5163,7 +5152,7 @@ dependencies = [
  "ark-ec",
  "ark-ff 0.6.0",
  "ark-groth16",
- "ark-hybrid-compression-circuit",
+ "ark-hybrid-compression",
  "ark-poly",
  "ark-profiler",
  "ark-r1cs-std",

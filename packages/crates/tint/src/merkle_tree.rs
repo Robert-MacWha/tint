@@ -22,7 +22,7 @@ pub enum MerkleTreeError {
 pub type Path<const PATH_LEN: usize> = [u8; PATH_LEN];
 
 /// Inclusion proof for a Merkle tree of depth `D` and arity `K`.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct InclusionProof<const PATH_LEN: usize, const K: usize> {
     pub path: Path<PATH_LEN>,
     pub siblings: [[Fr; K]; PATH_LEN],
@@ -31,7 +31,7 @@ pub struct InclusionProof<const PATH_LEN: usize, const K: usize> {
 
 /// Proof for appending up to `SUBTREE_SIZE` leaves into a Merkle tree of
 /// depth `D` and arity `K`.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SubtreeAppendProof<
     // Number of levels from the root to the subtree being appended.
     const SUBTREE_PATH_LEN: usize,

@@ -48,22 +48,22 @@ impl Account {
         )
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn viewing(&self) -> &ViewingAccount {
         &self.viewing
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn nullifying(&self) -> &NullifyingAccount {
         &self.nullifying
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn spending(&self) -> &(dyn SpendingAccount + Send + Sync) {
         self.spending.as_ref()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn receiver(&self) -> Receiver {
         Receiver::new(
             self.nullifying.pub_key(),
@@ -72,13 +72,13 @@ impl Account {
         )
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn address(&self) -> Vec<u8> {
         self.receiver().address()
     }
 }
 
-#[must_use] 
+#[must_use]
 pub fn spendability_hash(address: Address, witness: Fr) -> Fr {
     let address = address_to_fr(address);
     poseidon2_compress(&[address, witness])

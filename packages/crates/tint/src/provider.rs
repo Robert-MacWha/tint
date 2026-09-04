@@ -15,9 +15,12 @@ use crate::{
     abis::tint::{IPrivacyPool, Tint},
     account::{Account, keys::NullifierPubKey, receiver::Receiver},
     array::try_from_fn,
-    circuit::join_split::{JoinSplit, K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, TREE_DEPTH},
+    circuit::join_split::{
+        JoinSplit, JoinSplitCircuit, JoinSplitResult, K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS,
+        TREE_DEPTH,
+    },
     database::DatabaseError,
-    fr::fr_to_b256,
+    fr::{fr_to_b256, fr_to_u256},
     indexer::Indexer,
     merkle_tree::InclusionProof,
     note::{
@@ -44,6 +47,8 @@ pub enum ProviderError {
     Synthesis(#[from] ark_relations::gr1cs::SynthesisError),
     #[error("commitment error: {0}")]
     Commitment(#[from] crate::note::commitment::CommitmentError),
+    #[error("hybrid-compression error: {0}")]
+    Compression(#[from] ark_hybrid_compression::circuit::CompressError),
     #[error("spending account error: {0}")]
     Spending(#[from] crate::account::spending::SpendingAccountError),
     #[error(
@@ -161,21 +166,33 @@ impl Provider {
         withdrawals: [(Address, AssetId, u128); W],
         rng: &mut R,
     ) -> Result<(IPrivacyPool::Operation, Vec<Fr>), ProviderError> {
-        let (circuit, context) = self
+        let (inner, context) = self
             .build_circuit(inputs, &outputs, &withdrawals, rng)
             .await?;
 
-        // let old_root = circuit.old_root;
-        let start_aggregation_index = circuit.start_aggregation_index;
+        // let old_root = inner.old_root;
+        let start_aggregation_index = inner.start_aggregation_index;
         let end_aggregation_index = self.indexer.posted_aggregation_index();
 
         info!("Proving operation...");
-        let outputs = circuit.synthesize_outputs()?;
-        let (public_inputs, proof) =
+
+        let mut circuit = JoinSplitCircuit::new((), inner);
+        let ark_hybrid_compression::circuit::Compressed {
+            output: result_var,
+            stmt,
+            alpha,
+            beta,
+            gamma,
+        } = circuit.compress()?;
+
+        let outputs: JoinSplitResult = result_var.try_into()?;
+
+        let (groth16_public_inputs, proof) =
             prove_with_matrices(&self.artifacts.matrices, &self.artifacts.pk, &circuit, rng)?;
+        debug_assert_eq!(groth16_public_inputs, vec![alpha, beta, gamma]);
 
         // Smoke-test the proof locally
-        if !Groth16::<Bn254>::verify(&self.artifacts.vk, &public_inputs, &proof)? {
+        if !Groth16::<Bn254>::verify(&self.artifacts.vk, &groth16_public_inputs, &proof)? {
             return Err(ProviderError::InvalidProof);
         }
         info!("Operation proof verified");
@@ -194,8 +211,9 @@ impl Provider {
                 spendabilityAddresses: outputs.spendability_addresses,
                 context,
                 proof: proof.into(),
+                beta: fr_to_u256(beta),
             },
-            public_inputs,
+            stmt,
         ))
     }
 

@@ -1,8 +1,6 @@
 //! Cross-checks that the public-input vector `Provider::public_inputs`
 //! computes locally matches what `Tint.computePublicSignals` computes
-//! on-chain for the same operation -- independent of proof generation, so a
-//! mismatch (e.g. an asset-encoding bug) shows up as a precise, labeled diff
-//! instead of an opaque `InvalidProof` revert.
+//! on-chain for the same operation.
 
 mod common;
 
@@ -14,7 +12,7 @@ use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{
     account::{Account, keys::Keys, spending::NoopSpendingAccount},
-    circuit::join_split::JoinSplit,
+    circuit::join_split::JoinSplitCircuit,
     database::memory::MemoryDatabase,
     fr::u256_to_fr,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
@@ -45,7 +43,7 @@ async fn public_signals_match_onchain() {
 
     // Setup circuits
     info!("Setting up circuits...");
-    let artifacts = Artifacts::generate_deterministic::<JoinSplit>().unwrap();
+    let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>().unwrap();
 
     // Setup tint provider
     info!("Setting up tint provider...");

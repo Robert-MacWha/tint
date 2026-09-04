@@ -7,7 +7,7 @@ use ark_std::rand::{SeedableRng, rngs::StdRng};
 use k256::{ecdsa::SigningKey, elliptic_curve::Generate};
 use tint::{
     account::{Account, keys::Keys, spending::NoopSpendingAccount},
-    circuit::join_split::JoinSplit,
+    circuit::join_split::JoinSplitCircuit,
     database::memory::MemoryDatabase,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
     note::asset::AssetId,
@@ -16,7 +16,7 @@ use tint::{
 use tint_multisig_spendability::{
     N_SIGNERS, THRESHOLD,
     account::{MultisigSpendingAccount, Signer},
-    ffi::{self, artifacts::Artifacts},
+    ffi::{self},
 };
 use tracing::info;
 
@@ -46,7 +46,7 @@ async fn multisig() {
     // Setup circuits
     info!("Setting up circuits...");
     let artifacts =
-        tint_groth16::artifacts::Artifacts::generate_deterministic::<JoinSplit>().unwrap();
+        tint_groth16::artifacts::Artifacts::generate_deterministic::<JoinSplitCircuit>().unwrap();
 
     // Setup spendability account
     info!("Setting up spendability account...");

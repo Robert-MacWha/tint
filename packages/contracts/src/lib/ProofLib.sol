@@ -2,8 +2,9 @@
 pragma solidity ^0.8.28;
 
 import {LibPoseidon2T3_BN254} from "./LibPoseidon2T3_BN254.sol";
+import {LibHybridCompression} from "./LibHybridCompression.sol";
 import {IPrivacyPool} from "../interfaces/IPrivacyPool.sol";
-import {N_CONST, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB, BN254_FR_MODULUS} from "./Constants.sol";
+import {N_CONST, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB, N_COMPRESSED_PUB, BN254_FR_MODULUS} from "./Constants.sol";
 
 library ProofLib {
     /// @notice Groth16 proof structure.
@@ -47,6 +48,27 @@ library ProofLib {
 
             return pub;
         }
+    }
+
+    /// @notice Compresses the `N_PUB`-length public-signal vector down to the
+    /// `N_COMPRESSED_PUB` (`alpha`, `beta`, `gamma`) values the Groth16
+    /// verifier actually checks, reconstructing `alpha`/`gamma` from the
+    /// prover-supplied `beta` and the plaintext `pub` vector.
+    /// @param beta Prover-supplied hybrid-compression challenge -- never
+    /// recomputed on-chain, only checked inside the circuit against the
+    /// witnessed public signals.
+    function toCompressedSignals(uint256[N_PUB] memory pub, uint256 beta)
+        internal
+        pure
+        returns (uint256[N_COMPRESSED_PUB] memory)
+    {
+        uint256[] memory stmt = new uint256[](N_PUB);
+        for (uint256 i = 0; i < N_PUB; i++) {
+            stmt[i] = pub[i];
+        }
+
+        (uint256 alpha, uint256 gamma) = LibHybridCompression.hybridCompression(beta, stmt, BN254_FR_MODULUS);
+        return [alpha, beta, gamma];
     }
 
     /// @notice Computes the operation hash, used to uniquely identify an operation.

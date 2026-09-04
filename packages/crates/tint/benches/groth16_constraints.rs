@@ -9,13 +9,13 @@ use ark_profiler::{
 use ark_relations::gr1cs::ConstraintSynthesizer;
 use ark_snark::SNARK;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
-use tint::circuit::join_split::JoinSplit;
+use tint::circuit::join_split::JoinSplitCircuit;
 
 fn main() {
     let format = output_format_from_args(std::env::args());
 
     let mut rng = StdRng::seed_from_u64(42);
-    let circuit = JoinSplit::default();
+    let circuit = JoinSplitCircuit::default();
 
     let (pk, _vk) = Groth16::<Bn254>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
     let cs_profile = profile_constraints(|cs| circuit.clone().generate_constraints(cs));

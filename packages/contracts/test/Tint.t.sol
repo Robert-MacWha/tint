@@ -9,7 +9,7 @@ import {Tint} from "../src/Tint.sol";
 import {LibCircularBuffer} from "../src/lib/LibCircularBuffer.sol";
 import {NullifierRegistry} from "../src/NullifierRegistry.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
-import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB, AGGREGATION_RING_SIZE} from "../src/lib/Constants.sol";
+import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_COMPRESSED_PUB, AGGREGATION_RING_SIZE} from "../src/lib/Constants.sol";
 
 contract MockToken is ERC20 {
     constructor() ERC20("Mock", "MCK") {}
@@ -26,7 +26,7 @@ contract MockVerifier is IVerifier {
         shouldPass = v;
     }
 
-    function verify(uint256[8] calldata, uint256[N_PUB] calldata) external view {
+    function verify(uint256[8] calldata, uint256[N_COMPRESSED_PUB] calldata) external view {
         if (!shouldPass) {
             revert("Invalid proof");
         }

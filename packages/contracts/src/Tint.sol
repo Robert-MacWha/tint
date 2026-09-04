@@ -6,7 +6,7 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 import {IVerifier} from "./interfaces/IVerifier.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
 import {ISpendability} from "./interfaces/ISpendability.sol";
-import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB, AGGREGATION_RING_SIZE} from "./lib/Constants.sol";
+import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB, N_COMPRESSED_PUB, AGGREGATION_RING_SIZE} from "./lib/Constants.sol";
 import {ProofLib} from "./lib/ProofLib.sol";
 import {LibAggregationRing} from "./lib/LibAggregationRing.sol";
 import {LibPoseidon2T2_BN254} from "./lib/LibPoseidon2T2_BN254.sol";
@@ -150,9 +150,12 @@ contract Tint is IPrivacyPool, NullifierRegistry {
             _requireUnspent(hash);
         }
 
-        // Verify the zk proof
+        // Verify the zk proof. The verifier itself only checks the 3
+        // hybrid-compression signals; `pubSignals` is still fully
+        // reconstructed above so `toCompressedSignals` can bind them to it.
         uint256[N_PUB] memory pubSignals = computePublicSignals(op);
-        try VERIFIER.verify(op.proof.proof, pubSignals) {}
+        uint256[N_COMPRESSED_PUB] memory compressedSignals = ProofLib.toCompressedSignals(pubSignals, op.beta);
+        try VERIFIER.verify(op.proof.proof, compressedSignals) {}
         catch {
             revert InvalidProof();
         }

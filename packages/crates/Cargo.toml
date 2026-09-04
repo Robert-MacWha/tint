@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "ark-hybrid-compression-circuit",
     "cli",
     "tint",
     "tint-groth16",
@@ -72,3 +73,6 @@ tokio = { version = "1" }
 tracing = "0.1.44"
 tracing-subscriber = "0.3"
 x25519-dalek = "2.0.1"
+ark-crypto-primitives = "0.6.0"
+ark-hybrid-compression = { git = "https://github.com/Robert-MacWha/ark-hybrid-compression", rev = "df5e357692c73d56dc335a7813120b3adf586c3c" }
+ark-hybrid-compression-circuit = { path = "./ark-hybrid-compression-circuit" }

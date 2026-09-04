@@ -9,15 +9,15 @@ use ark_bn254::Bn254;
 use ark_groth16::Groth16;
 use ark_snark::SNARK;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
-use tint::circuit::join_split::JoinSplit;
+use tint::circuit::join_split::JoinSplitCircuit;
 use tint_groth16::{artifacts::Artifacts, prove::prove_with_matrices};
 
 fn main() {
     let mut rng = StdRng::seed_from_u64(42);
 
-    let artifacts = Artifacts::generate_deterministic::<JoinSplit>().unwrap();
+    let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>().unwrap();
 
-    let circuit = JoinSplit::default();
+    let circuit = JoinSplitCircuit::default();
 
     let baseline_prove_start = Instant::now();
     let _ = Groth16::<Bn254>::prove(&artifacts.pk, circuit.clone(), &mut rng).unwrap();

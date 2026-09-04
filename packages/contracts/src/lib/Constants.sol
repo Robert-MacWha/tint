@@ -8,6 +8,12 @@ uint128 constant N_WITHDRAWALS = 2;
 uint128 constant N_PUB = N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * N_WITHDRAWALS;
 uint128 constant AGGREGATION_RING_SIZE = 256;
 
+/// @dev Number of public inputs the Groth16 verifier itself checks, after
+/// hybrid compression (`alpha`, `beta`, `gamma`) folds the `N_PUB`-length
+/// signal vector down. Intrinsic to the compression scheme, independent of
+/// N_PUB/N_INPUTS/N_OUTPUTS/N_WITHDRAWALS.
+uint128 constant N_COMPRESSED_PUB = 3;
+
 /// @dev BN254 scalar field modulus.
 uint256 constant BN254_FR_MODULUS = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
 

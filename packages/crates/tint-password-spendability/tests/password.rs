@@ -8,7 +8,7 @@ use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{
     account::{Account, keys::Keys, spending::NoopSpendingAccount},
-    circuit::join_split::JoinSplit,
+    circuit::join_split::JoinSplitCircuit,
     database::memory::MemoryDatabase,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
     note::asset::AssetId,
@@ -41,7 +41,7 @@ async fn password() {
 
     // Setup circuits
     info!("Setting up circuits...");
-    let artifacts = Artifacts::generate_deterministic::<JoinSplit>().unwrap();
+    let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>().unwrap();
     let spendability_artifacts =
         Artifacts::generate_deterministic::<PasswordSpendability>().unwrap();
 

@@ -14,7 +14,7 @@ use anyhow::Context;
 use rand_core::OsRng;
 use tint::{
     account::{Account, receiver::Receiver},
-    circuit::join_split::JoinSplit,
+    circuit::join_split::JoinSplitCircuit,
     database::memory::MemoryDatabase,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
     note::{asset::AssetId, commitment::NullifiableCommitment},
@@ -62,7 +62,7 @@ pub async fn connect(
     let database = Arc::new(MemoryDatabase::default());
     let indexer = Indexer::new(syncer, verifier, database).await?;
 
-    let artifacts = config::load_circuit::<JoinSplit>("join_split")?;
+    let artifacts = config::load_circuit::<JoinSplitCircuit>("join_split")?;
     let mut tint_provider = TintProvider::new(indexer, artifacts);
     tint_provider.add_account(account.clone()).await?;
 

@@ -11,6 +11,7 @@ import {ProofLib} from "../src/lib/ProofLib.sol";
 import {
     AGGREGATION_RING_SIZE,
     N_PUB,
+    N_COMPRESSED_PUB,
     N_INPUTS,
     N_OUTPUTS,
     N_WITHDRAWALS,
@@ -36,7 +37,7 @@ contract AlwaysTrueVerifier is IVerifier {
         INNER = _inner;
     }
 
-    function verify(uint256[8] calldata proof, uint256[N_PUB] calldata pubSignals) external view {
+    function verify(uint256[8] calldata proof, uint256[N_COMPRESSED_PUB] calldata pubSignals) external view {
         try INNER.verify(proof, pubSignals) {} catch {}
     }
 }

@@ -2,24 +2,23 @@ use std::borrow::Borrow;
 
 use alloy_primitives::Address;
 use ark_bn254::Fr;
+use ark_hybrid_compression_circuit::{CompressedCircuit, CompressibleCircuit, Flatten};
 use ark_r1cs_std::{
     GR1CSVar,
     alloc::{AllocVar, AllocationMode},
     eq::EqGadget,
     fields::FieldVar,
 };
-use ark_relations::gr1cs::{
-    ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, Namespace, OptimizationGoal,
-    SynthesisError,
-};
+use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 
 use crate::{
     array::try_from_fn,
     circuit::{
-        FrVar, input,
+        FrVar,
         merkle_tree::{InclusionProofVar, SubtreeAppendProofVar},
         operation::OperationVar,
-        output, variable, witness,
+        poseidon2::crh::{Poseidon2ChainCrh, constraints::Poseidon2ChainCrhGadget},
+        variable, witness,
     },
     fr::{fr_to_address, fr_to_u128},
     merkle_tree::{InclusionProof, SubtreeAppendProof},
@@ -38,9 +37,21 @@ pub const K: usize = 8;
 
 pub const SUBTREE_SIZE: usize = K.pow(SUBTREE_DEPTH as u32);
 
+/// Number of non-array public signals.  Mirrors `Constants.sol`'s `N_CONST`.
+const N_CONST: usize = 7;
+
+/// Length of the flattened statement vector `JoinSplitResultVar`.  Mirrors
+/// `Constants.sol`'s `N_PUB`.
+pub const N_PUB: usize = N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * N_WITHDRAWALS;
+
+/// Concrete type alias for a compressed `JoinSplit` circuit, using `Poseidon2`
+/// as its hash function.
+pub type JoinSplitCircuit =
+    CompressedCircuit<Fr, JoinSplit, Poseidon2ChainCrh, Poseidon2ChainCrhGadget, N_PUB>;
+
 #[derive(Clone, Default)]
 pub struct JoinSplit {
-    // Public inputs
+    // Circuit Inputs
     pub old_root: Fr,
     pub start_aggregation_index: u128,
     pub start_aggregation_hash: Fr,
@@ -59,6 +70,13 @@ pub struct JoinSplitVar {
 }
 
 pub struct JoinSplitResult {
+    // Circuit inputs.
+    pub old_root: Fr,
+    pub start_aggregation_index: u128,
+    pub start_aggregation_hash: Fr,
+    pub bound_params_hash: Fr,
+
+    // Circuit outputs.
     pub new_root: Fr,
     pub end_aggregation_hash: Fr,
     pub operation_hash: Fr,
@@ -70,6 +88,11 @@ pub struct JoinSplitResult {
 }
 
 pub struct JoinSplitResultVar {
+    pub old_root: FrVar,
+    pub start_aggregation_index: FrVar,
+    pub start_aggregation_hash: FrVar,
+    pub bound_params_hash: FrVar,
+
     pub new_root: FrVar,
     pub end_aggregation_hash: FrVar,
     pub operation_hash: FrVar,
@@ -100,73 +123,54 @@ impl JoinSplit {
             operation,
         }
     }
+}
 
-    /// Synthesizes the `JoinSplit` circuit, returning the public inputs.
-    pub fn synthesize_public_inputs(&self) -> Result<Vec<Fr>, SynthesisError> {
-        let cs = ConstraintSystem::new_ref();
-        cs.set_optimization_goal(OptimizationGoal::Constraints);
+impl CompressibleCircuit<Fr, N_PUB> for JoinSplit {
+    type Output = JoinSplitResultVar;
 
-        let _ = self.synthesize(&cs)?;
-        cs.finalize();
+    fn verify(&self, cs: &ConstraintSystemRef<Fr>) -> Result<Self::Output, SynthesisError> {
+        let old_root: FrVar = witness(cs.clone(), &self.old_root)?;
+        let start_aggregation_index: FrVar =
+            witness(cs.clone(), &self.start_aggregation_index.into())?;
+        let start_aggregation_hash: FrVar = witness(cs.clone(), &self.start_aggregation_hash)?;
+        let bound_params_hash: FrVar = witness(cs.clone(), &self.bound_params_hash)?;
 
-        // `instance_assignment()` leads with the implicit constant-1 term.
-        Ok(cs.instance_assignment()?[1..].to_vec())
-    }
-
-    /// Synthesizes the `JoinSplit` circuit, returning the public outputs.
-    pub fn synthesize_outputs(&self) -> Result<JoinSplitResult, SynthesisError> {
-        let cs = ConstraintSystem::new_ref();
-        cs.set_optimization_goal(OptimizationGoal::Constraints);
-
-        let result = self.synthesize(&cs)?;
-        cs.finalize();
-
-        result.try_into()
-    }
-
-    fn synthesize(
-        &self,
-        cs: &ConstraintSystemRef<Fr>,
-    ) -> Result<JoinSplitResultVar, SynthesisError> {
-        // Public inputs
-        let old_root = input(cs.clone(), &self.old_root)?;
-        let start_aggregation_index = input(cs.clone(), &self.start_aggregation_index.into())?;
-        let start_aggregation_hash = input(cs.clone(), &self.start_aggregation_hash)?;
-        let _bound_params_hash: FrVar = input(cs.clone(), &self.bound_params_hash)?;
-
-        // Witnessed values
         let join_split_var: JoinSplitVar = witness(cs.clone(), self)?;
 
-        let result =
-            join_split_var.verify(&old_root, &start_aggregation_index, &start_aggregation_hash)?;
-
-        // Public outputs
-        // TODO: Find a way to enforce all outputs are properly constrained, rather
-        // than doing this manually.  Maybe have `output` be the fn that converts
-        // from `FrVar` to `Fr`?
-        output(cs.clone(), &result.new_root)?;
-        output(cs.clone(), &result.end_aggregation_hash)?;
-        output(cs.clone(), &result.operation_hash)?;
-        for i in 0..N_INPUTS {
-            output(cs.clone(), &result.nullifiers[i])?;
-            output(cs.clone(), &result.spendability_addresses[i])?;
-        }
-        for i in 0..N_OUTPUTS {
-            output(cs.clone(), &result.output_commitment_hashes[i])?;
-        }
-        for i in 0..N_WITHDRAWALS {
-            output(cs.clone(), &result.withdrawal_amounts[i])?;
-            output(cs.clone(), &result.withdrawal_assets[i])?;
-        }
-
-        Ok(result)
+        join_split_var.verify(
+            &old_root,
+            &start_aggregation_index,
+            &start_aggregation_hash,
+            &bound_params_hash,
+        )
     }
 }
 
-impl ConstraintSynthesizer<Fr> for JoinSplit {
-    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
-        let _ = self.synthesize(&cs)?;
-        Ok(())
+impl Flatten<Fr, N_PUB> for JoinSplitResultVar {
+    /// Flattens this result into the ordered statement vector.
+    fn flatten(&self) -> Result<[FrVar; N_PUB], SynthesisError> {
+        let mut stmt = vec![
+            self.old_root.clone(),
+            self.start_aggregation_index.clone(),
+            self.start_aggregation_hash.clone(),
+            self.bound_params_hash.clone(),
+            self.new_root.clone(),
+            self.end_aggregation_hash.clone(),
+            self.operation_hash.clone(),
+        ];
+        for i in 0..N_INPUTS {
+            stmt.push(self.nullifiers[i].clone());
+            stmt.push(self.spendability_addresses[i].clone());
+        }
+        for i in 0..N_OUTPUTS {
+            stmt.push(self.output_commitment_hashes[i].clone());
+        }
+        for i in 0..N_WITHDRAWALS {
+            stmt.push(self.withdrawal_amounts[i].clone());
+            stmt.push(self.withdrawal_assets[i].clone());
+        }
+
+        stmt.try_into().map_err(|_| SynthesisError::ArityMismatch)
     }
 }
 
@@ -178,6 +182,7 @@ impl JoinSplitVar {
         old_root: &FrVar,
         start_aggregation_index: &FrVar,
         start_aggregation_hash: &FrVar,
+        bound_params_hash: &FrVar,
     ) -> Result<JoinSplitResultVar, SynthesisError> {
         // Verify the staged leaf append proof and return the new root of the Merkle tree.
         let subtree_append_result = self.subtree_append.verify(
@@ -204,6 +209,10 @@ impl JoinSplitVar {
         let operation_result = self.operation.verify(input_commitment_hashes)?;
 
         Ok(JoinSplitResultVar {
+            old_root: old_root.clone(),
+            start_aggregation_index: start_aggregation_index.clone(),
+            start_aggregation_hash: start_aggregation_hash.clone(),
+            bound_params_hash: bound_params_hash.clone(),
             new_root,
             end_aggregation_hash: subtree_append_result.end_aggregation_hash,
             operation_hash: operation_result.hash,
@@ -247,6 +256,11 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
     type Error = SynthesisError;
 
     fn try_from(value: JoinSplitResultVar) -> Result<Self, Self::Error> {
+        let old_root = value.old_root.value()?;
+        let start_aggregation_index = fr_to_u128(&value.start_aggregation_index.value()?);
+        let start_aggregation_hash = value.start_aggregation_hash.value()?;
+        let bound_params_hash = value.bound_params_hash.value()?;
+
         let new_root = value.new_root.value()?;
         let end_aggregation_hash = value.end_aggregation_hash.value()?;
         let operation_hash = value.operation_hash.value()?;
@@ -265,6 +279,10 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
         let withdrawal_assets = std::array::from_fn(|i| withdrawal_assets[i].into());
 
         Ok(Self {
+            old_root,
+            start_aggregation_index,
+            start_aggregation_hash,
+            bound_params_hash,
             new_root,
             end_aggregation_hash,
             operation_hash,

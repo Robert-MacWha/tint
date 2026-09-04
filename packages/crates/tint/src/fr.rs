@@ -5,7 +5,7 @@ use alloy_primitives::{Address, B256, U256};
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 
-#[must_use] 
+#[must_use]
 pub fn fr_to_u128(fr: &Fr) -> u128 {
     let bytes = fr.into_bigint().to_bytes_le();
     let mut arr = [0u8; 16];
@@ -13,33 +13,33 @@ pub fn fr_to_u128(fr: &Fr) -> u128 {
     u128::from_le_bytes(arr)
 }
 
-#[must_use] 
+#[must_use]
 pub fn fr_to_b256(fr: Fr) -> B256 {
     B256::from_slice(&fr.into_bigint().to_bytes_be())
 }
 
-#[must_use] 
+#[must_use]
 pub fn b256_to_fr(bytes: B256) -> Fr {
     Fr::from_be_bytes_mod_order(bytes.as_slice())
 }
 
-#[must_use] 
+#[must_use]
 pub fn fr_to_u256(fr: Fr) -> U256 {
     fr_to_b256(fr).into()
 }
 
-#[must_use] 
+#[must_use]
 pub fn u256_to_fr(u256: alloy_primitives::U256) -> Fr {
     b256_to_fr(u256.into())
 }
 
-#[must_use] 
+#[must_use]
 pub fn fr_to_address(fr: Fr) -> Address {
     let word = fr_to_b256(fr);
     Address::from_word(word)
 }
 
-#[must_use] 
+#[must_use]
 pub fn address_to_fr(address: Address) -> Fr {
     b256_to_fr(address.into_word())
 }

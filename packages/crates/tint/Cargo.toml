@@ -21,8 +21,10 @@ alloy-rpc-types-eth = { workspace = true }
 alloy-sol-macro = { workspace = true, features = ["json"] }
 alloy-sol-types = { workspace = true }
 ark-bn254 = { workspace = true }
+ark-crypto-primitives = { workspace = true, features = ["crh", "constraints"] }
 ark-ec = { workspace = true }
 ark-ff = { workspace = true }
+ark-hybrid-compression-circuit = { workspace = true }
 ark-groth16 = { workspace = true }
 ark-poly = { workspace = true }
 ark-r1cs-std = { workspace = true }

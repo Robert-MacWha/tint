@@ -17,6 +17,9 @@ interface IPrivacyPool {
         address[N_WITHDRAWALS] unshieldAssets;
         Context context;
         ProofLib.Proof proof;
+        /// @dev Hybrid-compression challenge for `proof` (see
+        /// `ProofLib.toCompressedSignals`).
+        uint256 beta;
     }
 
     struct Context {

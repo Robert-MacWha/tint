@@ -4,12 +4,12 @@
 use std::path::Path;
 
 use taceo_groth16_sol::{SolidityVerifierConfig, SolidityVerifierContext, askama::Template};
-use tint::circuit::join_split::JoinSplit;
+use tint::circuit::join_split::JoinSplitCircuit;
 use tint_groth16::artifacts::Artifacts;
 
 #[allow(clippy::expect_used)]
 fn main() {
-    let artifacts = Artifacts::generate_deterministic::<JoinSplit>()
+    let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>()
         .expect("failed to generate JoinSplit artifacts");
 
     println!("Generating TintVerifier.sol");

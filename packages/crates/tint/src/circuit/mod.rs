@@ -1,7 +1,6 @@
 use ark_ff::Field;
 use ark_r1cs_std::{GR1CSVar, alloc::AllocVar};
 
-// pub mod artifacts;
 pub mod commitment;
 pub mod join_split;
 pub mod merkle_tree;

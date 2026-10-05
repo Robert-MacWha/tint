@@ -10,9 +10,9 @@ Tint is an EVM-focused utxo-based proof-of-concept privacy protocol.  It's desig
 **nix / nixos:** `nix develop`
 
 **manual:**
-    - [just](https://just.systems/man/en/)
-    - [rust](https://rust-lang.org/)
-    - [foundry](https://www.getfoundry.sh/)
+- [just](https://just.systems/man/en/)
+- [rust](https://rust-lang.org/)
+- [foundry](https://www.getfoundry.sh/)
 
 ### Usage
 

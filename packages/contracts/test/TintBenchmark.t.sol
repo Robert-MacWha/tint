@@ -8,16 +8,7 @@ import {TintVerifier} from "../src/TintVerifier.sol";
 import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
 import {ProofLib} from "../src/lib/ProofLib.sol";
-import {
-    AGGREGATION_RING_SIZE,
-    N_PUB,
-    N_COMPRESSED_PUB,
-    N_INPUTS,
-    N_OUTPUTS,
-    N_WITHDRAWALS,
-    GENESIS_ROOT,
-    BN254_FR_MODULUS
-} from "../src/lib/Constants.sol";
+import {N_PUB, N_COMPRESSED_PUB, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, BN254_FR_MODULUS} from "../src/lib/Constants.sol";
 
 contract MockToken is ERC20 {
     constructor() ERC20("Mock", "MCK") {
@@ -45,23 +36,8 @@ contract AlwaysTrueVerifier is IVerifier {
 contract TintHarness is Tint {
     constructor(IVerifier _verifier) Tint(_verifier) {}
 
-    /// @dev Warms all storage slots touched by deposit() without calling deposit().
-    /// This prevents warm-up writes from appearing in Forge's gas report for deposit().
-    function warmStorage() external {
-        for (uint256 i = 0; i < AGGREGATION_RING_SIZE; i++) {
-            ring.buffer.buffer[i] = bytes32(uint256(i + 1));
-        }
-        ring.buffer.head = 0;
-        ring.buffer.tail = 0;
-    }
-
-    function toPublicSignals(
-        bytes32 oldRoot,
-        bytes32 startAggregationHash,
-        bytes32 endAggregationHash,
-        IPrivacyPool.Operation calldata op
-    ) external pure returns (uint256[N_PUB] memory) {
-        return ProofLib.toPublicSignals(oldRoot, startAggregationHash, endAggregationHash, op);
+    function toPublicSignals(IPrivacyPool.Operation calldata op) external pure returns (uint256[N_PUB] memory) {
+        return ProofLib.toPublicSignals(op);
     }
 }
 
@@ -75,21 +51,26 @@ contract TintGasReportTest is Test {
         AlwaysTrueVerifier verifier = new AlwaysTrueVerifier(groth16Verifier);
         tint = new TintHarness(verifier);
         token.approve(address(tint), type(uint256).max);
+
+        // Seed the MMR so benchmarks measure a steady-state frontier, not an empty one.
+        for (uint256 i = 0; i < 64; i++) {
+            tint.deposit(address(token), 1, bytes32(uint256(i + 1)), "");
+        }
+    }
+
+    /// @dev An operation bound to the pool's live frontier, as `verifyOperation` requires.
+    function _operation() internal view returns (IPrivacyPool.Operation memory op) {
+        op.histState = tint.mmrState();
+        op.frontier = tint.frontier();
     }
 
     function test_shield_gas() public {
-        tint.warmStorage();
-
         vm.resetGasMetering();
         tint.deposit(address(token), 1, bytes32(uint256(1)), "");
     }
 
     function test_toPublicInputs_gas() public {
-        bytes32 startAggregationHash = bytes32(uint256(1));
-        bytes32 endAggregationHash = bytes32(uint256(2));
-
-        IPrivacyPool.Operation memory op;
-        op.newRoot = bytes32(uint256(1));
+        IPrivacyPool.Operation memory op = _operation();
 
         for (uint256 i = 0; i < N_INPUTS; i++) {
             op.nullifiers[i] = bytes32(i + 1);
@@ -100,15 +81,13 @@ contract TintGasReportTest is Test {
         op.context.unshieldRecipients[0] = address(1);
 
         vm.resetGasMetering();
-        tint.toPublicSignals(GENESIS_ROOT, startAggregationHash, endAggregationHash, op);
+        tint.toPublicSignals(op);
     }
 
     function test_verifyOperation_gas() public {
-        tint.warmStorage();
         require(token.transfer(address(tint), 1_000), "Transfer failed");
 
-        IPrivacyPool.Operation memory op;
-        op.newRoot = bytes32(uint256(1));
+        IPrivacyPool.Operation memory op = _operation();
 
         for (uint256 i = 0; i < N_INPUTS; i++) {
             op.nullifiers[i] = bytes32(i + 1);
@@ -123,11 +102,9 @@ contract TintGasReportTest is Test {
     }
 
     function test_operate_gas() public {
-        tint.warmStorage();
         require(token.transfer(address(tint), 1_000), "Transfer failed");
 
-        IPrivacyPool.Operation memory op;
-        op.newRoot = bytes32(uint256(1));
+        IPrivacyPool.Operation memory op = _operation();
 
         for (uint256 i = 0; i < N_INPUTS; i++) {
             op.nullifiers[i] = bytes32(i + 1);
@@ -142,11 +119,9 @@ contract TintGasReportTest is Test {
     }
 
     function test_operate_full_gas() public {
-        tint.warmStorage();
         require(token.transfer(address(tint), 1_000), "Transfer failed");
 
-        IPrivacyPool.Operation memory op;
-        op.newRoot = bytes32(uint256(1));
+        IPrivacyPool.Operation memory op = _operation();
 
         for (uint256 i = 0; i < N_INPUTS; i++) {
             op.nullifiers[i] = bytes32(i + 1);

@@ -8,9 +8,8 @@ import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
 import {ISpendability} from "../src/interfaces/ISpendability.sol";
 import {MockVerifier} from "../src/mocks/MockVerifier.sol";
-import {LibCircularBuffer} from "../src/lib/LibCircularBuffer.sol";
-import {LibCircularBufferInvariants} from "./LibCircularBufferSym.t.sol";
-import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, AGGREGATION_RING_SIZE} from "../src/lib/Constants.sol";
+import {LibSkewMmrWithHistory} from "../src/lib/LibSkewMmrWithHistory.sol";
+import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS} from "../src/lib/Constants.sol";
 
 /// @notice ERC20 stub whose transfers always succeed.
 contract StubToken {
@@ -35,14 +34,13 @@ contract SymSpendability is ISpendability {
 }
 
 contract TintHarness is Tint {
+    using LibSkewMmrWithHistory for LibSkewMmrWithHistory.State;
+
     constructor(IVerifier verifier) Tint(verifier) {}
 
-    function setBuffer(LibCircularBuffer.CircularBuffer memory _buf) public {
-        ring.buffer = _buf;
-    }
-
-    function setRoot(uint128 index, bytes32 root) public {
-        ring.roots[index] = root;
+    /// @dev Appends without the ERC20 leg of `deposit`.
+    function append(bytes32 commitment) public {
+        mmr.append(commitment, _hash);
     }
 
     function setSpent(bytes32 hash) public {
@@ -53,18 +51,14 @@ contract TintHarness is Tint {
         _executeOperation(op);
     }
 
-    function buffer() public view returns (LibCircularBuffer.CircularBuffer memory) {
-        return ring.buffer;
-    }
-
     /// @dev Override poseidon2 with cheaper keccak256. The specific hash function
-    /// function is irrelevant.
-    function _hash(bytes32 prevHash, bytes32 commitment) internal pure override returns (bytes32) {
-        return keccak256(abi.encode(prevHash, commitment));
+    /// is irrelevant.
+    function _hash(bytes32 a, bytes32 b, bytes32 c) internal pure override returns (bytes32) {
+        return keccak256(abi.encode(a, b, c));
     }
 }
 
-contract TintSymTest is LibCircularBufferInvariants, SymTest {
+contract TintSymTest is Test, SymTest {
     TintHarness tint;
     SymSpendability spendability;
     StubToken token;
@@ -77,24 +71,9 @@ contract TintSymTest is LibCircularBufferInvariants, SymTest {
 
     /// Produces an arbitrary reachable pool state.
     function _assumeState() internal {
-        LibCircularBuffer.CircularBuffer memory buf;
-        buf.head = uint128(svm.createUint(128, "head"));
-        buf.tail = uint128(svm.createUint(128, "tail"));
-        buf.buffer = new bytes32[](6);
-
-        // SAFETY 001: Assumes circular buffer is valid.
-        _assumeCircularBufferState(buf);
-        tint.setBuffer(buf);
-
-        // SAFETY 002: The root at the tail index must be non-zero.
-        bytes32 tailRoot = svm.createBytes32("tailRootValue");
-        vm.assume(tailRoot != bytes32(0));
-        tint.setRoot(buf.tail, tailRoot);
-
-        // STATE: Assumes a random root at a random index so the aggregation ring is not empty.
-        bytes32 randomRoot = svm.createBytes32("randomRootValue");
-        vm.assume(randomRoot != bytes32(0));
-        tint.setRoot(uint128(svm.createUint(128, "randomRootIndex")), randomRoot);
+        for (uint256 i = 0; i < 4; ++i) {
+            tint.append(svm.createBytes32(string(abi.encodePacked("commitment", i))));
+        }
 
         // STATE: Assume some arbitrary historical nullifier has been spent.
         bytes32 spentNullifier = svm.createBytes32("spentNullifier");
@@ -104,6 +83,21 @@ contract TintSymTest is LibCircularBufferInvariants, SymTest {
         // STATE: Model spendability checks passing and failing.
         bool spendabilityPasses = svm.createBool("spendabilityPasses");
         spendability.setPass(spendabilityPasses);
+    }
+
+    /// Binds the operation to the pool's live frontier.
+    ///
+    /// SAFETY: `verifyFrontier` rejects every other frontier, so leaving these
+    /// symbolic would prune all paths through `operate` rather than explore them.
+    /// Frontier authentication is covered by the skew-mmr package instead.
+    function _bindFrontier(IPrivacyPool.Operation calldata op) public view {
+        vm.assume(op.histState == tint.mmrState());
+
+        bytes32[] memory live = tint.frontier();
+        vm.assume(op.frontier.length == live.length);
+        for (uint256 i = 0; i < live.length; ++i) {
+            vm.assume(op.frontier[i] == live[i]);
+        }
     }
 
     /// Narrows the operation to have a max of two inputs, outputs, and
@@ -129,43 +123,29 @@ contract TintSymTest is LibCircularBufferInvariants, SymTest {
         }
     }
 
-    function _assertInvariants() internal view {
-        // SAFETY 001
-        _assertCircularBufferInvariants(tint.buffer());
-
-        // SAFETY 002
-        bytes32 tailRoot = tint.getRoot(tint.latestRootIndex());
-        assert(tailRoot != bytes32(0));
-    }
-
-    /// Check that operate correctly advances the ring, records nullifiers, and maintains invariants.
+    /// Check that operate appends its outputs, records nullifiers, and maintains invariants.
     ///
-    /// @dev Takes 15+ minutes to run.
+    /// @custom:halmos --array-lengths op.frontier=2
     function check_operate(IPrivacyPool.Operation calldata op) public {
         _assumeState();
+        _bindFrontier(op);
         _narrowOperation(op);
 
-        uint128 latestRootIndexBefore = tint.latestRootIndex();
-        bytes32 latestRootBefore = tint.getRoot(latestRootIndexBefore);
+        uint256 countBefore = tint.mmrCount();
 
         tint.operate(op);
 
-        if (op.endAggregationIndex > latestRootIndexBefore) {
-            // Check that the operation advanced the ring correctly.
-            assert(tint.latestRootIndex() == op.endAggregationIndex);
-            assert(tint.getRoot(op.endAggregationIndex) == op.newRoot);
-        } else {
-            // Check that the operation did not advance the ring.
-            assert(tint.latestRootIndex() == latestRootIndexBefore);
-            assert(tint.getRoot(latestRootIndexBefore) == latestRootBefore);
+        // Every non-zero output commitment is appended; zero is the padding value.
+        uint256 appended;
+        for (uint256 i; i < N_OUTPUTS; ++i) {
+            if (op.commitmentsOut[i] != bytes32(0)) ++appended;
         }
+        assert(tint.mmrCount() == countBefore + appended);
 
         for (uint256 i; i < N_INPUTS; ++i) {
             if (op.nullifiers[i] == bytes32(0)) continue;
             assert(tint.isSpent(op.nullifiers[i]));
         }
-
-        _assertInvariants();
     }
 
     /// Checks the invariant that there is no operation for which `verifyOperation`
@@ -173,9 +153,11 @@ contract TintSymTest is LibCircularBufferInvariants, SymTest {
     ///
     /// @dev Assumes that all ERC20 transfers are infallible. In practice not true,
     /// but implementors could have erc20 whitelists to reduce risk.
-    /// @dev Takes 5+ minutes to run.
+    ///
+    /// @custom:halmos --array-lengths op.frontier=2
     function check_verifiedOperationAlwaysExecutes(IPrivacyPool.Operation calldata op) public {
         _assumeState();
+        _bindFrontier(op);
         _narrowOperation(op);
 
         // SAFETY: Unshield transfers are modelled as infallible.
@@ -188,25 +170,5 @@ contract TintSymTest is LibCircularBufferInvariants, SymTest {
         catch {
             assert(false);
         }
-    }
-
-    /// Checks the invariant that the aggregation ring can always be drained.
-    function check_ringCanAlwaysBeDrained(bytes32 newRoot) public {
-        _assumeState();
-
-        // SAFETY: `advance` always rejects the magic "no root" value.
-        vm.assume(newRoot != bytes32(0));
-
-        IPrivacyPool.Operation memory op;
-        op.newRoot = newRoot;
-        op.startAggregationIndex = tint.latestRootIndex();
-        op.endAggregationIndex = tint.head();
-
-        try tint.operate(op) {}
-        catch {
-            assert(false);
-        }
-        assert(tint.latestRootIndex() == tint.head());
-        assert(tint.space() == 7);
     }
 }

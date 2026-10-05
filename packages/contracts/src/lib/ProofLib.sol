@@ -4,7 +4,16 @@ pragma solidity ^0.8.28;
 import {LibPoseidon2T3_BN254} from "./LibPoseidon2T3_BN254.sol";
 import {LibHybridCompression} from "./LibHybridCompression.sol";
 import {IPrivacyPool} from "../interfaces/IPrivacyPool.sol";
-import {N_CONST, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB, N_COMPRESSED_PUB, BN254_FR_MODULUS} from "./Constants.sol";
+import {
+    N_CONST,
+    N_INPUTS,
+    N_OUTPUTS,
+    N_WITHDRAWALS,
+    N_PUB,
+    N_COMPRESSED_PUB,
+    MMR_MAX_DEPTH,
+    BN254_FR_MODULUS
+} from "./Constants.sol";
 
 library ProofLib {
     /// @notice Groth16 proof structure.
@@ -16,21 +25,20 @@ library ProofLib {
 
     /// @notice Builds the Groth16 public-signal vector, matching the order
     /// `JoinSplit::synthesize` allocates public gr1cs variables in.
-    function toPublicSignals(
-        bytes32 oldRoot,
-        bytes32 startAggregationHash,
-        bytes32 endAggregationHash,
-        IPrivacyPool.Operation calldata op
-    ) internal pure returns (uint256[N_PUB] memory) {
+    function toPublicSignals(IPrivacyPool.Operation calldata op) internal pure returns (uint256[N_PUB] memory) {
         unchecked {
             uint256[N_PUB] memory pub;
-            pub[0] = uint256(oldRoot);
-            pub[1] = uint256(op.startAggregationIndex);
-            pub[2] = uint256(startAggregationHash);
-            pub[3] = toBoundParamsHash(op);
-            pub[4] = uint256(op.newRoot);
-            pub[5] = uint256(endAggregationHash);
-            pub[6] = uint256(op.operationHash);
+            pub[0] = toBoundParamsHash(op);
+            pub[1] = uint256(op.operationHash);
+            pub[2] = op.histState;
+
+            // Zero-pad the frontier out to `MMR_MAX_DEPTH`. The loop is bound by the
+            // constant rather than by `op.frontier.length` so that a `histState` claiming
+            // a depth above `MMR_MAX_DEPTH` cannot run off the end of `pub`.
+            uint256 depth = op.frontier.length;
+            for (uint256 i = 0; i < MMR_MAX_DEPTH; i++) {
+                pub[3 + i] = i < depth ? uint256(op.frontier[i]) : 0;
+            }
 
             for (uint256 i = 0; i < N_INPUTS; i++) {
                 pub[N_CONST + 2 * i] = uint256(op.nullifiers[i]);

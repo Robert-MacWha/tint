@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-uint128 constant N_CONST = 7;
+/// @dev Mirrors `LibSkewMmr.MAX_DEPTH`. Declared here because it sizes the
+/// public-signal vector, which both the circuit and the verifier depend on.
+uint128 constant MMR_MAX_DEPTH = 26;
+
+/// @dev `boundParamsHash`, `operationHash`, `histState`, then the frontier.
+uint128 constant N_CONST = 3 + MMR_MAX_DEPTH;
 uint128 constant N_INPUTS = 5;
 uint128 constant N_OUTPUTS = 5;
 uint128 constant N_WITHDRAWALS = 2;
 uint128 constant N_PUB = N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * N_WITHDRAWALS;
-uint128 constant AGGREGATION_RING_SIZE = 256;
 
-/// @dev Number of public inputs the Groth16 verifier itself checks, after
-/// hybrid compression (`alpha`, `beta`, `gamma`) folds the `N_PUB`-length
-/// signal vector down. Intrinsic to the compression scheme, independent of
-/// N_PUB/N_INPUTS/N_OUTPUTS/N_WITHDRAWALS.
+/// @dev Number of public inputs the Groth16 verifier checks after hybrid compression.
 uint128 constant N_COMPRESSED_PUB = 3;
 
 /// @dev BN254 scalar field modulus.
 uint256 constant BN254_FR_MODULUS = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
-
-/// @dev Root of an empty Merkle tree.
-bytes32 constant GENESIS_ROOT = 0x11d527274d6e2924fb91d54a03dee9f0351165cc38ddfcbbcb6289a7e9d6adb8;

@@ -4,7 +4,6 @@ pragma solidity ^0.8.28;
 import {Script, console} from "forge-std/Script.sol";
 import {TintVerifier} from "../src/TintVerifier.sol";
 import {Tint} from "../src/Tint.sol";
-import {AGGREGATION_RING_SIZE} from "../src/lib/Constants.sol";
 
 /// Deploys Groth16Verifier and Tint (which takes the verifier's address in
 /// its constructor). Usage:

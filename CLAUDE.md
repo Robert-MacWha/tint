@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Tint is an EVM-focused, UTXO-based privacy protocol proof-of-concept. Notes are shielded ERC20 deposits; transfers/unshields are proven with Groth16 zk-SNARKs (BN254) that verify note ownership and spendability without revealing amounts or parties. See `README.md` for the protocol pitch and gas-cost rationale, and `docs/note-lifecycle.md` / `docs/spendability.md` for the two core design ideas (deferred merkle insertion via a staging hash-chain, and pluggable per-note spendability rules).
+Tint is an EVM-focused, UTXO-based privacy protocol proof-of-concept. Notes are shielded ERC20 deposits; transfers/unshields are proven with Groth16 zk-SNARKs (BN254) that verify note ownership and spendability without revealing amounts or parties. See `README.md` for the protocol pitch and gas-cost rationale, and `docs/note-lifecycle.md` / `docs/spendability.md` for the two core design ideas (a skew-MMR set commitment with one-hash appends, and pluggable per-note spendability rules).
 
 ## Repo layout
 
 Monorepo split into two independently-built packages:
 
-- `packages/contracts/` — Foundry/Solidity. `Tint.sol` is the main privacy pool contract (extends `AggregationRing` for the staging hash-chain and `RootRegistry` for merkle roots). `Groth16Verifier.sol` and `src/lib/Constants.sol` are **generated** (see below) — don't hand-edit them.
+- `packages/contracts/` — Foundry/Solidity. `Tint.sol` is the main privacy pool contract; it holds the note set in a skew-MMR (`src/lib/LibSkewMmr.sol`, wrapped by `LibSkewMmrWithHistory.sol` for the frontier-commitment ring). `src/codegen/` holds the **generated** Groth16 verifiers (see below) — don't hand-edit them.
 - `packages/crates/` — Rust workspace (members: `tint`, `cli`, `circuit-profiler`).
   - `tint/` — the core protocol crate: circuits (`src/circuit/`, arkworks + Groth16/BN254), accounts and key derivation (`src/account/`), notes/commitments (`src/note/`), note encryption (`src/crypto/`), on-chain state sync (`src/indexer/`), and the `Provider` (`src/provider.rs`) that assembles shield/transfer/unshield calls + proofs. `src/codegen.rs` emits the Solidity verifier from a Groth16 `VerifyingKey`.
   - `cli/` — a minimal demo CLI (`tint-cli`) wrapping the `tint` crate; `src/chain.rs` handles RPC/tx flow, `src/config.rs` handles local account storage.
@@ -47,7 +47,23 @@ forge test -vvv
 
 ## Working across the circuit/contract boundary
 
-The circuit (`tint/src/circuit/join_split.rs`) and `Tint.sol` must agree on public input layout and constants (`N_INPUTS`, `N_OUTPUTS`, `N_WITHDRAWALS`, `N_PUB`, tree depth, etc. — see `packages/contracts/src/lib/Constants.sol` and `tint/src/circuit/join_split.rs`). Whenever the circuit's shape or logic changes:
+The circuit (`tint/src/circuit/join_split.rs`) and `Tint.sol` must agree on public input layout and constants (`N_INPUTS`, `N_OUTPUTS`, `N_WITHDRAWALS`, `N_PUB`, `MMR_MAX_DEPTH`, etc. — see `packages/contracts/src/lib/Constants.sol` and `tint/src/circuit/join_split.rs`).
+
+The public-signal vector is built by `ProofLib.toPublicSignals` and must match the order `JoinSplitResultVar::flatten()` allocates in:
+
+| index | signal |
+| --- | --- |
+| 0 | `boundParamsHash` |
+| 1 | `operationHash` |
+| 2 | `histState` — packed ranks (bytes 0..25), depth (26), count (27..30), sentinel (bit 248) |
+| 3 .. 28 | frontier roots, zero-padded to `MMR_MAX_DEPTH = 26` |
+| 29 .. | `nullifier[i]`, `spendabilityAddress[i]` for `N_INPUTS` |
+| .. | `commitmentOut[i]` for `N_OUTPUTS` |
+| .. | `unshieldAmount[i]`, `unshieldAsset[i]` for `N_WITHDRAWALS` |
+
+Hybrid compression folds all `N_PUB` signals down to the 3 the Groth16 verifier checks, so adding a signal costs in-circuit witnessing rather than pairing gas.
+
+Whenever the circuit's shape or logic changes:
 1. Regenerate artifacts with `gen_artifacts`.
 2. Regenerate the on-chain verifier with `gen_verifier`.
 3. Contract-side constants in `Constants.sol` may need manual updates to stay in sync.

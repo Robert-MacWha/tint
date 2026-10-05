@@ -6,37 +6,38 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 import {IVerifier} from "./interfaces/IVerifier.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
 import {ISpendability} from "./interfaces/ISpendability.sol";
-import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB, N_COMPRESSED_PUB, AGGREGATION_RING_SIZE} from "./lib/Constants.sol";
+import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB, N_COMPRESSED_PUB} from "./lib/Constants.sol";
 import {ProofLib} from "./lib/ProofLib.sol";
-import {LibAggregationRing} from "./lib/LibAggregationRing.sol";
-import {LibPoseidon2T2_BN254} from "./lib/LibPoseidon2T2_BN254.sol";
+import {LibPoseidon2T3_BN254} from "./lib/LibPoseidon2T3_BN254.sol";
 import {NullifierRegistry} from "./NullifierRegistry.sol";
+import {LibSkewMmrWithHistory} from "./lib/LibSkewMmrWithHistory.sol";
+import {LibSkewMmr} from "./lib/LibSkewMmr.sol";
 
-/// @notice Privacy-preserving token pool using zk-snarks and a merkle tree accumulator.
+/// @notice Privacy-preserving token pool
 contract Tint is IPrivacyPool, NullifierRegistry {
     using SafeERC20 for IERC20;
-    using LibAggregationRing for LibAggregationRing.AggregationRing;
+    using LibSkewMmrWithHistory for LibSkewMmrWithHistory.State;
+    using LibSkewMmr for LibSkewMmr.State;
 
     IVerifier public immutable VERIFIER;
 
-    LibAggregationRing.AggregationRing internal ring;
+    LibSkewMmrWithHistory.State internal mmr;
 
     event Deposited(bytes32 commitment, address indexed asset, uint128 amount, bytes encryptedPartial);
     event Committed(bytes32 commitment, bytes encryptedNote);
     event Nullified(bytes32 nullifier);
     event Withdrawn(address indexed asset, uint128 amount, address indexed recipient);
-    event AggregationAdvanced(uint128 index, bytes32 root);
 
     error InvalidProof();
 
     constructor(IVerifier _verifier) {
         VERIFIER = _verifier;
-        ring.init(AGGREGATION_RING_SIZE);
+        mmr.prewarm();
     }
 
     // -------------------- EXTERNAL STATE-CHANGING --------------------
 
-    /// @notice Deposits an asset into the pool and queues the commitment for aggregation.
+    /// @notice Deposits an asset into the pool, appending the commitment to the set.
     ///
     /// @param asset The ERC20 token contract address.
     /// @param amount The amount to deposit in.
@@ -47,7 +48,7 @@ contract Tint is IPrivacyPool, NullifierRegistry {
         external
     {
         bytes32 commitment = ProofLib.toCommitment(asset, amount, partialCommitment);
-        ring.stage(_hash, commitment);
+        mmr.append(commitment, _hash);
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
         emit Deposited(commitment, asset, amount, encryptedPartial);
     }
@@ -94,54 +95,54 @@ contract Tint is IPrivacyPool, NullifierRegistry {
 
     // -------------------- EXTERNAL VIEW --------------------
 
-    /// @notice Returns the aggregation index the pool has most recently advanced to.
-    function latestRootIndex() external view returns (uint128) {
-        return ring.latestRootIndex();
+    /// @notice Returns the packed MMR state word: ranks, depth and count.
+    /// @dev Pass this as `Operation.histState` alongside `frontier()`.
+    function mmrState() external view returns (uint256) {
+        return mmr.mmr.state;
     }
 
-    /// @notice Returns the root recorded at a given aggregation index.
-    function getRoot(uint128 index) external view returns (bytes32) {
-        return ring.getRoot(index);
+    /// @notice Returns the number of trees in the frontier.
+    function mmrDepth() external view returns (uint256) {
+        return mmr.mmr.depth();
     }
 
-    /// @notice Returns the total number of commitments ever staged.
-    function head() external view returns (uint128) {
-        return ring.buffer.head;
+    /// @notice Returns the total number of commitments ever appended.
+    function mmrCount() external view returns (uint256) {
+        return mmr.mmr.count();
     }
 
-    /// @notice Returns the hash after `index` values have been staged.
-    function getHash(uint128 index) external view returns (bytes32) {
-        return ring.getHash(index);
+    /// @notice Returns the root of the tree at `tree`, largest-ranked first.
+    function mmrRoot(uint256 tree) external view returns (bytes32) {
+        return mmr.mmr.roots[tree];
     }
 
-    /// @notice Returns the number of free slots in the aggregation ring.
-    function space() external view returns (uint128) {
-        return ring.space();
+    /// @notice Returns the rank of the tree at `tree`.
+    function mmrRank(uint256 tree) external view returns (uint8) {
+        return mmr.mmr.ranks(tree);
+    }
+
+    /// @notice Returns the live frontier, ready to drop into an `Operation`.
+    function frontier() external view returns (bytes32[] memory roots) {
+        uint256 depth = mmr.mmr.depth();
+        roots = new bytes32[](depth);
+        for (uint256 i = 0; i < depth; ++i) {
+            roots[i] = mmr.mmr.roots[i];
+        }
     }
 
     /// @notice Computes the Groth16 public-signal vector `op` must satisfy.
     /// Exposed so a client can cross-check its locally-computed proof inputs
     /// against the contract's, rather than debugging an opaque
     /// `InvalidProof` revert.
-    function computePublicSignals(IPrivacyPool.Operation calldata op) public view returns (uint256[N_PUB] memory) {
-        bytes32 oldRoot = ring.getRoot(op.startAggregationIndex);
-        bytes32 startAggregationHash = ring.getHash(op.startAggregationIndex);
-        bytes32 endAggregationHash = ring.getHash(op.endAggregationIndex);
-
-        return ProofLib.toPublicSignals(oldRoot, startAggregationHash, endAggregationHash, op);
+    function computePublicSignals(IPrivacyPool.Operation calldata op) public pure returns (uint256[N_PUB] memory) {
+        return ProofLib.toPublicSignals(op);
     }
 
     /// @notice Verifies that the provided operation is valid or reverts if not.
     function verifyOperation(IPrivacyPool.Operation calldata op) public view {
-        // Verify the ring has room for this operation's output commitments
-        uint128 outputs;
-        for (uint256 i; i < N_OUTPUTS; ++i) {
-            if (op.commitmentsOut[i] != 0) ++outputs;
-        }
-        ring.requireSpace(outputs);
-
-        // Verify the ring can be advanced to this operation's end index.
-        ring.requireAdvanceable(op.endAggregationIndex, op.newRoot);
+        // Verify the frontier the proof was built against is one this pool committed to.
+        // Must come first: nothing else may read `op.frontier` until it is authenticated.
+        mmr.verifyFrontier(op.histState, op.frontier);
 
         // Verify nullifier uniqueness & unspentness
         ProofLib._requireUnique(op.nullifiers);
@@ -173,12 +174,6 @@ contract Tint is IPrivacyPool, NullifierRegistry {
     /// @notice Executes the state changes specified by the operation.
     /// @dev Assumes the operation has already been verified.
     function _executeOperation(IPrivacyPool.Operation calldata op) internal {
-        uint128 tailBefore = ring.latestRootIndex();
-        ring.advance(op.endAggregationIndex, op.newRoot);
-        if (ring.latestRootIndex() != tailBefore) {
-            emit AggregationAdvanced(op.endAggregationIndex, op.newRoot);
-        }
-
         // Nullify the input notes
         for (uint256 i; i < N_INPUTS; ++i) {
             bytes32 hash = op.nullifiers[i];
@@ -186,10 +181,12 @@ contract Tint is IPrivacyPool, NullifierRegistry {
             emit Nullified(hash);
         }
 
-        // Stage any output commitments
+        // Append any output commitments. Zero is the padding value for an unused
+        // output slot; appending it would put a junk element into the set.
         for (uint256 i; i < N_OUTPUTS; ++i) {
             bytes32 commitment = op.commitmentsOut[i];
-            ring.stage(_hash, commitment);
+            if (commitment == 0) continue;
+            mmr.append(commitment, _hash);
             emit Committed(commitment, op.context.ciphertexts[i]);
         }
 
@@ -207,7 +204,7 @@ contract Tint is IPrivacyPool, NullifierRegistry {
     // -------------------- INTERNAL VIEW --------------------
 
     /// @dev Overridable in test harnesses to swap out the hash function.
-    function _hash(bytes32 prevHash, bytes32 commitment) internal pure virtual returns (bytes32) {
-        return bytes32(LibPoseidon2T2_BN254.compress(uint256(prevHash), uint256(commitment), 0));
+    function _hash(bytes32 a, bytes32 b, bytes32 c) internal pure virtual returns (bytes32) {
+        return bytes32(LibPoseidon2T3_BN254.compress(uint256(a), uint256(b), uint256(c), 0));
     }
 }

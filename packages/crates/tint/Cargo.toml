@@ -75,6 +75,10 @@ harness = false
 name = "groth16_matrices"
 harness = false
 
+[[bench]]
+name = "groth16_poseidon_constraints"
+harness = false
+
 [[bin]]
 name = "gen_verifier"
 required-features = ["codegen"]

@@ -21,9 +21,6 @@ library LibSkewMmrWithHistory {
         bytes32[HISTORY_SIZE] history;
     }
 
-    error BadFrontier();
-    error UnknownFrontier();
-
     /// @dev Warms up storage with non-zero values to avoid cold SSTOREs.
     function prewarm(State storage self) internal {
         self.mmr.prewarm();
@@ -47,10 +44,13 @@ library LibSkewMmrWithHistory {
         self.history[LibSkewMmr._count(s) % HISTORY_SIZE] = LibSkewMmr._link(top, bytes32(s));
     }
 
-    /// @notice Reverts unless `frontier` and `histState` were the frontier and state this MMR
-    ///         held at `_count(histState)`.
-    function verifyFrontier(State storage self, uint256 histState, bytes32[] calldata frontier) internal view {
-        if (frontier.length != LibSkewMmr._depth(histState)) revert BadFrontier();
+    /// @notice Returns true if the given frontier is consistent with the MMR state at `histState`.
+    function verifyFrontier(State storage self, uint256 histState, bytes32[] calldata frontier)
+        internal
+        view
+        returns (bool)
+    {
+        if (frontier.length != LibSkewMmr._depth(histState)) return false;
 
         bytes32 chain = LibSkewMmr.IV;
         for (uint256 i = 0; i < frontier.length; ++i) {
@@ -58,7 +58,9 @@ library LibSkewMmrWithHistory {
         }
 
         if (self.history[LibSkewMmr._count(histState) % HISTORY_SIZE] != LibSkewMmr._link(chain, bytes32(histState))) {
-            revert UnknownFrontier();
+            return false;
         }
+
+        return true;
     }
 }

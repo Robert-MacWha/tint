@@ -1,17 +1,17 @@
-use alloy_primitives::Address;
+use alloy_primitives::{Address, U256};
 use alloy_provider::Provider;
 use alloy_rpc_types_eth::TransactionRequest;
 use alloy_sol_types::SolCall;
 use ark_bn254::Fr;
 
-use crate::{abis::tint::Tint, fr::fr_to_b256};
+use crate::{abis::tint::Tint, circuit::join_split::MMR_MAX_DEPTH, fr::fr_to_b256};
 
 #[async_trait::async_trait]
 pub trait Verifier {
     async fn verify(
         &self,
-        index: u128,
-        root: Fr,
+        hist_state: skew_mmr::state::State<MMR_MAX_DEPTH>,
+        frontier: &[Option<Fr>],
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>>;
 }
 
@@ -33,23 +33,28 @@ impl<P: Provider> RpcVerifier<P> {
 impl<P: Provider> Verifier for RpcVerifier<P> {
     async fn verify(
         &self,
-        index: u128,
-        root: Fr,
+        hist_state: skew_mmr::state::State<MMR_MAX_DEPTH>,
+        frontier: &[Option<Fr>],
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
-        let root = fr_to_b256(root);
+        let hist_state = U256::from_le_bytes(*hist_state.bytes());
+        let frontier = frontier.iter().flatten().copied().map(fr_to_b256).collect();
 
-        let call = Tint::getRootCall { index };
+        let call = Tint::verifyFrontierCall {
+            histState: hist_state,
+            _frontier: frontier,
+        };
 
         let tx = TransactionRequest::default()
             .to(self.contract)
             .input(call.abi_encode().into());
 
         let result = self.provider.call(tx).await?;
-        let expected_root = Tint::getRootCall::abi_decode_returns(&result)?;
+        let ok = Tint::verifyFrontierCall::abi_decode_returns(&result)?;
 
-        if root != expected_root {
-            return Err(format!("root {root} not registered on-chain by index {index}").into());
+        if !ok {
+            return Err("frontier verification failed".into());
         }
+
         Ok(())
     }
 }

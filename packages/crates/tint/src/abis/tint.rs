@@ -3,7 +3,8 @@ use ark_bn254::Bn254;
 use ark_groth16::Proof;
 
 sol!(
-    uint128 constant N_CONST = 7;
+    uint128 constant MMR_MAX_DEPTH = 26;
+    uint128 constant N_CONST = 3 + MMR_MAX_DEPTH;
     uint128 constant N_INPUTS = 5;
     uint128 constant N_OUTPUTS = 5;
     uint128 constant N_WITHDRAWALS = 2;
@@ -19,9 +20,8 @@ sol!(
     #[derive(Debug)]
     interface IPrivacyPool {
         struct Operation {
-            uint128 startAggregationIndex;
-            bytes32 newRoot;
-            uint128 endAggregationIndex;
+            uint256 histState;
+            bytes32[] frontier;
             bytes32 operationHash;
             bytes32[N_INPUTS] nullifiers;
             address[N_INPUTS] spendabilityAddresses;
@@ -30,6 +30,7 @@ sol!(
             address[N_WITHDRAWALS] unshieldAssets;
             Context context;
             ProofLib.Proof proof;
+
             /// @dev Hybrid-compression challenge for `proof` (see
             /// `ProofLib.toCompressedSignals`).
             uint256 beta;
@@ -40,7 +41,6 @@ sol!(
             bytes[N_OUTPUTS] ciphertexts;
             address[N_WITHDRAWALS] unshieldRecipients;
         }
-
     }
 
     #[derive(Debug)]
@@ -49,14 +49,13 @@ sol!(
         event Committed(bytes32 commitment, bytes encryptedNote);
         event Nullified(bytes32 nullifier);
         event Withdrawn(address indexed asset, uint128 amount, address indexed recipient);
-        event AggregationAdvanced(uint128 index, bytes32 root);
 
         function deposit(address asset, uint128 amount, bytes32 partialCommitment, bytes calldata encryptedPartial) external;
         function operate(IPrivacyPool.Operation calldata operation) public;
         function preVerify(bytes32 slot, IPrivacyPool.Operation calldata operation) public;
         function executePreVerified(bytes32 slot, IPrivacyPool.Operation calldata operation) public;
         function latestRootIndex() external view returns (uint128);
-        function getRoot(uint128 index) external view returns (bytes32);
+        function verifyFrontier(uint256 histState, bytes32[] calldata _frontier) external view returns (bool);
         function computePublicSignals(IPrivacyPool.Operation calldata op) public view returns (uint256[N_PUB] memory);
         function verifyOperation(IPrivacyPool.Operation calldata op) public view;
     }

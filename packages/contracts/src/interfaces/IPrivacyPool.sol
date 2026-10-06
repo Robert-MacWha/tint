@@ -6,9 +6,7 @@ import {ProofLib} from "../lib/ProofLib.sol";
 
 interface IPrivacyPool {
     struct Operation {
-        /// @dev The packed `LibSkewMmr` state word the proof was built against.
         uint256 histState;
-        /// @dev The frontier at `histState`, exactly `_depth(histState)` roots long.
         bytes32[] frontier;
         bytes32 operationHash;
         bytes32[N_INPUTS] nullifiers;
@@ -18,6 +16,7 @@ interface IPrivacyPool {
         address[N_WITHDRAWALS] unshieldAssets;
         Context context;
         ProofLib.Proof proof;
+
         /// @dev Hybrid-compression challenge for `proof` (see
         /// `ProofLib.toCompressedSignals`).
         uint256 beta;

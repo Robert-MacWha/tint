@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-/// @dev Mirrors `LibSkewMmr.MAX_DEPTH`. Declared here because it sizes the
-/// public-signal vector, which both the circuit and the verifier depend on.
+/// @dev Maximum depth of the MMR tree.
 uint128 constant MMR_MAX_DEPTH = 26;
 
 /// @dev `boundParamsHash`, `operationHash`, `histState`, then the frontier.

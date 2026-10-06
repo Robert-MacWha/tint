@@ -205,7 +205,7 @@ contract TintTests is Test {
         IPrivacyPool.Operation memory op = _operation();
         op.frontier[0] = bytes32(uint256(op.frontier[0]) ^ 1);
 
-        vm.expectRevert(LibSkewMmrWithHistory.UnknownFrontier.selector);
+        vm.expectRevert(Tint.InvalidFrontier.selector);
         tint.verifyOperation(op);
     }
 

@@ -15,7 +15,6 @@ use tint::{
     circuit::join_split::JoinSplitCircuit,
     fr::u256_to_fr,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
-    kv::memory::MemoryDatabase,
     note::asset::AssetId,
     provider::Provider,
 };
@@ -52,8 +51,7 @@ async fn public_signals_match_onchain() {
 
     let syncer = Arc::new(RpcSyncer::new(provider.clone(), *tint.address()));
     let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
-    let database = Arc::new(MemoryDatabase::default());
-    let indexer = Indexer::new(syncer, verifier, database).await.unwrap();
+    let indexer = Indexer::new(syncer, verifier).await.unwrap();
     let mut tint_provider = Provider::new(indexer, artifacts);
     tint_provider.add_account(account.clone()).await;
 

@@ -3,7 +3,6 @@ use ark_r1cs_std::{GR1CSVar, alloc::AllocVar};
 
 pub mod commitment;
 pub mod join_split;
-pub mod merkle_tree;
 pub mod operation;
 pub mod poseidon2;
 

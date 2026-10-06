@@ -28,6 +28,7 @@ contract Tint is IPrivacyPool, NullifierRegistry {
     event Nullified(bytes32 nullifier);
     event Withdrawn(address indexed asset, uint128 amount, address indexed recipient);
 
+    error InvalidFrontier();
     error InvalidProof();
 
     constructor(IVerifier _verifier) {
@@ -95,6 +96,11 @@ contract Tint is IPrivacyPool, NullifierRegistry {
 
     // -------------------- EXTERNAL VIEW --------------------
 
+    /// @notice Verifies a given frontier against the MMR state.
+    function verifyFrontier(uint256 histState, bytes32[] calldata _frontier) external view returns (bool) {
+        return mmr.verifyFrontier(histState, _frontier);
+    }
+
     /// @notice Returns the packed MMR state word: ranks, depth and count.
     /// @dev Pass this as `Operation.histState` alongside `frontier()`.
     function mmrState() external view returns (uint256) {
@@ -142,7 +148,7 @@ contract Tint is IPrivacyPool, NullifierRegistry {
     function verifyOperation(IPrivacyPool.Operation calldata op) public view {
         // Verify the frontier the proof was built against is one this pool committed to.
         // Must come first: nothing else may read `op.frontier` until it is authenticated.
-        mmr.verifyFrontier(op.histState, op.frontier);
+        if (!mmr.verifyFrontier(op.histState, op.frontier)) revert InvalidFrontier();
 
         // Verify nullifier uniqueness & unspentness
         ProofLib._requireUnique(op.nullifiers);

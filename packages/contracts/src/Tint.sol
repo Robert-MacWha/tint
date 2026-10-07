@@ -151,6 +151,7 @@ contract Tint is IPrivacyPool, NullifierRegistry {
         if (!mmr.verifyFrontier(op.histState, op.frontier)) revert InvalidFrontier();
 
         // Verify nullifier uniqueness & unspentness
+        // TODO: Move me into the circuit. No need to waste gas on this.
         ProofLib._requireUnique(op.nullifiers);
         for (uint256 i; i < N_INPUTS; ++i) {
             bytes32 hash = op.nullifiers[i];

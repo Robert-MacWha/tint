@@ -106,9 +106,7 @@ contract TintGasReportTest is Test {
 
         IPrivacyPool.Operation memory op = _operation();
 
-        for (uint256 i = 0; i < N_INPUTS; i++) {
-            op.nullifiers[i] = bytes32(i + 1);
-        }
+        op.nullifiers[0] = bytes32(uint256(1));
         op.commitmentsOut[0] = bytes32(uint256(keccak256(abi.encode("commitment", uint256(0)))) % BN254_FR_MODULUS);
         op.unshieldAmounts[0] = 1;
         op.unshieldAssets[0] = address(token);

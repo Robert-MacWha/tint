@@ -35,18 +35,18 @@ So long as each transfer / unshield includes on average at least 0.14 shields, t
 
 ### Benchmarks
 
-All below gas costs are based on Ethereum Mainnet and exclude the cost of token transfers.
+All below gas costs are based on Ethereum Mainnet and include the cost of a mock ERC20 transfer (~14.7k gas).
 
-**Shields:** 43,303
+**Shields:** 63,065
 
 **Transfers / Unshields:**
 
-| Circuit | Gas Cost | Cost per addition |
-| ------- | -------- | ----------------- |
-| 1x1x1   | 341,964  | N/A               |
-| 5x1x1   | 495,774  | 38,452            |
-| 1x5x1   | 371,766  | 7,450             |
-| 1x1x5   | 401,786  | 14,955            |
+| Circuit | Gas Cost |
+| ------- | -------- |
+| 1x1x1   | 350,792  |
+| 5x1x1   | 442,530  |
+| 1x5x1   | 442,061  |
+| 1x1x2   | 377,551  |
 
 ### Flamegraphs
 

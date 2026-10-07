@@ -8,7 +8,7 @@ sol!(
     uint128 constant N_INPUTS = 5;
     uint128 constant N_OUTPUTS = 5;
     uint128 constant N_WITHDRAWALS = 2;
-    uint128 constant N_PUB = N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * N_WITHDRAWALS;
+    uint128 constant N_PUB = N_CONST + (2 * N_INPUTS) + N_OUTPUTS + (2 * N_WITHDRAWALS);
 
     #[derive(Debug)]
     library ProofLib {

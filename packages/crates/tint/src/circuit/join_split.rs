@@ -6,7 +6,9 @@ use ark_hybrid_compression::circuit::{CompressedCircuit, CompressibleCircuit, Fl
 use ark_r1cs_std::{
     GR1CSVar,
     alloc::{AllocVar, AllocationMode},
+    boolean::Boolean,
     eq::EqGadget,
+    fields::FieldVar,
 };
 use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 
@@ -166,12 +168,21 @@ impl JoinSplitVar {
         // }
 
         // Verify that the inclusion proofs are valid and all use the same MMR state.
+        // Skipped for zero-valued elements (padding), which `OperationVar::verify` ties to
+        // the unused (zero-amount) input slots.
         for proof in self.inclusion_proofs.iter() {
-            //? Verify the proof's public states are all equal
-            proof.state.enforce_equal(&self.hist_state)?;
-            proof.roots.enforce_equal(&self.frontier)?;
+            let used = !proof.element.is_zero()?;
 
-            proof.verify()?;
+            //? Verify the proof's public states are all equal
+            proof
+                .state
+                .conditional_enforce_equal(&self.hist_state, &used)?;
+            proof
+                .roots
+                .conditional_enforce_equal(&self.frontier, &used)?;
+            proof
+                .verify()?
+                .conditional_enforce_equal(&Boolean::TRUE, &used)?;
         }
 
         // Verify that the operation is balanced and returns the resulting outputs.

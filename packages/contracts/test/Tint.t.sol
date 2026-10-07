@@ -8,8 +8,14 @@ import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {Tint} from "../src/Tint.sol";
 import {NullifierRegistry} from "../src/NullifierRegistry.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
-import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_COMPRESSED_PUB} from "../src/lib/Constants.sol";
 import {LibSkewMmrWithHistory} from "../src/lib/LibSkewMmrWithHistory.sol";
+import {
+    N_INPUTS,
+    N_OUTPUTS,
+    N_WITHDRAWALS,
+    N_COMPRESSED_PUB,
+    BN254_FR_MODULUS
+} from "../src/lib/Constants.sol";
 
 contract MockToken is ERC20 {
     constructor() ERC20("Mock", "MCK") {}
@@ -168,6 +174,20 @@ contract TintTests is Test {
         tint.operate(op);
 
         vm.expectRevert(abi.encodeWithSelector(NullifierRegistry.NullifierAlreadySpent.selector, bytes32(uint256(123))));
+        tint.operate(op);
+    }
+
+    /// Should revert if a public signal is not a canonical field element.
+    /// Hybrid compression reduces each signal modulo the field, so `nf` and
+    /// `nf + p` would satisfy the same proof, while the nullifier registry
+    /// would treat them as different nullifiers and let the note be spent again.
+    function test_operateNonCanonicalNullifier_reverts() public {
+        IPrivacyPool.Operation memory op = _operation();
+        op.nullifiers[0] = bytes32(uint256(123));
+        tint.operate(op);
+
+        op.nullifiers[0] = bytes32(uint256(123) + BN254_FR_MODULUS);
+        vm.expectRevert();
         tint.operate(op);
     }
 

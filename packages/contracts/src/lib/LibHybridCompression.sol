@@ -23,8 +23,10 @@ library LibHybridCompression {
     function uhf(uint256 sigma, uint256[] memory x, uint256 field) internal pure returns (uint256 acc) {
         acc = 0;
         for (uint256 i = x.length; i > 0; i--) {
+            uint256 xi = x[i - 1];
+            require(xi < field);
             acc = mulmod(acc, sigma, field);
-            acc = addmod(acc, x[i - 1], field);
+            acc = addmod(acc, xi, field);
         }
     }
 

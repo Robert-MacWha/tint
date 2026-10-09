@@ -6,15 +6,14 @@ import {ERC20, IERC20Errors} from "@openzeppelin/contracts/token/ERC20/ERC20.sol
 import {ISpendability} from "../src/interfaces/ISpendability.sol";
 import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {Tint} from "../src/Tint.sol";
-import {LibCircularBuffer} from "../src/lib/LibCircularBuffer.sol";
 import {NullifierRegistry} from "../src/NullifierRegistry.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
+import {LibSkewMmrWithHistory} from "../src/lib/LibSkewMmrWithHistory.sol";
 import {
     N_INPUTS,
     N_OUTPUTS,
     N_WITHDRAWALS,
     N_COMPRESSED_PUB,
-    AGGREGATION_RING_SIZE,
     BN254_FR_MODULUS
 } from "../src/lib/Constants.sol";
 
@@ -73,9 +72,11 @@ contract TintTests is Test {
         tint.deposit(address(token), 1, bytes32(uint256(0xdeadbeef)), "");
     }
 
-    function _operation() internal pure returns (IPrivacyPool.Operation memory op) {
-        op.newRoot = bytes32(uint256(1));
-        op.endAggregationIndex = 0;
+    /// @dev Binds the operation to the pool's live frontier, which is what
+    /// `verifyOperation` authenticates against.
+    function _operation() internal view returns (IPrivacyPool.Operation memory op) {
+        op.histState = tint.mmrState();
+        op.frontier = tint.frontier();
     }
 
     /// -------------------- deposit() --------------------
@@ -102,16 +103,6 @@ contract TintTests is Test {
 
         vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, address(tint), 0, 500));
         tint.deposit(address(fresh), 500, bytes32(uint256(42)), "");
-    }
-
-    /// Should revert if the aggregation ring is full
-    function test_depositRingFull_reverts() public {
-        for (uint128 i = 0; i < AGGREGATION_RING_SIZE - 2; ++i) {
-            tint.deposit(address(token), 1, bytes32(uint256(i + 1)), "");
-        }
-
-        vm.expectRevert(abi.encodeWithSelector(LibCircularBuffer.CircularBufferFull.selector));
-        tint.deposit(address(token), 1, bytes32(uint256(42)), "");
     }
 
     /// -------------------- operate() --------------------
@@ -148,7 +139,9 @@ contract TintTests is Test {
             emit Tint.Nullified(op.nullifiers[i]);
         }
 
+        // Only non-zero outputs are appended; zero is the padding value.
         for (uint256 i; i < N_OUTPUTS; ++i) {
+            if (op.commitmentsOut[i] == bytes32(0)) continue;
             vm.expectEmit();
             emit Tint.Committed(op.commitmentsOut[i], op.context.ciphertexts[i]);
         }
@@ -207,5 +200,45 @@ contract TintTests is Test {
 
         vm.expectRevert(MockSpendability.NotSpendable.selector);
         tint.operate(op);
+    }
+
+    /// -------------------- frontier --------------------
+
+    /// Should accept the pool's live frontier.
+    function test_operateLiveFrontier() public {
+        for (uint256 i = 0; i < 10; ++i) {
+            tint.deposit(address(token), 1, bytes32(uint256(i + 1)), "");
+        }
+
+        tint.verifyOperation(_operation());
+    }
+
+    /// Should reject an operation whose frontier the pool never committed to.
+    ///
+    /// @dev Covers that `verifyOperation` authenticates the frontier at all. Which
+    /// frontiers `verifyFrontier` itself accepts is the skew-mmr package's concern.
+    function test_operateUnauthenticatedFrontier_reverts() public {
+        for (uint256 i = 0; i < 10; ++i) {
+            tint.deposit(address(token), 1, bytes32(uint256(i + 1)), "");
+        }
+
+        IPrivacyPool.Operation memory op = _operation();
+        op.frontier[0] = bytes32(uint256(op.frontier[0]) ^ 1);
+
+        vm.expectRevert(Tint.InvalidFrontier.selector);
+        tint.verifyOperation(op);
+    }
+
+    /// Should append only the non-zero output commitments. Zero is the padding
+    /// value for an unused output slot and must not enter the set.
+    function test_operateAppendsOnlyNonZeroOutputs() public {
+        IPrivacyPool.Operation memory op = _operation();
+        op.commitmentsOut[0] = bytes32(uint256(42));
+        op.commitmentsOut[3] = bytes32(uint256(43));
+
+        uint256 countBefore = tint.mmrCount();
+        tint.operate(op);
+
+        assertEq(tint.mmrCount(), countBefore + 2);
     }
 }

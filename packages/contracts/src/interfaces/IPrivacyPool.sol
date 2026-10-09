@@ -6,9 +6,8 @@ import {ProofLib} from "../lib/ProofLib.sol";
 
 interface IPrivacyPool {
     struct Operation {
-        uint128 startAggregationIndex;
-        bytes32 newRoot;
-        uint128 endAggregationIndex;
+        uint256 histState;
+        bytes32[] frontier;
         bytes32 operationHash;
         bytes32[N_INPUTS] nullifiers;
         address[N_INPUTS] spendabilityAddresses;
@@ -17,6 +16,7 @@ interface IPrivacyPool {
         address[N_WITHDRAWALS] unshieldAssets;
         Context context;
         ProofLib.Proof proof;
+
         /// @dev Hybrid-compression challenge for `proof` (see
         /// `ProofLib.toCompressedSignals`).
         uint256 beta;

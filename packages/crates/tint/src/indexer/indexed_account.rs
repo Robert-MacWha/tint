@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::Arc};
+use std::collections::HashSet;
 
 use alloy_primitives::Address;
 use ark_bn254::Fr;
@@ -7,14 +7,12 @@ use serde::{Deserialize, Serialize};
 use crate::{
     account::{nullifying::NullifyingAccount, receiver::Receiver, viewing::ViewingAccount},
     indexer::{b256_to_fr, syncer::Event},
-    kv::{KvStore, TintDatabase},
     note::commitment::{BaseCommitment, NullifiableCommitment},
 };
 
 pub struct IndexedAccount {
     viewing: ViewingAccount,
     nullifying: NullifyingAccount,
-    database: Arc<dyn KvStore>,
 
     /// Set of notes owned by this account.
     notes: Vec<NullifiableCommitment>,
@@ -36,29 +34,13 @@ pub struct IndexedAccountState {
 }
 
 impl IndexedAccount {
-    pub async fn new(
-        viewing: ViewingAccount,
-        nullifying: NullifyingAccount,
-        database: Arc<dyn KvStore>,
-    ) -> Self {
-        let state = database
-            .load_indexed_account(nullifying.pub_key(), viewing.pub_key())
-            .await
-            .unwrap_or_default();
-
-        let notes = state
-            .notes
-            .into_iter()
-            .map(|c: BaseCommitment| nullifying.into_nullifiable(c))
-            .collect();
-
+    pub async fn new(viewing: ViewingAccount, nullifying: NullifyingAccount) -> Self {
         Self {
             viewing,
             nullifying,
-            database,
-            notes,
-            nullifiers: state.nullifiers.into_iter().collect(),
-            note_nullifiers: state.note_nullifiers.into_iter().collect(),
+            notes: Vec::new(),
+            nullifiers: HashSet::new(),
+            note_nullifiers: HashSet::new(),
         }
     }
 
@@ -92,7 +74,7 @@ impl IndexedAccount {
                     self.nullifiers.insert(nullifier);
                 }
             }
-            Event::Withdrawn(_) | Event::AggregationAdvanced(_) => {}
+            Event::Withdrawn(_) => {}
         }
     }
 
@@ -119,17 +101,5 @@ impl IndexedAccount {
         self.note_nullifiers
             .insert(nullifiable_commitment.nullifier());
         self.notes.push(nullifiable_commitment);
-    }
-
-    pub async fn save(&self) {
-        let state = IndexedAccountState {
-            notes: self.notes.iter().map(|c| c.inner).collect(),
-            nullifiers: self.nullifiers.iter().copied().collect(),
-            note_nullifiers: self.note_nullifiers.iter().copied().collect(),
-        };
-
-        self.database
-            .set_indexed_account(self.nullifying.pub_key(), self.viewing.pub_key(), &state)
-            .await;
     }
 }

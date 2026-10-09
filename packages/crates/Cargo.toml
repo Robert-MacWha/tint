@@ -74,3 +74,4 @@ tracing-subscriber = "0.3"
 x25519-dalek = "2.0.1"
 ark-crypto-primitives = "0.6.0"
 ark-hybrid-compression = { git = "https://github.com/Robert-MacWha/ark-hybrid-compression" }
+skew-mmr = { git = "https://github.com/Robert-MacWha/efficient-inclusion-proofs" }

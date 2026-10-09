@@ -9,7 +9,6 @@ use tint::{
     account::{Account, keys::Keys, spending::NoopSpendingAccount},
     circuit::join_split::JoinSplitCircuit,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
-    kv::memory::MemoryDatabase,
     note::asset::AssetId,
     provider::Provider,
 };
@@ -65,8 +64,7 @@ async fn multisig() {
     info!("Setting up tint provider...");
     let syncer = Arc::new(RpcSyncer::new(provider.clone(), *tint.address()));
     let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
-    let database = Arc::new(MemoryDatabase::default());
-    let indexer = Indexer::new(syncer, verifier, database).await.unwrap();
+    let indexer = Indexer::new(syncer, verifier).await.unwrap();
 
     let mut tint_provider = Provider::new(indexer, artifacts);
     tint_provider.add_account(account_1.clone()).await;

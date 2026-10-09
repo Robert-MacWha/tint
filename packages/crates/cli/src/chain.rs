@@ -16,7 +16,6 @@ use tint::{
     account::{Account, receiver::Receiver},
     circuit::join_split::JoinSplitCircuit,
     indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
-    kv::memory::MemoryDatabase,
     note::{asset::AssetId, commitment::NullifiableCommitment},
     provider::Provider as TintProvider,
 };
@@ -59,8 +58,7 @@ pub async fn connect(
 
     let syncer = Arc::new(RpcSyncer::new(provider.clone(), tint_address));
     let verifier = Arc::new(RpcVerifier::new(provider.clone(), tint_address));
-    let database = Arc::new(MemoryDatabase::default());
-    let indexer = Indexer::new(syncer, verifier, database).await?;
+    let indexer = Indexer::new(syncer, verifier).await?;
 
     let artifacts = config::load_circuit::<JoinSplitCircuit>("join_split")?;
     let mut tint_provider = TintProvider::new(indexer, artifacts);

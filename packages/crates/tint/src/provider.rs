@@ -1,6 +1,6 @@
 use std::array::repeat;
 
-use alloy_primitives::{Address, B256, Bytes, keccak256};
+use alloy_primitives::{Address, B256, Bytes, U256, keccak256};
 use alloy_sol_types::{SolCall, SolValue};
 use ark_bn254::{Bn254, Fr};
 use ark_ff::PrimeField;
@@ -15,13 +15,15 @@ use crate::{
     abis::tint::{IPrivacyPool, Tint},
     account::{Account, keys::NullifierPubKey, receiver::Receiver},
     array::try_from_fn,
-    circuit::join_split::{
-        JoinSplit, JoinSplitCircuit, JoinSplitResult, K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS,
-        TREE_DEPTH,
+    circuit::{
+        join_split::{
+            JoinSplit, JoinSplitCircuit, JoinSplitResult, MMR_MAX_DEPTH, N_INPUTS, N_OUTPUTS,
+            N_WITHDRAWALS,
+        },
+        poseidon2::skew_mmr::Poseidon2Hasher,
     },
     fr::{fr_to_b256, fr_to_u256},
     indexer::Indexer,
-    merkle_tree::InclusionProof,
     note::{
         asset::AssetId,
         commitment::{BaseCommitment, Commitment, NullifiableCommitment, SpendableCommitment},
@@ -40,8 +42,6 @@ pub enum ProviderError {
     InvalidProof,
     #[error("indexer error: {0}")]
     Indexer(#[from] crate::indexer::IndexerError),
-    #[error("merkle tree error: {0}")]
-    MerkleTree(#[from] crate::merkle_tree::MerkleTreeError),
     #[error("circuit error: {0}")]
     Synthesis(#[from] ark_relations::gr1cs::SynthesisError),
     #[error("commitment error: {0}")]
@@ -168,12 +168,16 @@ impl Provider {
             .build_circuit(inputs, &outputs, &withdrawals, rng)
             .await?;
 
-        // let old_root = inner.old_root;
-        let start_aggregation_index = inner.start_aggregation_index;
-        let end_aggregation_index = self.indexer.posted_aggregation_index();
+        let hist_state = U256::from_le_bytes(*inner.hist_state.bytes());
+        let frontier = inner
+            .frontier
+            .iter()
+            .flatten()
+            .copied()
+            .map(fr_to_b256)
+            .collect();
 
         info!("Proving operation...");
-
         let mut circuit = JoinSplitCircuit::new((), inner);
         let ark_hybrid_compression::circuit::Compressed {
             output: result_var,
@@ -190,16 +194,16 @@ impl Provider {
         debug_assert_eq!(groth16_public_inputs, vec![alpha, beta, gamma]);
 
         // Smoke-test the proof locally
+        info!("Verifying operation proof...");
         if !Groth16::<Bn254>::verify(&self.artifacts.vk, &groth16_public_inputs, &proof)? {
             return Err(ProviderError::InvalidProof);
         }
-        info!("Operation proof verified");
 
+        info!("Operation proof verified");
         Ok((
             IPrivacyPool::Operation {
-                startAggregationIndex: start_aggregation_index,
-                endAggregationIndex: end_aggregation_index,
-                newRoot: fr_to_b256(outputs.new_root),
+                histState: hist_state,
+                frontier: frontier,
                 operationHash: fr_to_b256(outputs.operation_hash),
                 nullifiers: outputs.nullifiers.map(fr_to_b256),
                 commitmentsOut: outputs.output_commitment_hashes.map(fr_to_b256),
@@ -228,12 +232,8 @@ impl Provider {
         withdrawals: &[(Address, AssetId, u128); W],
         rng: &mut R,
     ) -> Result<(JoinSplit, IPrivacyPool::Context), ProviderError> {
-        let old_root = self.indexer.root();
-        let start_aggregation_index = self.indexer.posted_aggregation_index();
-        let start_aggregation_hash = self.indexer.posted_aggregation_hash();
-
-        let subtree_append = self.indexer.commit()?;
-
+        let hist_state = self.indexer.state();
+        let frontier = self.indexer.roots();
         let (output_commitments, output_withdrawals) = build_outputs(outputs, withdrawals, rng);
 
         let placeholder_inputs: [SpendableCommitment; I] =
@@ -252,7 +252,7 @@ impl Provider {
             resolved_inputs[i] = resolved;
         }
 
-        let commitment_inclusion_proofs = self.commitment_inclusion_proofs(&resolved_inputs)?;
+        let inclusion_proofs = self.commitment_inclusion_proofs(&resolved_inputs)?;
 
         let unshield_recipients = unshield_recipients(withdrawals);
         let spendability_inputs = spendability_inputs(&resolved_inputs);
@@ -279,13 +279,11 @@ impl Provider {
 
         let circuit = JoinSplit::new(
             // Public inputs
-            old_root,
-            start_aggregation_index,
-            start_aggregation_hash,
+            hist_state,
+            frontier,
             bound_params_hash,
             // Witnessed values
-            subtree_append,
-            commitment_inclusion_proofs,
+            inclusion_proofs,
             operation,
         );
 
@@ -310,8 +308,9 @@ impl Provider {
     fn commitment_inclusion_proofs<const I: usize>(
         &self,
         inputs: &[SpendableCommitment; I],
-    ) -> Result<[InclusionProof<{ TREE_DEPTH }, { K }>; N_INPUTS], ProviderError> {
-        let mut commitment_inclusion_proofs = repeat(InclusionProof::default());
+    ) -> Result<[skew_mmr::proof::Proof<MMR_MAX_DEPTH, Fr, Poseidon2Hasher>; N_INPUTS], ProviderError>
+    {
+        let mut commitment_inclusion_proofs = repeat(skew_mmr::proof::Proof::default());
         for (i, input) in inputs.iter().enumerate() {
             let proof = self
                 .indexer

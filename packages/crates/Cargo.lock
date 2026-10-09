@@ -516,7 +516,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "alloy-sol-types",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "serde",
  "serde_json",
  "serde_with",
@@ -669,7 +669,7 @@ checksum = "e8597d36d546e1dab822345ad563243ec3920e199322cb554ce56c8ef1a1e2e7"
 dependencies = [
  "alloy-json-rpc",
  "alloy-transport",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "reqwest",
  "serde_json",
  "tower",
@@ -4888,6 +4888,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ee5873ec9cce0195efcb7a4e9507a04cd49aec9c83d0389df45b1ef7ba2e649"
 
 [[package]]
+name = "skew-mmr"
+version = "0.1.0"
+source = "git+https://github.com/Robert-MacWha/efficient-inclusion-proofs#e47be42eb7f0aadd88671eade67a5933d000130c"
+dependencies = [
+ "ark-ff 0.6.0",
+ "ark-r1cs-std",
+ "ark-relations",
+ "tracing",
+]
+
+[[package]]
 name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5060,7 +5071,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -5174,6 +5185,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "sha2 0.10.9",
+ "skew-mmr",
  "taceo-groth16-sol",
  "taceo-poseidon2",
  "thiserror",

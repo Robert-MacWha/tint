@@ -48,7 +48,8 @@ tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing = { workspace = true }
 x25519-dalek = { workspace = true, features = ["static_secrets", "serde"] }
 tint-groth16 = { workspace = true }
-ark-hybrid-compression.workspace = true
+ark-hybrid-compression = { workspace = true }
+skew-mmr = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
@@ -73,6 +74,10 @@ harness = false
 
 [[bench]]
 name = "groth16_matrices"
+harness = false
+
+[[bench]]
+name = "groth16_poseidon_constraints"
 harness = false
 
 [[bin]]

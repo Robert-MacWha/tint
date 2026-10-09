@@ -1,6 +1,7 @@
 mod common;
 pub mod crh;
 mod element;
+pub mod skew_mmr;
 mod t2;
 mod t3;
 mod t8;

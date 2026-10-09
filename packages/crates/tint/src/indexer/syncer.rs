@@ -2,6 +2,7 @@ use alloy_primitives::Address;
 use alloy_provider::Provider;
 use alloy_rpc_types_eth::{BlockNumberOrTag, Filter};
 use alloy_sol_types::SolEvent;
+use tracing::warn;
 
 use crate::abis::{self, tint::Tint};
 
@@ -11,7 +12,6 @@ pub enum Event {
     Committed(abis::tint::Tint::Committed),
     Nullified(abis::tint::Tint::Nullified),
     Withdrawn(abis::tint::Tint::Withdrawn),
-    AggregationAdvanced(abis::tint::Tint::AggregationAdvanced),
 }
 
 #[async_trait::async_trait]
@@ -77,10 +77,10 @@ impl<P: Provider> Syncer for RpcSyncer<P> {
                 Tint::Withdrawn::SIGNATURE_HASH => {
                     Event::Withdrawn(log.log_decode::<Tint::Withdrawn>()?.inner.data)
                 }
-                Tint::AggregationAdvanced::SIGNATURE_HASH => Event::AggregationAdvanced(
-                    log.log_decode::<Tint::AggregationAdvanced>()?.inner.data,
-                ),
-                _ => continue,
+                _ => {
+                    warn!("Unknown event topic: {topic0:?}");
+                    continue;
+                }
             };
             events.push(event);
         }

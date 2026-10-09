@@ -5,23 +5,17 @@ pub mod verifier;
 use std::sync::Arc;
 
 use ark_bn254::Fr;
-use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::{
     account::{nullifying::NullifyingAccount, receiver::Receiver, viewing::ViewingAccount},
-    circuit::{
-        join_split::{K, SUBTREE_PATH_LENGTH, SUBTREE_SIZE, TREE_DEPTH},
-        poseidon2::poseidon2_compress,
-    },
+    circuit::{join_split::MMR_MAX_DEPTH, poseidon2::skew_mmr::Poseidon2Hasher},
     fr::b256_to_fr,
     indexer::{
         indexed_account::IndexedAccount,
         syncer::{Event, Syncer},
         verifier::Verifier,
     },
-    kv::{KvStore, TintDatabase},
-    merkle_tree::{InclusionProof, IncrementalMerkleTree, MerkleTreeError, SubtreeAppendProof},
     note::commitment::NullifiableCommitment,
 };
 
@@ -32,30 +26,21 @@ use crate::{
 pub struct Indexer {
     syncer: Arc<dyn Syncer + Send + Sync>,
     verifier: Arc<dyn Verifier + Send + Sync>,
-    database: Arc<dyn KvStore + Send + Sync>,
 
     state: IndexerState,
     accounts: Vec<IndexedAccount>,
 }
 
-#[serde_with::serde_as]
-#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug)]
 pub struct IndexerState {
-    tree: IncrementalMerkleTree<TREE_DEPTH, K>,
-
-    total_staged: u64,
-    #[serde_as(as = "Vec<tint_groth16::serde::field::FieldAsBytes>")]
-    staged_commitments: Vec<Fr>,
-    #[serde_as(as = "tint_groth16::serde::field::FieldAsBytes")]
-    posted_aggregation_hash: Fr,
-
+    tree: skew_mmr::SkewMmr<MMR_MAX_DEPTH, Fr, Poseidon2Hasher>,
     last_synced_block: u64,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum IndexerError {
-    #[error("merkle tree error: {0}")]
-    MerkleTree(#[from] MerkleTreeError),
+    // #[error("merkle tree error: {0}")]
+    // MerkleTree(#[from] skew_mmr::SkewMmr<>),
     #[error("syncer error: {0}")]
     Syncer(Box<dyn std::error::Error + Send + Sync + 'static>),
     #[error("verifier error: {0}")]
@@ -70,46 +55,28 @@ impl Indexer {
     pub async fn new(
         syncer: Arc<dyn Syncer + Send + Sync>,
         verifier: Arc<dyn Verifier + Send + Sync>,
-        database: Arc<dyn KvStore + Send + Sync>,
     ) -> Result<Self, IndexerError> {
-        let state = database.load_indexer().await.unwrap_or(IndexerState {
-            tree: IncrementalMerkleTree::new(),
-            total_staged: 0,
-            staged_commitments: Vec::new(),
-            posted_aggregation_hash: Fr::from(0u64),
-            last_synced_block: 0,
-        });
-
         Ok(Self {
             syncer,
             verifier,
-            database,
-            state,
+            state: IndexerState::default(),
             accounts: Vec::new(),
         })
     }
 
     #[must_use]
-    pub fn root(&self) -> Fr {
-        self.state.tree.root()
+    pub fn roots(&self) -> [Option<Fr>; MMR_MAX_DEPTH] {
+        self.state.tree.roots()
     }
 
-    /// Returns the currently posted aggregation hash.
     #[must_use]
-    pub fn posted_aggregation_hash(&self) -> Fr {
-        self.state.posted_aggregation_hash
+    pub fn ranks(&self) -> [Option<u32>; MMR_MAX_DEPTH] {
+        self.state.tree.ranks()
     }
 
-    /// Returns the index of the currently posted aggregation hash.
     #[must_use]
-    pub fn posted_aggregation_index(&self) -> u128 {
-        self.state.tree.len() as u128
-    }
-
-    /// Returns the number of staged commitments that have not been posted.
-    #[must_use]
-    pub fn staged_count(&self) -> u128 {
-        self.state.staged_commitments.len() as u128
+    pub fn state(&self) -> skew_mmr::state::State<MMR_MAX_DEPTH> {
+        self.state.tree.state()
     }
 
     /// Returns the notes owned by `receiver`.
@@ -126,15 +93,17 @@ impl Indexer {
 
     /// Adds an account which will be indexed.
     pub async fn add_account(&mut self, viewing: ViewingAccount, nullifying: NullifyingAccount) {
-        let account = IndexedAccount::new(viewing, nullifying, self.database.clone()).await;
+        let account = IndexedAccount::new(viewing, nullifying).await;
         self.accounts.push(account);
     }
 
     /// Returns an inclusion proof for `commitment`, if it's present in the tree.
     #[must_use]
-    pub fn prove(&self, commitment: Fr) -> Option<InclusionProof<TREE_DEPTH, K>> {
-        let path = self.state.tree.path(commitment)?;
-        Some(self.state.tree.inclusion(path))
+    pub fn prove(
+        &self,
+        commitment: Fr,
+    ) -> Option<skew_mmr::proof::Proof<MMR_MAX_DEPTH, Fr, Poseidon2Hasher>> {
+        self.state.tree.prove_element(commitment)
     }
 
     /// Fetches and applies any new events since the last sync, advancing
@@ -169,37 +138,20 @@ impl Indexer {
 
         self.state.last_synced_block = latest;
         self.verifier
-            .verify(self.posted_aggregation_index(), self.root())
+            .verify(self.state(), &self.roots())
             .await
             .map_err(IndexerError::Verifier)?;
 
-        self.save().await;
         Ok(())
-    }
-
-    /// Drains up to `SUBTREE_SIZE` pending commitments, inserts them into
-    /// the tree, and returns the append proof needed to build the next
-    /// `JoinSplit` witness.
-    pub fn commit(
-        &mut self,
-    ) -> Result<SubtreeAppendProof<SUBTREE_PATH_LENGTH, SUBTREE_SIZE, K>, IndexerError> {
-        let count = SUBTREE_SIZE.min(self.state.staged_commitments.len());
-        self.advance(count)
     }
 
     fn apply_event(&mut self, event: &Event) -> Result<(), IndexerError> {
         match event {
             Event::Deposit(d) => {
-                self.stage(b256_to_fr(d.commitment));
+                self.state.tree.append(b256_to_fr(d.commitment));
             }
             Event::Committed(c) => {
-                self.stage(b256_to_fr(c.commitment));
-            }
-            Event::AggregationAdvanced(a) => {
-                let count = a.index - self.posted_aggregation_index();
-                // let expected_root = a.root;
-                let _ = self.advance(count as usize)?;
-                // self.root()
+                self.state.tree.append(b256_to_fr(c.commitment));
             }
             Event::Nullified(_) | Event::Withdrawn(_) => {}
         }
@@ -209,47 +161,5 @@ impl Indexer {
         }
 
         Ok(())
-    }
-
-    /// Stage a commitment for inclusion in the next [`Self::commit`].
-    fn stage(&mut self, commitment: Fr) {
-        self.state.total_staged += 1;
-        self.state.staged_commitments.push(commitment);
-    }
-
-    /// Advance the aggregation ring by `count`, inserting all staged commitments
-    /// up to that index into the tree.
-    fn advance(
-        &mut self,
-        count: usize,
-    ) -> Result<SubtreeAppendProof<SUBTREE_PATH_LENGTH, SUBTREE_SIZE, K>, IndexerError> {
-        if count > SUBTREE_SIZE {
-            return Err(IndexerError::SubtreeCountTooLarge(count));
-        }
-        if count > self.state.staged_commitments.len() {
-            return Err(IndexerError::InsufficientStagedCommitments);
-        }
-
-        let drained: Vec<Fr> = self.state.staged_commitments.drain(..count).collect();
-
-        let mut hash = self.state.posted_aggregation_hash;
-        for commitment in &drained {
-            hash = poseidon2_compress(&[hash, *commitment]);
-        }
-        self.state.posted_aggregation_hash = hash;
-
-        let proof = self
-            .state
-            .tree
-            .append_subtree::<SUBTREE_PATH_LENGTH, SUBTREE_SIZE>(&drained)?;
-
-        Ok(proof)
-    }
-
-    async fn save(&self) {
-        self.database.set_indexer(&self.state).await;
-        for account in &self.accounts {
-            account.save().await;
-        }
     }
 }

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 /// @dev Maximum depth of the MMR tree.
-uint128 constant MMR_MAX_DEPTH = 26;
+uint128 constant MMR_MAX_DEPTH = 42;
 
 /// @dev Number of frontier commitments kept in history.
 uint128 constant MMR_HISTORY_SIZE = 256;

@@ -68,6 +68,6 @@ Hybrid compression folds all `N_PUB` signals down to the 3 the Groth16 verifier 
 Whenever the circuit's shape or logic changes:
 1. Regenerate artifacts with `gen_artifacts`.
 2. Regenerate the on-chain verifier with `gen_verifier`.
-3. Contract-side constants in `Constants.sol` may need manual updates to stay in sync.
+3. Contract-side constants in `Constants.sol` may need manual updates to stay in sync, as do the mirrored constants in the inline `sol!` block in `tint/src/abis/tint.rs` (they size `computePublicSignals`' return type, so a stale `MMR_MAX_DEPTH` there shows up as a public-signal length mismatch).
 
 `tests/public_signals_match_onchain.rs` and `tests/poseidon2_match_onchain.rs` exist specifically to catch drift between the Rust circuit and Solidity contracts — run these after touching either side.

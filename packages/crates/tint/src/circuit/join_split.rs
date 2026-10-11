@@ -33,7 +33,7 @@ pub const N_OUTPUTS: usize = 5;
 pub const N_WITHDRAWALS: usize = 2;
 
 /// Maximum depth of the MMR tree. Mirrors `Constants.sol`'s `MMR_MAX_DEPTH`.
-pub const MMR_MAX_DEPTH: usize = 26;
+pub const MMR_MAX_DEPTH: usize = 42;
 
 /// Number of non-array public signals.  Mirrors `Constants.sol`'s `N_CONST`.
 const N_CONST: usize = 5 + MMR_MAX_DEPTH;
@@ -47,7 +47,7 @@ pub const N_PUB: usize = N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * N_WITHDRAWALS;
 pub type JoinSplitCircuit =
     CompressedCircuit<Fr, JoinSplit, Poseidon2ChainCrh, Poseidon2ChainCrhGadget, N_PUB>;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct JoinSplit {
     pub hist_state: skew_mmr::state::State<MMR_MAX_DEPTH>,
     pub frontier: [Option<Fr>; MMR_MAX_DEPTH],
@@ -263,5 +263,17 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
             withdrawal_amounts,
             withdrawal_assets,
         })
+    }
+}
+
+impl Default for JoinSplit {
+    fn default() -> Self {
+        Self {
+            hist_state: Default::default(),
+            frontier: from_fn(|_| None),
+            bound_params_hash: Default::default(),
+            inclusion_proofs: Default::default(),
+            operation: Default::default(),
+        }
     }
 }

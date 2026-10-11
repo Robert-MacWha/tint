@@ -3,7 +3,7 @@ use ark_bn254::Bn254;
 use ark_groth16::Proof;
 
 sol!(
-    uint128 constant MMR_MAX_DEPTH = 26;
+    uint128 constant MMR_MAX_DEPTH = 42;
     uint128 constant N_CONST = 5 + MMR_MAX_DEPTH;
     uint128 constant N_INPUTS = 5;
     uint128 constant N_OUTPUTS = 5;

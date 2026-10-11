@@ -7,12 +7,16 @@ uint128 constant MMR_MAX_DEPTH = 42;
 /// @dev Number of frontier commitments kept in history.
 uint128 constant MMR_HISTORY_SIZE = 256;
 
-/// @dev `boundParamsHash`, `operationHash`, `histRanks`, `histDepth`, `histCount`, then the frontier.
-uint128 constant N_CONST = 5 + MMR_MAX_DEPTH;
+/// @dev `boundParamsHash`, `operationHash`, `histRanks`, `histDepth`, `histCount`.
+uint128 constant N_CONST = 5;
 uint128 constant N_INPUTS = 5;
 uint128 constant N_OUTPUTS = 5;
 uint128 constant N_WITHDRAWALS = 2;
-uint128 constant N_PUB = N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * N_WITHDRAWALS;
+
+/// @dev Index of the first frontier root. The frontier is the tail of the public-signal
+/// vector, zero-padded to `MMR_MAX_DEPTH`.
+uint128 constant FRONTIER_OFFSET = N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * N_WITHDRAWALS;
+uint128 constant N_PUB = FRONTIER_OFFSET + MMR_MAX_DEPTH;
 
 /// @dev Number of public inputs the Groth16 verifier checks after hybrid compression.
 uint128 constant N_COMPRESSED_PUB = 3;

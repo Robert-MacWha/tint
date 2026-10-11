@@ -58,16 +58,18 @@ The public-signal vector is built by `ProofLib.toPublicSignals` and must match t
 | 2 | `histRanks` — packed tree ranks, 6 bits each |
 | 3 | `histDepth` — number of live trees |
 | 4 | `histCount` — number of elements appended |
-| 5 .. 30 | frontier roots, zero-padded to `MMR_MAX_DEPTH = 26` |
-| 31 .. | `nullifier[i]`, `spendabilityAddress[i]` for `N_INPUTS` |
+| 5 .. | `nullifier[i]`, `spendabilityAddress[i]` for `N_INPUTS` |
 | .. | `commitmentOut[i]` for `N_OUTPUTS` |
 | .. | `unshieldAmount[i]`, `unshieldAsset[i]` for `N_WITHDRAWALS` |
+| `FRONTIER_OFFSET` .. | frontier roots, zero-padded to `MMR_MAX_DEPTH = 42` |
+
+`Operation.pub` carries only the live prefix (`FRONTIER_OFFSET + histDepth` words) as calldata; the contract zero-pads it back to `N_PUB`, and checks `pub[0]` against the hash recomputed from `context`.
 
 Hybrid compression folds all `N_PUB` signals down to the 3 the Groth16 verifier checks, so adding a signal costs in-circuit witnessing rather than pairing gas.
 
 Whenever the circuit's shape or logic changes:
 1. Regenerate artifacts with `gen_artifacts`.
 2. Regenerate the on-chain verifier with `gen_verifier`.
-3. Contract-side constants in `Constants.sol` may need manual updates to stay in sync, as do the mirrored constants in the inline `sol!` block in `tint/src/abis/tint.rs` (they size `computePublicSignals`' return type, so a stale `MMR_MAX_DEPTH` there shows up as a public-signal length mismatch).
+3. Contract-side constants in `Constants.sol` may need manual updates to stay in sync, as do the mirrored constants in the inline `sol!` block in `tint/src/abis/tint.rs`.
 
 `tests/public_signals_match_onchain.rs` and `tests/poseidon2_match_onchain.rs` exist specifically to catch drift between the Rust circuit and Solidity contracts — run these after touching either side.

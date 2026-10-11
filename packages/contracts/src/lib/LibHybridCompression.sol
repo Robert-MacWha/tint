@@ -21,16 +21,21 @@ library LibHybridCompression {
     }
 
     function uhf(uint256 sigma, uint256[] memory x, uint256 field) internal pure returns (uint256 acc) {
-        acc = 0;
-        for (uint256 i = x.length; i > 0; i--) {
-            uint256 xi = x[i - 1];
-            require(xi < field);
-            acc = mulmod(acc, sigma, field);
-            acc = addmod(acc, xi, field);
+        bool valid = true;
+        assembly ("memory-safe") {
+            let data := add(x, 0x20)
+            for { let i := mload(x) } i { i := sub(i, 1) } {
+                let xi := mload(add(data, shl(5, sub(i, 1))))
+                valid := and(valid, lt(xi, field))
+                acc := addmod(mulmod(acc, sigma, field), xi, field)
+            }
         }
+        require(valid);
     }
 
-    function hash(uint256[] memory x, uint256 field) internal pure returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(x))) % field;
+    function hash(uint256[] memory x, uint256 field) internal pure returns (uint256 h) {
+        assembly ("memory-safe") {
+            h := mod(keccak256(add(x, 0x20), shl(5, mload(x))), field)
+        }
     }
 }

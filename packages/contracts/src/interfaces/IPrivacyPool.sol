@@ -6,16 +6,8 @@ import {ProofLib} from "../lib/ProofLib.sol";
 
 interface IPrivacyPool {
     struct Operation {
-        uint256 histRanks;
-        uint256 histDepth;
-        uint256 histCount;
-        bytes32[] frontier;
-        bytes32 operationHash;
-        bytes32[N_INPUTS] nullifiers;
-        address[N_INPUTS] spendabilityAddresses;
-        bytes32[N_OUTPUTS] commitmentsOut;
-        uint128[N_WITHDRAWALS] unshieldAmounts;
-        address[N_WITHDRAWALS] unshieldAssets;
+        /// @dev Read the typed fields through the `ProofLib` accessors.
+        bytes32[] pub;
         Context context;
         ProofLib.Proof proof;
 

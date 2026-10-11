@@ -32,15 +32,25 @@ pub const N_INPUTS: usize = 5;
 pub const N_OUTPUTS: usize = 5;
 pub const N_WITHDRAWALS: usize = 2;
 
-/// Maximum depth of the MMR tree. Mirrors `Constants.sol`'s `MMR_MAX_DEPTH`.
+/// Maximum depth of the MMR tree.
+///
+/// Mirrors `Constants.sol`'s `MMR_MAX_DEPTH`.
 pub const MMR_MAX_DEPTH: usize = 42;
 
-/// Number of non-array public signals.  Mirrors `Constants.sol`'s `N_CONST`.
-const N_CONST: usize = 5 + MMR_MAX_DEPTH;
+/// Number of non-array public signals.
+///
+/// Mirrors `Constants.sol`'s `N_CONST`.
+const N_CONST: usize = 5;
 
-/// Length of the flattened statement vector `JoinSplitResultVar`.  Mirrors
-/// `Constants.sol`'s `N_PUB`.
-pub const N_PUB: usize = N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * N_WITHDRAWALS;
+/// Index of the first frontier root.
+///
+/// Mirrors `Constants.sol`'s `FRONTIER_OFFSET`.
+pub const FRONTIER_OFFSET: usize = N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * N_WITHDRAWALS;
+
+/// Length of the flattened statement vector `JoinSplitResultVar`.
+///
+/// Mirrors `Constants.sol`'s `N_PUB`.
+pub const N_PUB: usize = FRONTIER_OFFSET + MMR_MAX_DEPTH;
 
 /// Concrete type alias for a compressed `JoinSplit` circuit, using `Poseidon2`
 /// as its hash function.
@@ -177,10 +187,6 @@ impl<
             self.hist_state.count().clone(),
         ];
 
-        for i in 0..MMR_MAX_DEPTH {
-            stmt.push(self.frontier[i].clone());
-        }
-
         for i in 0..N_INPUTS {
             stmt.push(self.nullifiers[i].clone());
             stmt.push(self.spendability_addresses[i].clone());
@@ -193,6 +199,10 @@ impl<
         for i in 0..N_WITHDRAWALS {
             stmt.push(self.withdrawal_amounts[i].clone());
             stmt.push(self.withdrawal_assets[i].clone());
+        }
+
+        for i in 0..MMR_MAX_DEPTH {
+            stmt.push(self.frontier[i].clone());
         }
 
         stmt.try_into().map_err(|_| SynthesisError::ArityMismatch)

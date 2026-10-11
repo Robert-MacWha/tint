@@ -1,11 +1,10 @@
 use std::array::repeat;
 
-use alloy_primitives::{Address, B256, Bytes, U256, keccak256};
+use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_sol_types::{SolCall, SolValue};
 use ark_bn254::{Bn254, Fr};
 use ark_ff::PrimeField;
 use ark_groth16::Groth16;
-use ark_r1cs_std::GR1CSVar;
 use ark_snark::SNARK;
 use ark_std::rand::Rng;
 use rand_core::{CryptoRng, RngCore};
@@ -18,8 +17,8 @@ use crate::{
     array::try_from_fn,
     circuit::{
         join_split::{
-            JoinSplit, JoinSplitCircuit, MMR_MAX_DEPTH, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS,
-            TintJoinSplit,
+            FRONTIER_OFFSET, JoinSplit, JoinSplitCircuit, MMR_MAX_DEPTH, N_INPUTS, N_OUTPUTS,
+            N_WITHDRAWALS, TintJoinSplit,
         },
         poseidon2::skew_mmr::Poseidon2Hasher,
     },
@@ -169,26 +168,18 @@ impl Provider {
             .build_circuit(inputs, &outputs, &withdrawals, rng)
             .await?;
 
-        let hist_state = inner.hist_state;
-        let frontier = inner
-            .frontier
-            .iter()
-            .flatten()
-            .copied()
-            .map(fr_to_b256)
-            .collect();
+        // The frontier is the tail of `stmt`; only its live roots are sent.
+        let live = FRONTIER_OFFSET + inner.hist_state.depth();
 
         info!("Proving operation...");
         let mut circuit = JoinSplitCircuit::new((), inner);
         let ark_hybrid_compression::circuit::Compressed {
-            output: result_var,
             stmt,
             alpha,
             beta,
             gamma,
+            ..
         } = circuit.compress()?;
-
-        let outputs = result_var.value()?;
 
         let (groth16_public_inputs, proof) =
             prove_with_matrices(&self.artifacts.matrices, &self.artifacts.pk, &circuit, rng)?;
@@ -203,16 +194,7 @@ impl Provider {
         info!("Operation proof verified");
         Ok((
             IPrivacyPool::Operation {
-                histRanks: U256::from_le_bytes(*hist_state.packed_ranks()),
-                histDepth: U256::from(hist_state.depth()),
-                histCount: U256::from(hist_state.count()),
-                frontier: frontier,
-                operationHash: fr_to_b256(outputs.operation_hash),
-                nullifiers: outputs.nullifiers.map(fr_to_b256),
-                commitmentsOut: outputs.output_commitment_hashes.map(fr_to_b256),
-                unshieldAmounts: outputs.withdrawal_amounts,
-                unshieldAssets: outputs.withdrawal_assets.map(|a| a.0),
-                spendabilityAddresses: outputs.spendability_addresses,
+                r#pub: stmt[..live].iter().copied().map(fr_to_b256).collect(),
                 context,
                 proof: proof.into(),
                 beta: fr_to_u256(beta),

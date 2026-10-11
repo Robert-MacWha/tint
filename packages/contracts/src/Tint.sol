@@ -6,7 +6,14 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 import {IVerifier} from "./interfaces/IVerifier.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
 import {ISpendability} from "./interfaces/ISpendability.sol";
-import {MMR_MAX_DEPTH, MMR_HISTORY_SIZE, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB, N_COMPRESSED_PUB} from "./lib/Constants.sol";
+import {
+    MMR_MAX_DEPTH,
+    MMR_HISTORY_SIZE,
+    N_INPUTS,
+    N_OUTPUTS,
+    N_WITHDRAWALS,
+    N_COMPRESSED_PUB
+} from "./lib/Constants.sol";
 import {ProofLib} from "./lib/ProofLib.sol";
 import {LibPoseidon2T3_BN254} from "./lib/LibPoseidon2T3_BN254.sol";
 import {NullifierRegistry} from "./NullifierRegistry.sol";
@@ -14,6 +21,7 @@ import {SkewMmrWithHistory} from "@skew-mmr/contracts/SkewMmrWithHistory.sol";
 
 /// @notice Privacy-preserving token pool
 contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
+    using ProofLib for IPrivacyPool.Operation;
     using SafeERC20 for IERC20;
 
     IVerifier public immutable VERIFIER;
@@ -60,7 +68,7 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
     /// without re-verification.
     function preVerify(bytes32 slot, IPrivacyPool.Operation calldata operation) public {
         verifyOperation(operation);
-        bytes32 operationHash = ProofLib.toOperationHash(operation);
+        bytes32 operationHash = operation.toOperationHash();
         assembly {
             tstore(slot, operationHash)
         }
@@ -71,7 +79,7 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
     /// @dev Assuming the operation has been pre-verified and that no erc20
     /// transfers revert, this function is guaranteed to not revert.
     function executePreVerified(bytes32 slot, IPrivacyPool.Operation calldata operation) public {
-        bytes32 operationHash = ProofLib.toOperationHash(operation);
+        bytes32 operationHash = operation.toOperationHash();
         bytes32 storedHash;
 
         // Check that the operation hash matches the stored pre-verified hash
@@ -90,7 +98,7 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
 
     // -------------------- EXTERNAL VIEW --------------------
 
-    /// @notice Returns the live frontier, ready to drop into an `Operation`.
+    /// @notice Returns the live frontier, ready to drop into the tail of `Operation.pub`.
     /// @dev Pass alongside `packedRanks()`, `depth()` and `count()`.
     function frontier() external view returns (bytes32[] memory live) {
         live = new bytes32[](mmr.depth);
@@ -103,36 +111,33 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
     /// Exposed so a client can cross-check its locally-computed proof inputs
     /// against the contract's, rather than debugging an opaque
     /// `InvalidProof` revert.
-    function computePublicSignals(IPrivacyPool.Operation calldata op) public pure returns (uint256[N_PUB] memory) {
-        return ProofLib.toPublicSignals(op);
+    function computePublicSignals(IPrivacyPool.Operation calldata op) public pure returns (uint256[] memory) {
+        return op.toPublicSignals();
     }
 
     /// @notice Verifies that the provided operation is valid or reverts if not.
     function verifyOperation(IPrivacyPool.Operation calldata op) public view {
         // Verify the frontier the proof was built against is one this pool committed to.
-        // Must come first: nothing else may read `op.frontier` until it is authenticated.
-        if (!verifyFrontier(op.histRanks, op.histDepth, op.histCount, op.frontier)) revert InvalidFrontier();
+        (uint256 histRanks, uint256 histDepth, uint256 histCount, bytes32[] calldata histFrontier) = op.frontierState();
+        if (!verifyFrontier(histRanks, histDepth, histCount, histFrontier)) revert InvalidFrontier();
 
         // Verify nullifier uniqueness & unspentness
         // TODO: Move me into the circuit. No need to waste gas on this.
-        ProofLib._requireUnique(op.nullifiers);
+        op._requireUnique();
         for (uint256 i; i < N_INPUTS; ++i) {
-            bytes32 hash = op.nullifiers[i];
+            bytes32 hash = op.nullifier(i);
             _requireUnspent(hash);
         }
 
-        // Verify the zk proof. The verifier itself only checks the 3
-        // hybrid-compression signals; `pubSignals` is still fully
-        // reconstructed above so `toCompressedSignals` can bind them to it.
-        uint256[N_PUB] memory pubSignals = computePublicSignals(op);
-        uint256[N_COMPRESSED_PUB] memory compressedSignals = ProofLib.toCompressedSignals(pubSignals, op.beta);
+        // Verify the zk proof.
+        uint256[N_COMPRESSED_PUB] memory compressedSignals = op.toCompressedSignals();
         try VERIFIER.verify(op.proof.proof, compressedSignals) {}
         catch {
             revert InvalidProof();
         }
 
         // Verify spendability
-        address[N_INPUTS] memory spendabilityAddresses = ProofLib.spendabilityAddresses(op);
+        address[N_INPUTS] memory spendabilityAddresses = op.spendabilityAddresses();
         for (uint256 i; i < N_INPUTS; ++i) {
             if (spendabilityAddresses[i] == address(0)) continue;
             ISpendability(spendabilityAddresses[i]).requireSpendable(op);
@@ -146,7 +151,7 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
     function _executeOperation(IPrivacyPool.Operation calldata op) internal {
         // Nullify the input notes
         for (uint256 i; i < N_INPUTS; ++i) {
-            bytes32 hash = op.nullifiers[i];
+            bytes32 hash = op.nullifier(i);
             _spend(hash);
             emit Nullified(hash);
         }
@@ -154,7 +159,7 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
         // Append any output commitments. Zero is the padding value for an unused
         // output slot; appending it would put a junk element into the set.
         for (uint256 i; i < N_OUTPUTS; ++i) {
-            bytes32 commitment = op.commitmentsOut[i];
+            bytes32 commitment = op.commitmentOut(i);
             if (commitment == 0) continue;
             _append(commitment);
             emit Committed(commitment, op.context.ciphertexts[i]);
@@ -162,8 +167,8 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
 
         // Execute any unshielding transfers
         for (uint256 i; i < N_WITHDRAWALS; ++i) {
-            address asset = op.unshieldAssets[i];
-            uint128 amount = op.unshieldAmounts[i];
+            address asset = op.unshieldAsset(i);
+            uint128 amount = op.unshieldAmount(i);
             address recipient = op.context.unshieldRecipients[i];
             if (amount == 0) continue;
             IERC20(asset).safeTransfer(recipient, amount);

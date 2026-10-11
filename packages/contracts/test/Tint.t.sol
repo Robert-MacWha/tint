@@ -207,6 +207,36 @@ contract TintTests is Test {
         tint.operate(op.seal());
     }
 
+    /// -------------------- executePreVerified --------------------
+
+    /// Should be able to execute a pre-verified operation.
+    function test_preVerifyAllowsExecution() public {
+        bytes32 slot = keccak256("slot");
+
+        IPrivacyPool.Operation memory op = _operation();
+        op.setNullifier(0, bytes32(uint256(123)));
+        op = op.seal();
+
+        tint.preVerify(slot, op);
+        tint.executePreVerified(slot, op);
+    }
+
+    /// Should revert because the nullifier was already spent, even though the operation was pre-verified.
+    function test_doubleSpendPreverified_reverts() public {
+        bytes32 slotA = keccak256("slotA");
+        bytes32 slotB = keccak256("slotB");
+
+        IPrivacyPool.Operation memory op = _operation();
+        op.setNullifier(0, bytes32(uint256(123)));
+        op = op.seal();
+
+        tint.preVerify(slotA, op);
+        tint.preVerify(slotB, op);
+        tint.executePreVerified(slotA, op);
+        vm.expectRevert(abi.encodeWithSelector(NullifierRegistry.NullifierAlreadySpent.selector, bytes32(uint256(123))));
+        tint.executePreVerified(slotB, op);
+    }
+
     /// -------------------- frontier --------------------
 
     /// Should accept the pool's live frontier.

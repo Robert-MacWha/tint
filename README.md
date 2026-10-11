@@ -37,25 +37,14 @@ So long as each transfer / unshield includes on average at least 0.14 shields, t
 
 All below gas costs are based on Ethereum Mainnet and include the cost of a mock ERC20 transfer (~14.7k gas).
 
-**Shields:** 63,065
+**Shields:** 68k
 
 **Transfers / Unshields:**
 
 | Circuit | Gas Cost |
 | ------- | -------- |
-| 1x1x1   | 350,792  |
-| 5x1x1   | 442,530  |
-| 1x5x1   | 442,061  |
-| 1x1x2   | 377,551  |
-
-### Flamegraphs
-
-| Circuit | Flamegraph                              |
-| ------- | --------------------------------------- |
-| Shield  | ![shield](./docs/benchmarks/shield.png) |
-| 5x1x1   | ![5x1x1](./docs/benchmarks/5x1x1.png)   |
-| 1x5x1   | ![1x5x1](./docs/benchmarks/1x5x1.png)   |
-| 1x1x5   | ![1x1x5](./docs/benchmarks/1x1x5.png)   |
+| 1x1x1   | 309k     |
+| 5x5x2   | 511k     |
 
 ## Arbitrary Note Ownership Rules
 

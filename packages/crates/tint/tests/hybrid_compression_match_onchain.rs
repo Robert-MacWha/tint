@@ -1,5 +1,5 @@
 //! Cross-checks that hybrid compression (`ark_hybrid_compression_circuit::compress`)
-//! computed locally matches what `ProofLib.toCompressedSignals` computes
+//! computed locally matches what `LibHybridCompression.hybridCompression` computes
 //! on-chain for the same statement vector and `beta`.
 
 mod common;

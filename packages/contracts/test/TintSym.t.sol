@@ -8,7 +8,8 @@ import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
 import {ISpendability} from "../src/interfaces/ISpendability.sol";
 import {MockVerifier} from "../src/mocks/MockVerifier.sol";
-import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS} from "../src/lib/Constants.sol";
+import {ProofLib} from "../src/lib/ProofLib.sol";
+import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, FRONTIER_OFFSET} from "../src/lib/Constants.sol";
 
 /// @notice ERC20 stub whose transfers always succeed.
 contract StubToken {
@@ -56,6 +57,7 @@ contract TintHarness is Tint {
 }
 
 contract TintSymTest is Test, SymTest {
+    using ProofLib for IPrivacyPool.Operation;
     TintHarness tint;
     SymSpendability spendability;
     StubToken token;
@@ -88,14 +90,14 @@ contract TintSymTest is Test, SymTest {
     /// symbolic would prune all paths through `operate` rather than explore them.
     /// Frontier authentication is covered by the skew-mmr package instead.
     function _bindFrontier(IPrivacyPool.Operation calldata op) public view {
-        vm.assume(op.histRanks == tint.packedRanks());
-        vm.assume(op.histDepth == tint.depth());
-        vm.assume(op.histCount == tint.count());
+        vm.assume(uint256(op.pub[2]) == tint.packedRanks());
+        vm.assume(uint256(op.pub[3]) == tint.depth());
+        vm.assume(uint256(op.pub[4]) == tint.count());
 
         bytes32[] memory live = tint.frontier();
-        vm.assume(op.frontier.length == live.length);
+        vm.assume(op.pub.length == FRONTIER_OFFSET + live.length);
         for (uint256 i = 0; i < live.length; ++i) {
-            vm.assume(op.frontier[i] == live[i]);
+            vm.assume(op.pub[FRONTIER_OFFSET + i] == live[i]);
         }
     }
 
@@ -107,24 +109,24 @@ contract TintSymTest is Test, SymTest {
     /// is sufficient to model all possible interactions.
     function _narrowOperation(IPrivacyPool.Operation calldata op) public pure {
         for (uint256 i = 2; i < N_INPUTS; ++i) {
-            vm.assume(op.nullifiers[i] == bytes32(uint256(0)));
-            vm.assume(op.spendabilityAddresses[i] == address(0));
+            vm.assume(op.nullifier(i) == bytes32(uint256(0)));
+            vm.assume(op.spendabilityAddress(i) == address(0));
         }
 
         for (uint256 i = 2; i < N_OUTPUTS; ++i) {
-            vm.assume(op.commitmentsOut[i] == bytes32(uint256(0)));
+            vm.assume(op.commitmentOut(i) == bytes32(uint256(0)));
         }
 
         for (uint256 i = 2; i < N_WITHDRAWALS; ++i) {
-            vm.assume(op.unshieldAmounts[i] == 0);
-            vm.assume(op.unshieldAssets[i] == address(0));
+            vm.assume(op.unshieldAmount(i) == 0);
+            vm.assume(op.unshieldAsset(i) == address(0));
             vm.assume(op.context.unshieldRecipients[i] == address(0));
         }
     }
 
     /// Check that operate appends its outputs, records nullifiers, and maintains invariants.
     ///
-    /// @custom:halmos --array-lengths op.frontier=2
+    /// @custom:halmos --array-lengths op.pub=26
     function check_operate(IPrivacyPool.Operation calldata op) public {
         _assumeState();
         _bindFrontier(op);
@@ -137,13 +139,13 @@ contract TintSymTest is Test, SymTest {
         // Every non-zero output commitment is appended; zero is the padding value.
         uint256 appended;
         for (uint256 i; i < N_OUTPUTS; ++i) {
-            if (op.commitmentsOut[i] != bytes32(0)) ++appended;
+            if (op.commitmentOut(i) != bytes32(0)) ++appended;
         }
         assert(tint.count() == countBefore + appended);
 
         for (uint256 i; i < N_INPUTS; ++i) {
-            if (op.nullifiers[i] == bytes32(0)) continue;
-            assert(tint.isSpent(op.nullifiers[i]));
+            if (op.nullifier(i) == bytes32(0)) continue;
+            assert(tint.isSpent(op.nullifier(i)));
         }
     }
 
@@ -153,7 +155,7 @@ contract TintSymTest is Test, SymTest {
     /// @dev Assumes that all ERC20 transfers are infallible. In practice not true,
     /// but implementors could have erc20 whitelists to reduce risk.
     ///
-    /// @custom:halmos --array-lengths op.frontier=2
+    /// @custom:halmos --array-lengths op.pub=26
     function check_verifiedOperationAlwaysExecutes(IPrivacyPool.Operation calldata op) public {
         _assumeState();
         _bindFrontier(op);
@@ -161,7 +163,7 @@ contract TintSymTest is Test, SymTest {
 
         // SAFETY: Unshield transfers are modelled as infallible.
         for (uint256 i; i < N_WITHDRAWALS; ++i) {
-            vm.assume(op.unshieldAssets[i] == address(token));
+            vm.assume(op.unshieldAsset(i) == address(token));
         }
 
         tint.verifyOperation(op);

@@ -10,6 +10,8 @@ import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/Pac
 import {Tint} from "./Tint.sol";
 import {IVerifier} from "./interfaces/IVerifier.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
+import {ProofLib} from "./lib/ProofLib.sol";
+import {N_WITHDRAWALS} from "./lib/Constants.sol";
 
 /// @notice EIP-7562-compatible paymaster contract for Tint, designed to work with
 /// the v0.8.0 EntryPoint contract.
@@ -17,6 +19,7 @@ import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
 /// @dev This paymaster intentionally only supports WETH as its fee token. This can be
 /// changed if needed using a TWAP oracle.
 contract TintPaymaster is Tint, BasePaymaster {
+    using ProofLib for IPrivacyPool.Operation;
     using UserOperationLib for PackedUserOperation;
     using SafeERC20 for IERC20;
 
@@ -118,8 +121,8 @@ contract TintPaymaster is Tint, BasePaymaster {
 
     function _feePaid(PaymasterData calldata data) internal view returns (uint128) {
         uint128 feePaid = 0;
-        for (uint256 i = 0; i < data.operation.unshieldAmounts.length; i++) {
-            if (data.operation.unshieldAssets[i] != address(WETH)) {
+        for (uint256 i = 0; i < N_WITHDRAWALS; i++) {
+            if (data.operation.unshieldAsset(i) != address(WETH)) {
                 continue;
             }
 
@@ -127,7 +130,7 @@ contract TintPaymaster is Tint, BasePaymaster {
                 continue;
             }
 
-            feePaid += data.operation.unshieldAmounts[i];
+            feePaid += data.operation.unshieldAmount(i);
         }
 
         return feePaid;

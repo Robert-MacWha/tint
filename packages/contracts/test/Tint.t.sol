@@ -8,13 +8,9 @@ import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {Tint} from "../src/Tint.sol";
 import {NullifierRegistry} from "../src/NullifierRegistry.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
-import {
-    N_INPUTS,
-    N_OUTPUTS,
-    N_WITHDRAWALS,
-    N_COMPRESSED_PUB,
-    BN254_FR_MODULUS
-} from "../src/lib/Constants.sol";
+import {ProofLib} from "../src/lib/ProofLib.sol";
+import {OperationLib} from "./OperationLib.sol";
+import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_COMPRESSED_PUB, BN254_FR_MODULUS} from "../src/lib/Constants.sol";
 
 contract MockToken is ERC20 {
     constructor() ERC20("Mock", "MCK") {}
@@ -55,6 +51,8 @@ contract MockSpendability is ISpendability {
 }
 
 contract TintTests is Test {
+    using OperationLib for IPrivacyPool.Operation;
+
     MockToken token;
     MockVerifier verifier;
     MockSpendability spendability;
@@ -73,11 +71,8 @@ contract TintTests is Test {
 
     /// @dev Binds the operation to the pool's live frontier, which is what
     /// `verifyOperation` authenticates against.
-    function _operation() internal view returns (IPrivacyPool.Operation memory op) {
-        op.histRanks = tint.packedRanks();
-        op.histDepth = tint.depth();
-        op.histCount = tint.count();
-        op.frontier = tint.frontier();
+    function _operation() internal view returns (IPrivacyPool.Operation memory) {
+        return OperationLib.bind(tint);
     }
 
     /// -------------------- deposit() --------------------
@@ -115,19 +110,19 @@ contract TintTests is Test {
         token.mint(address(tint), 100_000);
 
         IPrivacyPool.Operation memory op = _operation();
-        op.nullifiers[0] = bytes32(uint256(123));
-        op.spendabilityAddresses[1] = address(spendability);
-        op.nullifiers[1] = bytes32(uint256(456));
-        op.spendabilityAddresses[1] = address(spendability);
-        op.commitmentsOut[0] = bytes32(uint256(42));
+        op.setNullifier(0, bytes32(uint256(123)));
+        op.setSpendabilityAddress(1, address(spendability));
+        op.setNullifier(1, bytes32(uint256(456)));
+        op.setSpendabilityAddress(1, address(spendability));
+        op.setCommitmentOut(0, bytes32(uint256(42)));
         op.context.ciphertexts[0] = bytes("Hello");
-        op.commitmentsOut[1] = bytes32(uint256(43));
+        op.setCommitmentOut(1, bytes32(uint256(43)));
         op.context.ciphertexts[1] = bytes("World!");
-        op.unshieldAmounts[0] = 1;
-        op.unshieldAssets[0] = address(token);
+        op.setUnshieldAmount(0, 1);
+        op.setUnshieldAsset(0, address(token));
         op.context.unshieldRecipients[0] = address(0xdead);
-        op.unshieldAmounts[1] = 2;
-        op.unshieldAssets[1] = address(token);
+        op.setUnshieldAmount(1, 2);
+        op.setUnshieldAsset(1, address(token));
         op.context.unshieldRecipients[1] = address(0xbeef);
 
         uint256 tintBefore = token.balanceOf(address(tint));
@@ -137,22 +132,22 @@ contract TintTests is Test {
         //? Require events
         for (uint256 i; i < N_INPUTS; ++i) {
             vm.expectEmit();
-            emit Tint.Nullified(op.nullifiers[i]);
+            emit Tint.Nullified(op.nullifier(i));
         }
 
         // Only non-zero outputs are appended; zero is the padding value.
         for (uint256 i; i < N_OUTPUTS; ++i) {
-            if (op.commitmentsOut[i] == bytes32(0)) continue;
+            if (op.commitmentOut(i) == bytes32(0)) continue;
             vm.expectEmit();
-            emit Tint.Committed(op.commitmentsOut[i], op.context.ciphertexts[i]);
+            emit Tint.Committed(op.commitmentOut(i), op.context.ciphertexts[i]);
         }
 
         for (uint256 i; i < N_WITHDRAWALS; ++i) {
             vm.expectEmit();
-            emit Tint.Withdrawn(op.unshieldAssets[i], op.unshieldAmounts[i], op.context.unshieldRecipients[i]);
+            emit Tint.Withdrawn(op.unshieldAsset(i), op.unshieldAmount(i), op.context.unshieldRecipients[i]);
         }
 
-        tint.operate(op);
+        tint.operate(op.seal());
 
         //? Check balance updates
         assertEq(token.balanceOf(address(tint)), tintBefore - 3);
@@ -165,17 +160,17 @@ contract TintTests is Test {
         verifier.setPass(false);
         IPrivacyPool.Operation memory op = _operation();
         vm.expectRevert(Tint.InvalidProof.selector);
-        tint.operate(op);
+        tint.operate(op.seal());
     }
 
     /// Should revert if any of the nullifiers have already been spent
     function test_operateSpentNullifier_reverts() public {
         IPrivacyPool.Operation memory op = _operation();
-        op.nullifiers[0] = bytes32(uint256(123));
-        tint.operate(op);
+        op.setNullifier(0, bytes32(uint256(123)));
+        tint.operate(op.seal());
 
         vm.expectRevert(abi.encodeWithSelector(NullifierRegistry.NullifierAlreadySpent.selector, bytes32(uint256(123))));
-        tint.operate(op);
+        tint.operate(op.seal());
     }
 
     /// Should revert if a public signal is not a canonical field element.
@@ -184,23 +179,32 @@ contract TintTests is Test {
     /// would treat them as different nullifiers and let the note be spent again.
     function test_operateNonCanonicalNullifier_reverts() public {
         IPrivacyPool.Operation memory op = _operation();
-        op.nullifiers[0] = bytes32(uint256(123));
-        tint.operate(op);
+        op.setNullifier(0, bytes32(uint256(123)));
+        tint.operate(op.seal());
 
-        op.nullifiers[0] = bytes32(uint256(123) + BN254_FR_MODULUS);
+        op.setNullifier(0, bytes32(uint256(123) + BN254_FR_MODULUS));
         vm.expectRevert();
+        tint.operate(op.seal());
+    }
+
+    /// Should revert if `context` changes after `pub[0]` was bound to it.
+    function test_operateUnboundContext_reverts() public {
+        IPrivacyPool.Operation memory op = _operation().seal();
+        op.context.ciphertexts[0] = bytes("tampered");
+
+        vm.expectRevert(ProofLib.InvalidPublicSignals.selector);
         tint.operate(op);
     }
 
     /// Should revert if any of the spendability contracts revert.
     function test_operateSpendabilityReverts_reverts() public {
         IPrivacyPool.Operation memory op = _operation();
-        op.nullifiers[0] = bytes32(uint256(123));
-        op.spendabilityAddresses[0] = address(spendability);
+        op.setNullifier(0, bytes32(uint256(123)));
+        op.setSpendabilityAddress(0, address(spendability));
         spendability.setPass(false);
 
         vm.expectRevert(MockSpendability.NotSpendable.selector);
-        tint.operate(op);
+        tint.operate(op.seal());
     }
 
     /// -------------------- frontier --------------------
@@ -211,7 +215,7 @@ contract TintTests is Test {
             tint.deposit(address(token), 1, bytes32(uint256(i + 1)), "");
         }
 
-        tint.verifyOperation(_operation());
+        tint.verifyOperation(_operation().seal());
     }
 
     /// Should reject an operation whose frontier the pool never committed to.
@@ -224,21 +228,21 @@ contract TintTests is Test {
         }
 
         IPrivacyPool.Operation memory op = _operation();
-        op.frontier[0] = bytes32(uint256(op.frontier[0]) ^ 1);
+        op.setFrontierRoot(0, bytes32(uint256(op.frontierRoot(0)) ^ 1));
 
         vm.expectRevert(Tint.InvalidFrontier.selector);
-        tint.verifyOperation(op);
+        tint.verifyOperation(op.seal());
     }
 
     /// Should append only the non-zero output commitments. Zero is the padding
     /// value for an unused output slot and must not enter the set.
     function test_operateAppendsOnlyNonZeroOutputs() public {
         IPrivacyPool.Operation memory op = _operation();
-        op.commitmentsOut[0] = bytes32(uint256(42));
-        op.commitmentsOut[3] = bytes32(uint256(43));
+        op.setCommitmentOut(0, bytes32(uint256(42)));
+        op.setCommitmentOut(3, bytes32(uint256(43)));
 
         uint256 countBefore = tint.count();
-        tint.operate(op);
+        tint.operate(op.seal());
 
         assertEq(tint.count(), countBefore + 2);
     }

@@ -8,10 +8,9 @@ import {
     N_CONST,
     N_INPUTS,
     N_OUTPUTS,
-    N_WITHDRAWALS,
+    FRONTIER_OFFSET,
     N_PUB,
     N_COMPRESSED_PUB,
-    MMR_MAX_DEPTH,
     BN254_FR_MODULUS
 } from "./Constants.sol";
 
@@ -22,62 +21,37 @@ library ProofLib {
     }
 
     error DuplicateNullifier(bytes32 nullifier);
+    error InvalidPublicSignals();
 
-    /// @notice Builds the Groth16 public-signal vector, matching the order
-    /// `JoinSplit::synthesize` allocates public gr1cs variables in.
-    function toPublicSignals(IPrivacyPool.Operation calldata op) internal pure returns (uint256[N_PUB] memory) {
-        unchecked {
-            uint256[N_PUB] memory pub;
-            pub[0] = toBoundParamsHash(op);
-            pub[1] = uint256(op.operationHash);
-            pub[2] = op.histRanks;
-            pub[3] = op.histDepth;
-            pub[4] = op.histCount;
+    /// @notice Expands `op.pub` into the full `N_PUB`-length Groth16
+    /// public-signal vector, matching the order `JoinSplitResultVar::flatten`
+    /// allocates in.
+    ///
+    /// @dev Reverts if `op.pub[0]` is not `op.context`'s bound-params hash.
+    function toPublicSignals(IPrivacyPool.Operation calldata op) internal pure returns (uint256[] memory stmt) {
+        bytes32[] calldata pub = op.pub;
+        if (pub.length > N_PUB) revert InvalidPublicSignals();
+        if (uint256(pub[0]) != toBoundParamsHash(op)) revert InvalidPublicSignals();
 
-            // Zero-pad the frontier out to `MMR_MAX_DEPTH`. The loop is bound by the
-            // constant rather than by `op.frontier.length` so that a `histDepth` claiming
-            // a depth above `MMR_MAX_DEPTH` cannot run off the end of `pub`.
-            uint256 depth = op.frontier.length;
-            for (uint256 i = 0; i < MMR_MAX_DEPTH; i++) {
-                pub[5 + i] = i < depth ? uint256(op.frontier[i]) : 0;
-            }
-
-            for (uint256 i = 0; i < N_INPUTS; i++) {
-                pub[N_CONST + 2 * i] = uint256(op.nullifiers[i]);
-                pub[N_CONST + 2 * i + 1] = uint256(uint160(op.spendabilityAddresses[i]));
-            }
-
-            for (uint256 i = 0; i < N_OUTPUTS; i++) {
-                pub[N_CONST + 2 * N_INPUTS + i] = uint256(op.commitmentsOut[i]);
-            }
-
-            for (uint256 i = 0; i < N_WITHDRAWALS; i++) {
-                pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i] = op.unshieldAmounts[i];
-                pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i + 1] = uint256(uint160(op.unshieldAssets[i]));
-            }
-
-            return pub;
+        // `new` zero-fills, which supplies the frontier's padding.
+        stmt = new uint256[](N_PUB);
+        assembly ("memory-safe") {
+            calldatacopy(add(stmt, 0x20), pub.offset, shl(5, pub.length))
         }
     }
 
-    /// @notice Compresses the `N_PUB`-length public-signal vector down to the
-    /// `N_COMPRESSED_PUB` (`alpha`, `beta`, `gamma`) values the Groth16
+    /// @notice Compresses `op`'s `N_PUB`-length public-signal vector down to
+    /// the `N_COMPRESSED_PUB` (`alpha`, `beta`, `gamma`) values the Groth16
     /// verifier actually checks, reconstructing `alpha`/`gamma` from the
-    /// prover-supplied `beta` and the plaintext `pub` vector.
-    /// @param beta Prover-supplied hybrid-compression challenge -- never
-    /// recomputed on-chain, only checked inside the circuit against the
-    /// witnessed public signals.
-    function toCompressedSignals(uint256[N_PUB] memory pub, uint256 beta)
+    /// prover-supplied `op.beta` and the plaintext signals.
+    function toCompressedSignals(IPrivacyPool.Operation calldata op)
         internal
         pure
         returns (uint256[N_COMPRESSED_PUB] memory)
     {
-        uint256[] memory stmt = new uint256[](N_PUB);
-        for (uint256 i = 0; i < N_PUB; i++) {
-            stmt[i] = pub[i];
-        }
-
-        (uint256 alpha, uint256 gamma) = LibHybridCompression.hybridCompression(beta, stmt, BN254_FR_MODULUS);
+        uint256 beta = op.beta;
+        (uint256 alpha, uint256 gamma) =
+            LibHybridCompression.hybridCompression(beta, toPublicSignals(op), BN254_FR_MODULUS);
         return [alpha, beta, gamma];
     }
 
@@ -99,6 +73,42 @@ library ProofLib {
             );
     }
 
+    function frontierState(IPrivacyPool.Operation calldata op)
+        internal
+        pure
+        returns (uint256 ranks, uint256 depth, uint256 count, bytes32[] calldata frontier)
+    {
+        bytes32[] calldata pub = op.pub;
+        return (uint256(pub[2]), uint256(pub[3]), uint256(pub[4]), pub[FRONTIER_OFFSET:]);
+    }
+
+    function operationHash(IPrivacyPool.Operation calldata op) internal pure returns (bytes32) {
+        return op.pub[1];
+    }
+
+    function nullifier(IPrivacyPool.Operation calldata op, uint256 i) internal pure returns (bytes32) {
+        return op.pub[N_CONST + 2 * i];
+    }
+
+    function spendabilityAddress(IPrivacyPool.Operation calldata op, uint256 i) internal pure returns (address) {
+        return _toAddress(op.pub[N_CONST + 2 * i + 1]);
+    }
+
+    function commitmentOut(IPrivacyPool.Operation calldata op, uint256 i) internal pure returns (bytes32) {
+        return op.pub[N_CONST + 2 * N_INPUTS + i];
+    }
+
+    function unshieldAmount(IPrivacyPool.Operation calldata op, uint256 i) internal pure returns (uint128) {
+        uint256 amount = uint256(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i]);
+        if (amount > type(uint128).max) revert InvalidPublicSignals();
+        // forge-lint: disable-next-line(unsafe-typecast)
+        return uint128(amount);
+    }
+
+    function unshieldAsset(IPrivacyPool.Operation calldata op, uint256 i) internal pure returns (address) {
+        return _toAddress(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i + 1]);
+    }
+
     /// @notice Returns the unique spendability addresses in an operation.
     function spendabilityAddresses(IPrivacyPool.Operation calldata op)
         internal
@@ -107,16 +117,17 @@ library ProofLib {
     {
         uint256 count = 0;
 
-        for (uint256 i = 0; i < op.spendabilityAddresses.length; i++) {
+        for (uint256 i = 0; i < N_INPUTS; i++) {
+            address addr = spendabilityAddress(op, i);
             bool exists = false;
             for (uint256 j = 0; j < count; j++) {
-                if (output[j] == op.spendabilityAddresses[i]) {
+                if (output[j] == addr) {
                     exists = true;
                     break;
                 }
             }
             if (!exists) {
-                output[count] = op.spendabilityAddresses[i];
+                output[count] = addr;
                 count++;
             }
         }
@@ -125,15 +136,21 @@ library ProofLib {
     /// @notice Reverts if the nullifier array contains duplicates.
     ///
     /// @dev Ignores nullifiers with the magic value of 0.
-    function _requireUnique(bytes32[N_INPUTS] calldata nullifiers) internal pure {
+    function _requireUnique(IPrivacyPool.Operation calldata op) internal pure {
         for (uint256 i = 0; i < N_INPUTS; i++) {
-            if (nullifiers[i] == bytes32(0)) continue;
+            bytes32 hash = nullifier(op, i);
+            if (hash == bytes32(0)) continue;
 
             for (uint256 j = i + 1; j < N_INPUTS; j++) {
-                if (nullifiers[i] == nullifiers[j]) {
-                    revert DuplicateNullifier(nullifiers[i]);
+                if (hash == nullifier(op, j)) {
+                    revert DuplicateNullifier(hash);
                 }
             }
         }
+    }
+
+    function _toAddress(bytes32 x) private pure returns (address) {
+        if (uint256(x) > type(uint160).max) revert InvalidPublicSignals();
+        return address(uint160(uint256(x)));
     }
 }

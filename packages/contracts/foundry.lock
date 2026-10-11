@@ -22,5 +22,17 @@
       "name": "v0.1.0",
       "rev": "00acb649ef8fb7bf58a6ce33af6815024299b7be"
     }
+  },
+  "packages/contracts/lib/account-abstraction": {
+    "rev": "1c6b669d0eea734e09a87e095ba15e076151718a"
+  },
+  "packages/contracts/lib/forge-std": {
+    "rev": "6e8c4a92c9a8b31c1b0f0c39296d1fa4695c7df8"
+  },
+  "packages/contracts/lib/openzeppelin-contracts": {
+    "rev": "b0c7bd5a09152a635687070648bdb28571812194"
+  },
+  "packages/contracts/lib/poseidon2-solidity": {
+    "rev": "4c599a08a45cd465a153d724425cee331c010df1"
   }
 }

@@ -5,6 +5,7 @@ use alloy_sol_types::{SolCall, SolValue};
 use ark_bn254::{Bn254, Fr};
 use ark_ff::PrimeField;
 use ark_groth16::Groth16;
+use ark_r1cs_std::GR1CSVar;
 use ark_snark::SNARK;
 use ark_std::rand::Rng;
 use rand_core::{CryptoRng, RngCore};
@@ -17,8 +18,8 @@ use crate::{
     array::try_from_fn,
     circuit::{
         join_split::{
-            JoinSplit, JoinSplitCircuit, JoinSplitResult, MMR_MAX_DEPTH, N_INPUTS, N_OUTPUTS,
-            N_WITHDRAWALS,
+            JoinSplit, JoinSplitCircuit, MMR_MAX_DEPTH, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS,
+            TintJoinSplit,
         },
         poseidon2::skew_mmr::Poseidon2Hasher,
     },
@@ -187,7 +188,7 @@ impl Provider {
             gamma,
         } = circuit.compress()?;
 
-        let outputs: JoinSplitResult = result_var.try_into()?;
+        let outputs = result_var.value()?;
 
         let (groth16_public_inputs, proof) =
             prove_with_matrices(&self.artifacts.matrices, &self.artifacts.pk, &circuit, rng)?;
@@ -233,7 +234,7 @@ impl Provider {
         outputs: &[(Receiver, AssetId, u128); O],
         withdrawals: &[(Address, AssetId, u128); W],
         rng: &mut R,
-    ) -> Result<(JoinSplit, IPrivacyPool::Context), ProviderError> {
+    ) -> Result<(TintJoinSplit, IPrivacyPool::Context), ProviderError> {
         let hist_state = self.indexer.state();
         let frontier = self.indexer.roots();
         let (output_commitments, output_withdrawals) = build_outputs(outputs, withdrawals, rng);

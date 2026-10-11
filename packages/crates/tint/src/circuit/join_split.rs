@@ -45,10 +45,18 @@ pub const N_PUB: usize = N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * N_WITHDRAWALS;
 /// Concrete type alias for a compressed `JoinSplit` circuit, using `Poseidon2`
 /// as its hash function.
 pub type JoinSplitCircuit =
-    CompressedCircuit<Fr, JoinSplit, Poseidon2ChainCrh, Poseidon2ChainCrhGadget, N_PUB>;
+    CompressedCircuit<Fr, TintJoinSplit, Poseidon2ChainCrh, Poseidon2ChainCrhGadget, N_PUB>;
+
+/// Concrete type alias for a `JoinSplit` circuit using tint's generics.
+pub type TintJoinSplit = JoinSplit<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>;
 
 #[derive(Clone)]
-pub struct JoinSplit {
+pub struct JoinSplit<
+    const N_INPUTS: usize,
+    const N_OUTPUTS: usize,
+    const N_WITHDRAWALS: usize,
+    const MMR_MAX_DEPTH: usize,
+> {
     pub hist_state: skew_mmr::state::State<MMR_MAX_DEPTH>,
     pub frontier: [Option<Fr>; MMR_MAX_DEPTH],
     pub bound_params_hash: Fr,
@@ -56,7 +64,12 @@ pub struct JoinSplit {
     pub operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
 }
 
-pub struct JoinSplitVar {
+pub struct JoinSplitVar<
+    const N_INPUTS: usize,
+    const N_OUTPUTS: usize,
+    const N_WITHDRAWALS: usize,
+    const MMR_MAX_DEPTH: usize,
+> {
     pub hist_state: skew_mmr::constraints::state::StateVar<MMR_MAX_DEPTH, Fr>,
     pub frontier: [FrVar; MMR_MAX_DEPTH],
     pub bound_params_hash: FrVar,
@@ -65,7 +78,13 @@ pub struct JoinSplitVar {
     pub operation: OperationVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
 }
 
-pub struct JoinSplitResult {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct JoinSplitResult<
+    const N_INPUTS: usize,
+    const N_OUTPUTS: usize,
+    const N_WITHDRAWALS: usize,
+    const MMR_MAX_DEPTH: usize,
+> {
     // Circuit inputs.
     pub hist_state: skew_mmr::state::State<MMR_MAX_DEPTH>,
     pub frontier: [Fr; MMR_MAX_DEPTH],
@@ -80,7 +99,13 @@ pub struct JoinSplitResult {
     pub withdrawal_assets: [AssetId; N_WITHDRAWALS],
 }
 
-pub struct JoinSplitResultVar {
+#[derive(Clone, Debug)]
+pub struct JoinSplitResultVar<
+    const N_INPUTS: usize,
+    const N_OUTPUTS: usize,
+    const N_WITHDRAWALS: usize,
+    const MMR_MAX_DEPTH: usize,
+> {
     // Circuit inputs.
     pub hist_state: skew_mmr::constraints::state::StateVar<MMR_MAX_DEPTH, Fr>,
     pub frontier: [FrVar; MMR_MAX_DEPTH],
@@ -95,7 +120,13 @@ pub struct JoinSplitResultVar {
     pub withdrawal_assets: [FrVar; N_WITHDRAWALS],
 }
 
-impl JoinSplit {
+impl<
+    const N_INPUTS: usize,
+    const N_OUTPUTS: usize,
+    const N_WITHDRAWALS: usize,
+    const MMR_MAX_DEPTH: usize,
+> JoinSplit<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>
+{
     pub fn new(
         hist_state: skew_mmr::state::State<MMR_MAX_DEPTH>,
         frontier: [Option<Fr>; MMR_MAX_DEPTH],
@@ -113,16 +144,29 @@ impl JoinSplit {
     }
 }
 
-impl CompressibleCircuit<Fr, N_PUB> for JoinSplit {
-    type Output = JoinSplitResultVar;
+impl<
+    const N_INPUTS: usize,
+    const N_OUTPUTS: usize,
+    const N_WITHDRAWALS: usize,
+    const MMR_MAX_DEPTH: usize,
+> CompressibleCircuit<Fr, N_PUB> for JoinSplit<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>
+{
+    type Output = JoinSplitResultVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>;
 
     fn verify(&self, cs: &ConstraintSystemRef<Fr>) -> Result<Self::Output, SynthesisError> {
-        let join_split_var: JoinSplitVar = witness(cs.clone(), self)?;
+        let join_split_var: JoinSplitVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH> =
+            witness(cs.clone(), self)?;
         join_split_var.verify()
     }
 }
 
-impl Flatten<Fr, N_PUB> for JoinSplitResultVar {
+impl<
+    const N_INPUTS: usize,
+    const N_OUTPUTS: usize,
+    const N_WITHDRAWALS: usize,
+    const MMR_MAX_DEPTH: usize,
+> Flatten<Fr, N_PUB> for JoinSplitResultVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>
+{
     /// Flattens this result into the ordered statement vector.
     fn flatten(&self) -> Result<[FrVar; N_PUB], SynthesisError> {
         let mut stmt = vec![
@@ -155,10 +199,19 @@ impl Flatten<Fr, N_PUB> for JoinSplitResultVar {
     }
 }
 
-impl JoinSplitVar {
+impl<
+    const N_INPUTS: usize,
+    const N_OUTPUTS: usize,
+    const N_WITHDRAWALS: usize,
+    const MMR_MAX_DEPTH: usize,
+> JoinSplitVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>
+{
     /// Verifies the `JoinSplit` operation.
     #[tracing::instrument(target = "r1cs", skip_all)]
-    pub fn verify(&self) -> Result<JoinSplitResultVar, SynthesisError> {
+    pub fn verify(
+        &self,
+    ) -> Result<JoinSplitResultVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>, SynthesisError>
+    {
         // TODO: Refactor me:
         // We should pass mmr_hist_state and mmr_frontier_roots as public inputs to the circuit. Then `proof.verify()`
         // should accept (hist_state, frontier_roots, element) as public inputs and verify them for its proof.
@@ -205,8 +258,15 @@ impl JoinSplitVar {
     }
 }
 
-impl AllocVar<JoinSplit, Fr> for JoinSplitVar {
-    fn new_variable<T: Borrow<JoinSplit>>(
+impl<
+    const N_INPUTS: usize,
+    const N_OUTPUTS: usize,
+    const N_WITHDRAWALS: usize,
+    const MMR_MAX_DEPTH: usize,
+> AllocVar<JoinSplit<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>, Fr>
+    for JoinSplitVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>
+{
+    fn new_variable<T: Borrow<JoinSplit<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>>>(
         cs: impl Into<Namespace<Fr>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
@@ -233,26 +293,36 @@ impl AllocVar<JoinSplit, Fr> for JoinSplitVar {
     }
 }
 
-impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
-    type Error = SynthesisError;
+impl<
+    const N_INPUTS: usize,
+    const N_OUTPUTS: usize,
+    const N_WITHDRAWALS: usize,
+    const MMR_MAX_DEPTH: usize,
+> GR1CSVar<Fr> for JoinSplitResultVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>
+{
+    type Value = JoinSplitResult<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>;
 
-    fn try_from(value: JoinSplitResultVar) -> Result<Self, Self::Error> {
-        let hist_state = value.hist_state.value()?;
-        let frontier = value.frontier.value()?;
-        let bound_params_hash = value.bound_params_hash.value()?;
+    fn cs(&self) -> ConstraintSystemRef<Fr> {
+        self.hist_state.cs()
+    }
 
-        let operation_hash = value.operation_hash.value()?;
-        let nullifiers = value.nullifiers.value()?;
-        let spendability_addresses = value.spendability_addresses.value()?;
-        let output_commitment_hashes = value.output_commitment_hashes.value()?;
-        let withdrawal_amounts = value.withdrawal_amounts.value()?;
-        let withdrawal_assets = value.withdrawal_assets.value()?;
+    fn value(&self) -> Result<Self::Value, SynthesisError> {
+        let hist_state = self.hist_state.value()?;
+        let frontier = self.frontier.value()?;
+        let bound_params_hash = self.bound_params_hash.value()?;
+
+        let operation_hash = self.operation_hash.value()?;
+        let nullifiers = self.nullifiers.value()?;
+        let spendability_addresses = self.spendability_addresses.value()?;
+        let output_commitment_hashes = self.output_commitment_hashes.value()?;
+        let withdrawal_amounts = self.withdrawal_amounts.value()?;
+        let withdrawal_assets = self.withdrawal_assets.value()?;
 
         let spendability_addresses = from_fn(|i| fr_to_address(spendability_addresses[i]));
         let withdrawal_amounts = from_fn(|i| fr_to_u128(&withdrawal_amounts[i]));
         let withdrawal_assets = from_fn(|i| withdrawal_assets[i].into());
 
-        Ok(Self {
+        Ok(Self::Value {
             hist_state,
             frontier,
             bound_params_hash,
@@ -266,13 +336,19 @@ impl TryFrom<JoinSplitResultVar> for JoinSplitResult {
     }
 }
 
-impl Default for JoinSplit {
+impl<
+    const N_INPUTS: usize,
+    const N_OUTPUTS: usize,
+    const N_WITHDRAWALS: usize,
+    const MMR_MAX_DEPTH: usize,
+> Default for JoinSplit<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>
+{
     fn default() -> Self {
         Self {
             hist_state: Default::default(),
             frontier: from_fn(|_| None),
             bound_params_hash: Default::default(),
-            inclusion_proofs: Default::default(),
+            inclusion_proofs: from_fn(|_| Default::default()),
             operation: Default::default(),
         }
     }

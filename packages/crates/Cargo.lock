@@ -4890,7 +4890,7 @@ checksum = "8ee5873ec9cce0195efcb7a4e9507a04cd49aec9c83d0389df45b1ef7ba2e649"
 [[package]]
 name = "skew-mmr"
 version = "0.1.0"
-source = "git+https://github.com/Robert-MacWha/efficient-inclusion-proofs#e47be42eb7f0aadd88671eade67a5933d000130c"
+source = "git+https://github.com/Robert-MacWha/efficient-inclusion-proofs#2d45fe7e771f02b5488d2301cf4209eea6744a3f"
 dependencies = [
  "ark-ff 0.6.0",
  "ark-r1cs-std",

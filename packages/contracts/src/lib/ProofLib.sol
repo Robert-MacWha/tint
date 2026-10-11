@@ -30,14 +30,16 @@ library ProofLib {
             uint256[N_PUB] memory pub;
             pub[0] = toBoundParamsHash(op);
             pub[1] = uint256(op.operationHash);
-            pub[2] = op.histState;
+            pub[2] = op.histRanks;
+            pub[3] = op.histDepth;
+            pub[4] = op.histCount;
 
             // Zero-pad the frontier out to `MMR_MAX_DEPTH`. The loop is bound by the
-            // constant rather than by `op.frontier.length` so that a `histState` claiming
+            // constant rather than by `op.frontier.length` so that a `histDepth` claiming
             // a depth above `MMR_MAX_DEPTH` cannot run off the end of `pub`.
             uint256 depth = op.frontier.length;
             for (uint256 i = 0; i < MMR_MAX_DEPTH; i++) {
-                pub[3 + i] = i < depth ? uint256(op.frontier[i]) : 0;
+                pub[5 + i] = i < depth ? uint256(op.frontier[i]) : 0;
             }
 
             for (uint256 i = 0; i < N_INPUTS; i++) {

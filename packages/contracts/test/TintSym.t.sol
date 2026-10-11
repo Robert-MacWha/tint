@@ -8,7 +8,6 @@ import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
 import {ISpendability} from "../src/interfaces/ISpendability.sol";
 import {MockVerifier} from "../src/mocks/MockVerifier.sol";
-import {LibSkewMmrWithHistory} from "../src/lib/LibSkewMmrWithHistory.sol";
 import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS} from "../src/lib/Constants.sol";
 
 /// @notice ERC20 stub whose transfers always succeed.
@@ -34,13 +33,11 @@ contract SymSpendability is ISpendability {
 }
 
 contract TintHarness is Tint {
-    using LibSkewMmrWithHistory for LibSkewMmrWithHistory.State;
-
     constructor(IVerifier verifier) Tint(verifier) {}
 
     /// @dev Appends without the ERC20 leg of `deposit`.
     function append(bytes32 commitment) public {
-        mmr.append(commitment, _hash);
+        _append(commitment);
     }
 
     function setSpent(bytes32 hash) public {
@@ -91,7 +88,9 @@ contract TintSymTest is Test, SymTest {
     /// symbolic would prune all paths through `operate` rather than explore them.
     /// Frontier authentication is covered by the skew-mmr package instead.
     function _bindFrontier(IPrivacyPool.Operation calldata op) public view {
-        vm.assume(op.histState == tint.mmrState());
+        vm.assume(op.histRanks == tint.packedRanks());
+        vm.assume(op.histDepth == tint.depth());
+        vm.assume(op.histCount == tint.count());
 
         bytes32[] memory live = tint.frontier();
         vm.assume(op.frontier.length == live.length);
@@ -131,7 +130,7 @@ contract TintSymTest is Test, SymTest {
         _bindFrontier(op);
         _narrowOperation(op);
 
-        uint256 countBefore = tint.mmrCount();
+        uint256 countBefore = tint.count();
 
         tint.operate(op);
 
@@ -140,7 +139,7 @@ contract TintSymTest is Test, SymTest {
         for (uint256 i; i < N_OUTPUTS; ++i) {
             if (op.commitmentsOut[i] != bytes32(0)) ++appended;
         }
-        assert(tint.mmrCount() == countBefore + appended);
+        assert(tint.count() == countBefore + appended);
 
         for (uint256 i; i < N_INPUTS; ++i) {
             if (op.nullifiers[i] == bytes32(0)) continue;

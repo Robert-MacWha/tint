@@ -4,7 +4,7 @@ use ark_groth16::Proof;
 
 sol!(
     uint128 constant MMR_MAX_DEPTH = 26;
-    uint128 constant N_CONST = 3 + MMR_MAX_DEPTH;
+    uint128 constant N_CONST = 5 + MMR_MAX_DEPTH;
     uint128 constant N_INPUTS = 5;
     uint128 constant N_OUTPUTS = 5;
     uint128 constant N_WITHDRAWALS = 2;
@@ -20,7 +20,9 @@ sol!(
     #[derive(Debug)]
     interface IPrivacyPool {
         struct Operation {
-            uint256 histState;
+            uint256 histRanks;
+            uint256 histDepth;
+            uint256 histCount;
             bytes32[] frontier;
             bytes32 operationHash;
             bytes32[N_INPUTS] nullifiers;
@@ -55,7 +57,7 @@ sol!(
         function preVerify(bytes32 slot, IPrivacyPool.Operation calldata operation) public;
         function executePreVerified(bytes32 slot, IPrivacyPool.Operation calldata operation) public;
         function latestRootIndex() external view returns (uint128);
-        function verifyFrontier(uint256 histState, bytes32[] calldata _frontier) external view returns (bool);
+        function verifyFrontier(uint256 histRanks, uint256 histDepth, uint256 histCount, bytes32[] calldata frontier) external view returns (bool);
         function computePublicSignals(IPrivacyPool.Operation calldata op) public view returns (uint256[N_PUB] memory);
         function verifyOperation(IPrivacyPool.Operation calldata op) public view;
     }

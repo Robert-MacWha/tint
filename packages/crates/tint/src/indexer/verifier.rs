@@ -36,12 +36,13 @@ impl<P: Provider> Verifier for RpcVerifier<P> {
         hist_state: skew_mmr::state::State<MMR_MAX_DEPTH>,
         frontier: &[Option<Fr>],
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
-        let hist_state = U256::from_le_bytes(*hist_state.bytes());
         let frontier = frontier.iter().flatten().copied().map(fr_to_b256).collect();
 
         let call = Tint::verifyFrontierCall {
-            histState: hist_state,
-            _frontier: frontier,
+            histRanks: U256::from_le_bytes(*hist_state.packed_ranks()),
+            histDepth: U256::from(hist_state.depth()),
+            histCount: U256::from(hist_state.count()),
+            frontier,
         };
 
         let tx = TransactionRequest::default()

@@ -60,7 +60,9 @@ contract TintGasReportTest is Test {
 
     /// @dev An operation bound to the pool's live frontier, as `verifyOperation` requires.
     function _operation() internal view returns (IPrivacyPool.Operation memory op) {
-        op.histState = tint.mmrState();
+        op.histRanks = tint.packedRanks();
+        op.histDepth = tint.depth();
+        op.histCount = tint.count();
         op.frontier = tint.frontier();
     }
 

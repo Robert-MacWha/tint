@@ -168,7 +168,7 @@ impl Provider {
             .build_circuit(inputs, &outputs, &withdrawals, rng)
             .await?;
 
-        let hist_state = U256::from_le_bytes(*inner.hist_state.bytes());
+        let hist_state = inner.hist_state;
         let frontier = inner
             .frontier
             .iter()
@@ -202,7 +202,9 @@ impl Provider {
         info!("Operation proof verified");
         Ok((
             IPrivacyPool::Operation {
-                histState: hist_state,
+                histRanks: U256::from_le_bytes(*hist_state.packed_ranks()),
+                histDepth: U256::from(hist_state.depth()),
+                histCount: U256::from(hist_state.count()),
                 frontier: frontier,
                 operationHash: fr_to_b256(outputs.operation_hash),
                 nullifiers: outputs.nullifiers.map(fr_to_b256),

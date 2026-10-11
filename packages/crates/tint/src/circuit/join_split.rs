@@ -36,7 +36,7 @@ pub const N_WITHDRAWALS: usize = 2;
 pub const MMR_MAX_DEPTH: usize = 26;
 
 /// Number of non-array public signals.  Mirrors `Constants.sol`'s `N_CONST`.
-const N_CONST: usize = 3 + MMR_MAX_DEPTH;
+const N_CONST: usize = 5 + MMR_MAX_DEPTH;
 
 /// Length of the flattened statement vector `JoinSplitResultVar`.  Mirrors
 /// `Constants.sol`'s `N_PUB`.
@@ -128,7 +128,9 @@ impl Flatten<Fr, N_PUB> for JoinSplitResultVar {
         let mut stmt = vec![
             self.bound_params_hash.clone(),
             self.operation_hash.clone(),
-            self.hist_state.word().clone(),
+            self.hist_state.packed_ranks().clone(),
+            self.hist_state.depth().clone(),
+            self.hist_state.count().clone(),
         ];
 
         for i in 0..MMR_MAX_DEPTH {

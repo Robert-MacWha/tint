@@ -6,22 +6,17 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 import {IVerifier} from "./interfaces/IVerifier.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
 import {ISpendability} from "./interfaces/ISpendability.sol";
-import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB, N_COMPRESSED_PUB} from "./lib/Constants.sol";
+import {MMR_MAX_DEPTH, MMR_HISTORY_SIZE, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, N_PUB, N_COMPRESSED_PUB} from "./lib/Constants.sol";
 import {ProofLib} from "./lib/ProofLib.sol";
 import {LibPoseidon2T3_BN254} from "./lib/LibPoseidon2T3_BN254.sol";
 import {NullifierRegistry} from "./NullifierRegistry.sol";
-import {LibSkewMmrWithHistory} from "./lib/LibSkewMmrWithHistory.sol";
-import {LibSkewMmr} from "./lib/LibSkewMmr.sol";
+import {SkewMmrWithHistory} from "@skew-mmr/contracts/SkewMmrWithHistory.sol";
 
 /// @notice Privacy-preserving token pool
-contract Tint is IPrivacyPool, NullifierRegistry {
+contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
     using SafeERC20 for IERC20;
-    using LibSkewMmrWithHistory for LibSkewMmrWithHistory.State;
-    using LibSkewMmr for LibSkewMmr.State;
 
     IVerifier public immutable VERIFIER;
-
-    LibSkewMmrWithHistory.State internal mmr;
 
     event Deposited(bytes32 commitment, address indexed asset, uint128 amount, bytes encryptedPartial);
     event Committed(bytes32 commitment, bytes encryptedNote);
@@ -31,9 +26,8 @@ contract Tint is IPrivacyPool, NullifierRegistry {
     error InvalidFrontier();
     error InvalidProof();
 
-    constructor(IVerifier _verifier) {
+    constructor(IVerifier _verifier) SkewMmrWithHistory(MMR_MAX_DEPTH, MMR_HISTORY_SIZE) {
         VERIFIER = _verifier;
-        mmr.prewarm();
     }
 
     // -------------------- EXTERNAL STATE-CHANGING --------------------
@@ -49,7 +43,7 @@ contract Tint is IPrivacyPool, NullifierRegistry {
         external
     {
         bytes32 commitment = ProofLib.toCommitment(asset, amount, partialCommitment);
-        mmr.append(commitment, _hash);
+        _append(commitment);
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
         emit Deposited(commitment, asset, amount, encryptedPartial);
     }
@@ -96,43 +90,12 @@ contract Tint is IPrivacyPool, NullifierRegistry {
 
     // -------------------- EXTERNAL VIEW --------------------
 
-    /// @notice Verifies a given frontier against the MMR state.
-    function verifyFrontier(uint256 histState, bytes32[] calldata _frontier) external view returns (bool) {
-        return mmr.verifyFrontier(histState, _frontier);
-    }
-
-    /// @notice Returns the packed MMR state word: ranks, depth and count.
-    /// @dev Pass this as `Operation.histState` alongside `frontier()`.
-    function mmrState() external view returns (uint256) {
-        return mmr.mmr.state;
-    }
-
-    /// @notice Returns the number of trees in the frontier.
-    function mmrDepth() external view returns (uint256) {
-        return mmr.mmr.depth();
-    }
-
-    /// @notice Returns the total number of commitments ever appended.
-    function mmrCount() external view returns (uint256) {
-        return mmr.mmr.count();
-    }
-
-    /// @notice Returns the root of the tree at `tree`, largest-ranked first.
-    function mmrRoot(uint256 tree) external view returns (bytes32) {
-        return mmr.mmr.roots[tree];
-    }
-
-    /// @notice Returns the rank of the tree at `tree`.
-    function mmrRank(uint256 tree) external view returns (uint8) {
-        return mmr.mmr.ranks(tree);
-    }
-
     /// @notice Returns the live frontier, ready to drop into an `Operation`.
-    function frontier() external view returns (bytes32[] memory roots) {
-        uint256 depth = mmr.mmr.depth();
-        roots = new bytes32[](depth);
-        for (uint256 i = 0; i < depth; ++i) {
-            roots[i] = mmr.mmr.roots[i];
+    /// @dev Pass alongside `packedRanks()`, `depth()` and `count()`.
+    function frontier() external view returns (bytes32[] memory live) {
+        live = new bytes32[](mmr.depth);
+        for (uint256 i = 0; i < live.length; ++i) {
+            live[i] = mmr.roots[i];
         }
     }
 
@@ -148,7 +111,7 @@ contract Tint is IPrivacyPool, NullifierRegistry {
     function verifyOperation(IPrivacyPool.Operation calldata op) public view {
         // Verify the frontier the proof was built against is one this pool committed to.
         // Must come first: nothing else may read `op.frontier` until it is authenticated.
-        if (!mmr.verifyFrontier(op.histState, op.frontier)) revert InvalidFrontier();
+        if (!verifyFrontier(op.histRanks, op.histDepth, op.histCount, op.frontier)) revert InvalidFrontier();
 
         // Verify nullifier uniqueness & unspentness
         // TODO: Move me into the circuit. No need to waste gas on this.
@@ -193,7 +156,7 @@ contract Tint is IPrivacyPool, NullifierRegistry {
         for (uint256 i; i < N_OUTPUTS; ++i) {
             bytes32 commitment = op.commitmentsOut[i];
             if (commitment == 0) continue;
-            mmr.append(commitment, _hash);
+            _append(commitment);
             emit Committed(commitment, op.context.ciphertexts[i]);
         }
 
@@ -211,7 +174,7 @@ contract Tint is IPrivacyPool, NullifierRegistry {
     // -------------------- INTERNAL VIEW --------------------
 
     /// @dev Overridable in test harnesses to swap out the hash function.
-    function _hash(bytes32 a, bytes32 b, bytes32 c) internal pure virtual returns (bytes32) {
+    function _hash(bytes32 a, bytes32 b, bytes32 c) internal pure virtual override returns (bytes32) {
         return bytes32(LibPoseidon2T3_BN254.compress(uint256(a), uint256(b), uint256(c), 0));
     }
 }

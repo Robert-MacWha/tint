@@ -8,7 +8,6 @@ import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {Tint} from "../src/Tint.sol";
 import {NullifierRegistry} from "../src/NullifierRegistry.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
-import {LibSkewMmrWithHistory} from "../src/lib/LibSkewMmrWithHistory.sol";
 import {
     N_INPUTS,
     N_OUTPUTS,
@@ -75,7 +74,9 @@ contract TintTests is Test {
     /// @dev Binds the operation to the pool's live frontier, which is what
     /// `verifyOperation` authenticates against.
     function _operation() internal view returns (IPrivacyPool.Operation memory op) {
-        op.histState = tint.mmrState();
+        op.histRanks = tint.packedRanks();
+        op.histDepth = tint.depth();
+        op.histCount = tint.count();
         op.frontier = tint.frontier();
     }
 
@@ -236,9 +237,9 @@ contract TintTests is Test {
         op.commitmentsOut[0] = bytes32(uint256(42));
         op.commitmentsOut[3] = bytes32(uint256(43));
 
-        uint256 countBefore = tint.mmrCount();
+        uint256 countBefore = tint.count();
         tint.operate(op);
 
-        assertEq(tint.mmrCount(), countBefore + 2);
+        assertEq(tint.count(), countBefore + 2);
     }
 }

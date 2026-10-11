@@ -10,7 +10,7 @@ Tint is an EVM-focused, UTXO-based privacy protocol proof-of-concept. Notes are 
 
 Monorepo split into two independently-built packages:
 
-- `packages/contracts/` — Foundry/Solidity. `Tint.sol` is the main privacy pool contract; it holds the note set in a skew-MMR (`src/lib/LibSkewMmr.sol`, wrapped by `LibSkewMmrWithHistory.sol` for the frontier-commitment ring). `src/codegen/` holds the **generated** Groth16 verifiers (see below) — don't hand-edit them.
+- `packages/contracts/` — Foundry/Solidity. `Tint.sol` is the main privacy pool contract; it holds the note set in a skew-MMR (`LibSkewMmr` from the `efficient-inclusion-proofs` submodule, via its `SkewMmrWithHistory` contract, which Tint inherits for the frontier-commitment ring). `src/codegen/` holds the **generated** Groth16 verifiers (see below) — don't hand-edit them.
 - `packages/crates/` — Rust workspace (members: `tint`, `cli`, `circuit-profiler`).
   - `tint/` — the core protocol crate: circuits (`src/circuit/`, arkworks + Groth16/BN254), accounts and key derivation (`src/account/`), notes/commitments (`src/note/`), note encryption (`src/crypto/`), on-chain state sync (`src/indexer/`), and the `Provider` (`src/provider.rs`) that assembles shield/transfer/unshield calls + proofs. `src/codegen.rs` emits the Solidity verifier from a Groth16 `VerifyingKey`.
   - `cli/` — a minimal demo CLI (`tint-cli`) wrapping the `tint` crate; `src/chain.rs` handles RPC/tx flow, `src/config.rs` handles local account storage.
@@ -55,9 +55,11 @@ The public-signal vector is built by `ProofLib.toPublicSignals` and must match t
 | --- | --- |
 | 0 | `boundParamsHash` |
 | 1 | `operationHash` |
-| 2 | `histState` — packed ranks (bytes 0..25), depth (26), count (27..30), sentinel (bit 248) |
-| 3 .. 28 | frontier roots, zero-padded to `MMR_MAX_DEPTH = 26` |
-| 29 .. | `nullifier[i]`, `spendabilityAddress[i]` for `N_INPUTS` |
+| 2 | `histRanks` — packed tree ranks, 6 bits each |
+| 3 | `histDepth` — number of live trees |
+| 4 | `histCount` — number of elements appended |
+| 5 .. 30 | frontier roots, zero-padded to `MMR_MAX_DEPTH = 26` |
+| 31 .. | `nullifier[i]`, `spendabilityAddress[i]` for `N_INPUTS` |
 | .. | `commitmentOut[i]` for `N_OUTPUTS` |
 | .. | `unshieldAmount[i]`, `unshieldAsset[i]` for `N_WITHDRAWALS` |
 

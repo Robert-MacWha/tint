@@ -4,8 +4,11 @@ pragma solidity ^0.8.28;
 /// @dev Maximum depth of the MMR tree.
 uint128 constant MMR_MAX_DEPTH = 26;
 
-/// @dev `boundParamsHash`, `operationHash`, `histState`, then the frontier.
-uint128 constant N_CONST = 3 + MMR_MAX_DEPTH;
+/// @dev Number of frontier commitments kept in history.
+uint128 constant MMR_HISTORY_SIZE = 256;
+
+/// @dev `boundParamsHash`, `operationHash`, `histRanks`, `histDepth`, `histCount`, then the frontier.
+uint128 constant N_CONST = 5 + MMR_MAX_DEPTH;
 uint128 constant N_INPUTS = 5;
 uint128 constant N_OUTPUTS = 5;
 uint128 constant N_WITHDRAWALS = 2;

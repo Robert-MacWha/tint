@@ -6,7 +6,9 @@ import {ProofLib} from "../lib/ProofLib.sol";
 
 interface IPrivacyPool {
     struct Operation {
-        uint256 histState;
+        uint256 histRanks;
+        uint256 histDepth;
+        uint256 histCount;
         bytes32[] frontier;
         bytes32 operationHash;
         bytes32[N_INPUTS] nullifiers;

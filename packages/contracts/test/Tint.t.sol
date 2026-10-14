@@ -85,7 +85,7 @@ contract TintTests is Test {
 
         vm.expectEmit();
         bytes32 commitment = 0x2ee5225f16cda90e5c31a84c3ff505613050d79f01b022a6a629ee951a050715;
-        emit Tint.Deposited(commitment, address(token), 100, "");
+        emit Tint.Deposited(commitment, uint64(tint.count()), address(token), 100, "");
         tint.deposit(address(token), 100, bytes32(uint256(1)), "");
 
         assertEq(token.balanceOf(address(this)), callerBefore - 100);
@@ -136,10 +136,11 @@ contract TintTests is Test {
         }
 
         // Only non-zero outputs are appended; zero is the padding value.
+        uint64 leafIndex = uint64(tint.count());
         for (uint256 i; i < N_OUTPUTS; ++i) {
             if (op.commitmentOut(i) == bytes32(0)) continue;
             vm.expectEmit();
-            emit Tint.Committed(op.commitmentOut(i), op.context.ciphertexts[i]);
+            emit Tint.Committed(op.commitmentOut(i), leafIndex++, op.context.ciphertexts[i]);
         }
 
         for (uint256 i; i < N_WITHDRAWALS; ++i) {

@@ -146,8 +146,9 @@ async fn main() -> anyhow::Result<()> {
             rpc_url,
             private_key,
         } => {
-            let account = config::load_account(&account)?;
-            let session = chain::connect(account, tint_address, &rpc_url, private_key).await?;
+            let (account, authorizer) = config::load_account(&account)?;
+            let session =
+                chain::connect(account, authorizer, tint_address, &rpc_url, private_key).await?;
             chain::print_balance(&session);
         }
         Command::Shield {
@@ -158,8 +159,9 @@ async fn main() -> anyhow::Result<()> {
             rpc_url,
             private_key,
         } => {
-            let to = config::load_account(&to)?;
-            let mut session = chain::connect(to, tint_address, &rpc_url, private_key).await?;
+            let (to, authorizer) = config::load_account(&to)?;
+            let mut session =
+                chain::connect(to, authorizer, tint_address, &rpc_url, private_key).await?;
             chain::shield(&mut session, token, amount).await?;
         }
         Command::Transfer {
@@ -171,8 +173,9 @@ async fn main() -> anyhow::Result<()> {
             rpc_url,
             private_key,
         } => {
-            let from = config::load_account(&from)?;
-            let mut session = chain::connect(from, tint_address, &rpc_url, private_key).await?;
+            let (from, authorizer) = config::load_account(&from)?;
+            let mut session =
+                chain::connect(from, authorizer, tint_address, &rpc_url, private_key).await?;
             chain::transfer(&mut session, &to, token, amount).await?;
         }
         Command::Unshield {
@@ -184,8 +187,9 @@ async fn main() -> anyhow::Result<()> {
             rpc_url,
             private_key,
         } => {
-            let from = config::load_account(&from)?;
-            let mut session = chain::connect(from, tint_address, &rpc_url, private_key).await?;
+            let (from, authorizer) = config::load_account(&from)?;
+            let mut session =
+                chain::connect(from, authorizer, tint_address, &rpc_url, private_key).await?;
             chain::unshield(&mut session, to, token, amount).await?;
         }
         Command::Address { private_key } => {

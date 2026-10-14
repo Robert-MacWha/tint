@@ -1,19 +1,16 @@
-use std::sync::Arc;
-
 use alloy_primitives::U256;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{
-    account::{Account, keys::Keys, spending::NoopSpendingAccount},
-    circuit::join_split::JoinSplitCircuit,
-    indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
+    account::Account,
+    deposit::Deposit,
     note::asset::AssetId,
-    provider::Provider,
+    policy::Policy,
+    syncer::{Syncer, rpc::RpcSyncer},
 };
-use tint_groth16::artifacts::Artifacts;
 use tracing::info;
 
-use crate::common::anvil;
+use crate::common::anvil::{self, send};
 
 mod common;
 
@@ -31,64 +28,35 @@ async fn shield() {
     let instance = anvil::setup().await.unwrap();
 
     let provider = instance.provider;
-    let tint = instance.tint;
+    let tint = *instance.tint.address();
     let token = instance.token;
 
-    // Setup circuits
-    info!("Setting up circuits...");
-    let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>().unwrap();
-
-    // Setup tint provider
-    info!("Setting up tint provider...");
-    let keys = Keys::from_seed(&[11u8; 32]);
-    let account = Account::from_keys(keys, NoopSpendingAccount);
-
-    let syncer = Arc::new(RpcSyncer::new(provider.clone(), *tint.address()));
-    let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
-    let indexer = Indexer::new(syncer, verifier).await.unwrap();
-    let mut tint_provider = Provider::new(indexer, artifacts);
-    tint_provider.add_account(account.clone()).await;
-
-    // Approve Tint to pull the deposit.
-    let _ = token
-        .approve(*tint.address(), U256::MAX)
-        .send()
-        .await
-        .unwrap()
-        .get_receipt()
-        .await
-        .unwrap();
+    let account = Account::from_seed(&[11u8; 32], Policy::NONE);
 
     // Deposit into Tint.
     info!("Depositing into Tint");
     let asset = AssetId::from(*token.address());
     let amount = 1_000u128;
 
-    let call = tint_provider
-        .deposit(account.receiver(), asset, amount, &mut rng)
-        .unwrap();
-    let shield_receipt = tint
-        .call_builder(&call)
-        .send()
-        .await
-        .unwrap()
-        .get_receipt()
-        .await
-        .unwrap();
-
+    let deposit = Deposit::new(tint, account.pub_account(), asset, amount, &mut rng);
+    send(&provider, deposit.approval()).await;
+    let shield_receipt = send(&provider, deposit.request(&mut rng).unwrap()).await;
     info!("Shielded for {} gas", shield_receipt.gas_used);
+
     info!("Syncing");
-    tint_provider.sync().await.unwrap();
+    let snapshot = RpcSyncer::new(provider.clone())
+        .sync(tint, ..)
+        .await
+        .unwrap();
 
     // Verify balances
     info!("Verifying balances");
     assert_eq!(
-        token.balanceOf(*tint.address()).call().await.unwrap(),
+        token.balanceOf(tint).call().await.unwrap(),
         U256::from(amount)
     );
 
-    let notes = tint_provider.notes(account.receiver());
+    let notes = snapshot.unspent(&account);
     assert_eq!(notes.len(), 1);
-    assert_eq!(notes[0].inner.amount, amount);
-    assert_eq!(notes[0].inner.asset, asset);
+    assert_eq!(notes[0].note, deposit.note());
 }

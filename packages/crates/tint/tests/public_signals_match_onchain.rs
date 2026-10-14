@@ -1,27 +1,29 @@
-//! Cross-checks that the public-input vector `Provider::public_inputs`
-//! computes locally matches what `Tint.computePublicSignals` computes
-//! on-chain for the same operation.
+//! Cross-checks that the public-signal vector proven locally matches what
+//! `Tint.computePublicSignals` computes on-chain for the same operation.
 
 mod common;
 
-use std::sync::Arc;
-
 use alloy_primitives::{Address, U256};
+use alloy_sol_types::SolCall;
 use ark_bn254::Fr;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{
-    account::{Account, keys::Keys, spending::NoopSpendingAccount},
+    abis::tint::Tint,
+    account::Account,
     circuit::join_split::JoinSplitCircuit,
+    deposit::Deposit,
     fr::u256_to_fr,
-    indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
     note::asset::AssetId,
-    provider::Provider,
+    op::OperationBuilder,
+    policy::Policy,
+    skew_mmr::{SkewMmr, SkewMmrExt},
+    syncer::{Syncer, rpc::RpcSyncer},
 };
 use tint_groth16::artifacts::Artifacts;
 use tracing::info;
 
-use crate::common::anvil::{self};
+use crate::common::anvil::{self, send};
 
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
@@ -44,45 +46,30 @@ async fn public_signals_match_onchain() {
     info!("Setting up circuits...");
     let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>().unwrap();
 
-    // Setup tint provider
-    info!("Setting up tint provider...");
-    let keys = Keys::from_seed(&[11u8; 32]);
-    let account = Account::from_keys(keys, NoopSpendingAccount);
-
-    let syncer = Arc::new(RpcSyncer::new(provider.clone(), *tint.address()));
-    let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
-    let indexer = Indexer::new(syncer, verifier).await.unwrap();
-    let mut tint_provider = Provider::new(indexer, artifacts);
-    tint_provider.add_account(account.clone()).await;
-
-    // Approve Tint to pull the deposit.
-    let _ = token
-        .approve(*tint.address(), U256::MAX)
-        .send()
-        .await
-        .unwrap()
-        .get_receipt()
-        .await
-        .unwrap();
+    let account = Account::from_seed(&[11u8; 32], Policy::NONE);
 
     // Deposit into Tint
     info!("Depositing into Tint");
     let asset = AssetId::from(*token.address());
     let amount = 1_000u128;
 
-    let call = tint_provider
-        .deposit(account.receiver(), asset, amount, &mut rng)
-        .unwrap();
-    tint.call_builder(&call)
-        .send()
-        .await
-        .unwrap()
-        .get_receipt()
-        .await
-        .unwrap();
+    let deposit = Deposit::new(
+        *tint.address(),
+        account.pub_account(),
+        asset,
+        amount,
+        &mut rng,
+    );
+    send(&provider, deposit.approval()).await;
+    send(&provider, deposit.request(&mut rng).unwrap()).await;
 
     info!("Syncing");
-    tint_provider.sync().await.unwrap();
+    let snapshot = RpcSyncer::new(provider.clone())
+        .sync(*tint.address(), ..)
+        .await
+        .unwrap();
+    let mut mmr = SkewMmr::new();
+    mmr.append_events(&snapshot.events).unwrap();
 
     // Verify balances
     info!("Verifying balances");
@@ -91,24 +78,24 @@ async fn public_signals_match_onchain() {
         U256::from(amount)
     );
 
-    let notes = tint_provider.notes(account.receiver());
+    let notes = snapshot.unspent(&account);
     assert_eq!(notes.len(), 1);
-    assert_eq!(notes[0].inner.amount, amount);
-    assert_eq!(notes[0].inner.asset, asset);
 
-    let (call, local_signals) = tint_provider
-        .public_inputs(
-            [notes[0].clone()],
-            [(account.receiver(), asset, amount - 100)],
-            [(Address::new([2; 20]), asset, 100)],
-            &mut rng,
-        )
-        .await
+    let proven = OperationBuilder::new(*tint.address())
+        .spend(notes[0].clone())
+        .output(account.pub_account(), asset, amount - 100)
+        .withdraw(Address::new([2; 20]), asset, 100)
+        .build(&mut rng)
+        .unwrap()
+        .authorize(vec![Default::default()])
+        .unwrap()
+        .prove_with_mmr(&mmr, &artifacts, &mut rng)
         .unwrap();
 
+    let call = Tint::computePublicSignalsCall::new((proven.operation().clone(),));
     let onchain_signals = tint.call_builder(&call).call().await.unwrap();
 
-    public_signal_diff(&local_signals, &onchain_signals);
+    public_signal_diff(proven.public_signals(), &onchain_signals);
 }
 
 fn public_signal_diff(local: &[Fr], onchain: &[U256]) {

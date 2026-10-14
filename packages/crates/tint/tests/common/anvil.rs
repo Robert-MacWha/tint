@@ -70,3 +70,20 @@ pub async fn setup() -> anyhow::Result<Instance> {
         token,
     })
 }
+
+/// Sends `tx` and waits for a successful receipt.
+#[allow(dead_code)]
+pub async fn send(
+    provider: &impl Provider,
+    tx: alloy_rpc_types_eth::TransactionRequest,
+) -> alloy_rpc_types_eth::TransactionReceipt {
+    let receipt = provider
+        .send_transaction(tx)
+        .await
+        .unwrap()
+        .get_receipt()
+        .await
+        .unwrap();
+    assert!(receipt.status());
+    receipt
+}

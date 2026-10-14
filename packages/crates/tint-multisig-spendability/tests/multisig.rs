@@ -1,21 +1,23 @@
 mod common;
 
-use std::sync::Arc;
-
-use alloy_primitives::U256;
+use alloy_provider::Provider;
+use alloy_rpc_types_eth::TransactionRequest;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
 use k256::{ecdsa::SigningKey, elliptic_curve::Generate};
 use tint::{
-    account::{Account, keys::Keys, spending::NoopSpendingAccount},
+    account::Account,
     circuit::join_split::JoinSplitCircuit,
-    indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
+    deposit::Deposit,
     note::asset::AssetId,
-    provider::Provider,
+    op::OperationBuilder,
+    policy::Policy,
+    skew_mmr::{SkewMmr, SkewMmrExt},
+    syncer::{Syncer, rpc::RpcSyncer},
 };
 use tint_multisig_spendability::{
     N_SIGNERS, THRESHOLD,
-    account::{MultisigSpendingAccount, Signer},
     ffi::{self},
+    policy::{MultisigPolicy, Signer},
 };
 use tracing::info;
 
@@ -38,7 +40,7 @@ async fn multisig() {
     let instance = anvil::setup().await.unwrap();
 
     let provider = instance.provider;
-    let tint = instance.tint;
+    let tint = *instance.tint.address();
     let token = instance.token;
     let spendability = instance.spendability;
 
@@ -47,95 +49,75 @@ async fn multisig() {
     let artifacts =
         tint_groth16::artifacts::Artifacts::generate_deterministic::<JoinSplitCircuit>().unwrap();
 
-    // Setup spendability account
-    info!("Setting up spendability account...");
+    // Setup policy
+    info!("Setting up multisig policy...");
     let signers: [Box<dyn Signer + Send + Sync>; N_SIGNERS] =
         std::array::from_fn(|_| Box::new(SigningKey::generate()) as Box<dyn Signer + Send + Sync>);
-    let spending = MultisigSpendingAccount::<N_SIGNERS, THRESHOLD>::new(
+    let multisig = MultisigPolicy::<N_SIGNERS, THRESHOLD>::new(
         *spendability.address(),
         signers,
         ffi::artifacts::load_artifacts().unwrap(),
     )
     .unwrap();
-    let account_1 = Account::from_keys(Keys::from_seed(&[11u8; 32]), spending);
-    let account_2 = Account::from_keys(Keys::from_seed(&[22u8; 32]), NoopSpendingAccount);
-
-    // Setup a tint provider
-    info!("Setting up tint provider...");
-    let syncer = Arc::new(RpcSyncer::new(provider.clone(), *tint.address()));
-    let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
-    let indexer = Indexer::new(syncer, verifier).await.unwrap();
-
-    let mut tint_provider = Provider::new(indexer, artifacts);
-    tint_provider.add_account(account_1.clone()).await;
-    tint_provider.add_account(account_2.clone()).await;
-
-    // Approve Tint to pull the deposits.
-    let _ = token
-        .approve(*tint.address(), U256::MAX)
-        .send()
-        .await
-        .unwrap()
-        .get_receipt()
-        .await
-        .unwrap();
+    let account_1 = Account::from_seed(&[11u8; 32], multisig.policy());
+    let account_2 = Account::from_seed(&[22u8; 32], Policy::NONE);
 
     // Deposit into Tint.
     info!("Depositing into Tint");
     let asset = AssetId::from(*token.address());
     let amount = 1_000u128;
 
-    let call = tint_provider
-        .deposit(account_1.receiver(), asset, amount, &mut rng)
-        .unwrap();
-    tint.call_builder(&call)
-        .send()
-        .await
-        .unwrap()
-        .get_receipt()
-        .await
-        .unwrap();
+    let deposit = Deposit::new(tint, account_1.pub_account(), asset, amount, &mut rng);
+    send(&provider, deposit.approval()).await;
+    send(&provider, deposit.request(&mut rng).unwrap()).await;
 
     info!("Syncing");
-    tint_provider.sync().await.unwrap();
+    let syncer = RpcSyncer::new(provider.clone());
+    let snapshot = syncer.sync(tint, ..).await.unwrap();
+    let mut mmr = SkewMmr::new();
+    mmr.append_events(&snapshot.events).unwrap();
 
-    let notes = tint_provider.notes(account_1.receiver());
+    let notes = snapshot.unspent(&account_1);
 
     // Spend the note, which is only spendable using the `MultisigSpendability` contract / circuit.
     info!("Spending note");
-    let call = tint_provider
-        .operate(
-            [*notes[0]],
-            [
-                (account_1.receiver(), asset, amount - 100),
-                (account_2.receiver(), asset, 100),
-            ],
-            [],
-            &mut rng,
-        )
-        .await
+    let op = OperationBuilder::new(tint)
+        .spend(notes[0].clone())
+        .output(account_1.pub_account(), asset, amount - 100)
+        .output(account_2.pub_account(), asset, 100)
+        .build(&mut rng)
         .unwrap();
+    let policy_input = multisig.authorize(&op.operation()).unwrap();
+    let proven = op
+        .authorize(vec![policy_input])
+        .unwrap()
+        .prove_with_mmr(&mmr, &artifacts, &mut rng)
+        .unwrap();
+    send(&provider, proven.into()).await;
 
-    tint.call_builder(&call)
-        .send()
+    info!("Syncing");
+    let snapshot = syncer.sync(tint, ..).await.unwrap();
+
+    // Verify balances
+    info!("Verifying balances");
+    let notes_1 = snapshot.unspent(&account_1);
+    assert_eq!(notes_1.len(), 1);
+    assert_eq!(notes_1[0].note.amount, amount - 100);
+    assert_eq!(notes_1[0].note.asset, asset);
+
+    let notes_2 = snapshot.unspent(&account_2);
+    assert_eq!(notes_2.len(), 1);
+    assert_eq!(notes_2[0].note.amount, 100);
+    assert_eq!(notes_2[0].note.asset, asset);
+}
+
+async fn send(provider: &impl Provider, tx: TransactionRequest) {
+    let receipt = provider
+        .send_transaction(tx)
         .await
         .unwrap()
         .get_receipt()
         .await
         .unwrap();
-
-    info!("Syncing");
-    tint_provider.sync().await.unwrap();
-
-    // Verify balances
-    info!("Verifying balances");
-    let notes_1 = tint_provider.notes(account_1.receiver());
-    assert_eq!(notes_1.len(), 1);
-    assert_eq!(notes_1[0].inner.amount, amount - 100);
-    assert_eq!(notes_1[0].inner.asset, asset);
-
-    let notes_2 = tint_provider.notes(account_2.receiver());
-    assert_eq!(notes_2.len(), 1);
-    assert_eq!(notes_2[0].inner.amount, 100);
-    assert_eq!(notes_2[0].inner.asset, asset);
+    assert!(receipt.status());
 }

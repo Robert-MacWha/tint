@@ -1,5 +1,5 @@
-pub mod account;
 pub mod ffi;
+pub mod policy;
 pub mod pubkey_hash;
 
 /// Number of signers committed to by a note's spendability witness.

@@ -1,19 +1,20 @@
-use std::sync::Arc;
-
 use alloy_primitives::U256;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{
-    account::{Account, keys::Keys, spending::NoopSpendingAccount},
+    account::Account,
     circuit::join_split::JoinSplitCircuit,
-    indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
+    deposit::Deposit,
     note::asset::AssetId,
-    provider::Provider,
+    op::OperationBuilder,
+    policy::Policy,
+    skew_mmr::{SkewMmr, SkewMmrExt},
+    syncer::{Syncer, rpc::RpcSyncer},
 };
 use tint_groth16::artifacts::Artifacts;
 use tracing::info;
 
-use crate::common::anvil;
+use crate::common::anvil::{self, send};
 
 mod common;
 
@@ -31,98 +32,69 @@ async fn transfer() {
     let instance = anvil::setup().await.unwrap();
 
     let provider = instance.provider;
-    let tint = instance.tint;
+    let tint = *instance.tint.address();
     let token = instance.token;
 
     // Setup circuits
     info!("Setting up circuits...");
     let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>().unwrap();
 
-    // Setup tint provider
-    info!("Setting up tint provider...");
-    let account_1 = Account::from_keys(Keys::from_seed(&[11u8; 32]), NoopSpendingAccount);
-    let account_2 = Account::from_keys(Keys::from_seed(&[22u8; 32]), NoopSpendingAccount);
-
-    let syncer = Arc::new(RpcSyncer::new(provider.clone(), *tint.address()));
-    let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
-    let indexer = Indexer::new(syncer, verifier).await.unwrap();
-    let mut tint_provider = Provider::new(indexer, artifacts);
-    tint_provider.add_account(account_1.clone()).await;
-    tint_provider.add_account(account_2.clone()).await;
-
-    // Approve Tint to pull the deposit.
-    let _ = token
-        .approve(*tint.address(), U256::MAX)
-        .send()
-        .await
-        .unwrap()
-        .get_receipt()
-        .await
-        .unwrap();
+    let account_1 = Account::from_seed(&[11u8; 32], Policy::NONE);
+    let account_2 = Account::from_seed(&[22u8; 32], Policy::NONE);
 
     // Deposit into Tint
     info!("Depositing into Tint");
     let asset = AssetId::from(*token.address());
     let amount = 1_000u128;
 
-    let call = tint_provider
-        .deposit(account_1.receiver(), asset, amount, &mut rng)
-        .unwrap();
-    tint.call_builder(&call)
-        .send()
-        .await
-        .unwrap()
-        .get_receipt()
-        .await
-        .unwrap();
+    let deposit = Deposit::new(tint, account_1.pub_account(), asset, amount, &mut rng);
+    send(&provider, deposit.approval()).await;
+    send(&provider, deposit.request(&mut rng).unwrap()).await;
 
     info!("Syncing");
-    tint_provider.sync().await.unwrap();
+    let syncer = RpcSyncer::new(provider.clone());
+    let snapshot = syncer.sync(tint, ..).await.unwrap();
+    let mut mmr = SkewMmr::new();
+    mmr.append_events(&snapshot.events).unwrap();
 
     // Transfer to another account
     info!("Transferring to another account");
-    let notes = tint_provider.notes(account_1.receiver());
-
+    let notes = snapshot.unspent(&account_1);
     assert_eq!(notes.len(), 1);
-    assert_eq!(notes[0].inner.amount, amount);
-    assert_eq!(notes[0].inner.asset, asset);
+    assert_eq!(notes[0].note.amount, amount);
+    assert_eq!(notes[0].note.asset, asset);
 
-    let call = tint_provider
-        .operate(
-            [notes[0].clone()],
-            [
-                (account_1.receiver(), asset, 100),
-                (account_2.receiver(), asset, amount - 100),
-            ],
-            [],
-            &mut rng,
-        )
-        .await
+    let op = OperationBuilder::new(tint)
+        .spend(notes[0].clone())
+        .output(account_1.pub_account(), asset, 100)
+        .output(account_2.pub_account(), asset, amount - 100)
+        .build(&mut rng)
         .unwrap();
-
-    let transfer_receipt = tint
-        .call_builder(&call)
-        .send()
-        .await
+    let proven = op
+        .authorize(vec![Default::default()])
         .unwrap()
-        .get_receipt()
-        .await
+        .prove_with_mmr(&mmr, &artifacts, &mut rng)
         .unwrap();
-
+    let transfer_receipt = send(&provider, proven.into()).await;
     info!("Transferred for {} gas", transfer_receipt.gas_used);
+
     info!("Syncing");
-    tint_provider.sync().await.unwrap();
+    let snapshot = syncer.sync(tint, ..).await.unwrap();
 
     // Verify balances
     info!("Verifying balances");
-
-    let notes_1 = tint_provider.notes(account_1.receiver());
+    let notes_1 = snapshot.unspent(&account_1);
     assert_eq!(notes_1.len(), 1);
-    assert_eq!(notes_1[0].inner.amount, 100);
-    assert_eq!(notes_1[0].inner.asset, asset);
+    assert_eq!(notes_1[0].note.amount, 100);
+    assert_eq!(notes_1[0].note.asset, asset);
 
-    let notes_2 = tint_provider.notes(account_2.receiver());
+    let notes_2 = snapshot.unspent(&account_2);
     assert_eq!(notes_2.len(), 1);
-    assert_eq!(notes_2[0].inner.amount, amount - 100);
-    assert_eq!(notes_2[0].inner.asset, asset);
+    assert_eq!(notes_2[0].note.amount, amount - 100);
+    assert_eq!(notes_2[0].note.asset, asset);
+
+    assert_eq!(
+        token.balanceOf(tint).call().await.unwrap(),
+        U256::from(amount)
+    );
 }

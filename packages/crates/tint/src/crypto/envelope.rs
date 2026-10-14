@@ -110,16 +110,19 @@ fn kdf(shared: &SharedSecret, info: &[u8]) -> [u8; 32] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::account::keys::Keys;
+    use crate::{account::Account, policy::Policy};
 
     #[test]
     fn envelope_encrypt_decrypt() {
         let mut rng = ark_std::rand::thread_rng();
 
-        let key_1 = Keys::from_seed(&[1; 32]);
-        let key_2 = Keys::from_seed(&[2; 32]);
-        let key_3 = Keys::from_seed(&[3; 32]);
-        let pub_keys = [key_1.encryption_pub_key(), key_2.encryption_pub_key()];
+        let key_1 = Account::from_seed(&[1; 32], Policy::NONE);
+        let key_2 = Account::from_seed(&[2; 32], Policy::NONE);
+        let key_3 = Account::from_seed(&[3; 32], Policy::NONE);
+        let pub_keys = [
+            key_1.encryption_key.public_key(),
+            key_2.encryption_key.public_key(),
+        ];
 
         let plaintext = b"Hello, world!";
         let encrypted = EncryptedEnvelope::encrypt(plaintext, &pub_keys, &mut rng).unwrap();

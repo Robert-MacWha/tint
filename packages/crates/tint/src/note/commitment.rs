@@ -4,14 +4,12 @@ use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    account::{
-        keys::{EncryptionKey, EncryptionPubKey, NullifierKey, NullifierPubKey},
-        spendability_hash,
-    },
+    account::keys::{EncryptionKey, EncryptionPubKey, NullifierKey, NullifierPubKey},
     circuit::poseidon2::poseidon2_compress,
     crypto::envelope::EncryptedEnvelope,
     fr::{address_to_fr, b256_to_fr},
     note::asset::AssetId,
+    policy::Policy,
 };
 
 pub trait Commitment {
@@ -42,13 +40,6 @@ pub struct SpendableCommitment {
     pub spendability_address: Address,
     pub spendability_witness: Fr,
     pub spendability_input: Bytes,
-}
-
-/// A commitment that can be nullified.
-#[derive(Copy, Clone, Debug)]
-pub struct NullifiableCommitment {
-    pub inner: BaseCommitment,
-    pub nullifier_key: NullifierKey,
 }
 
 /// A receivable commitment.
@@ -93,7 +84,7 @@ impl SpendableCommitment {
         let base = BaseCommitment::new(
             asset,
             amount,
-            spendability_hash(spendability_address, spendability_witness),
+            Policy::new(spendability_address, spendability_witness).hash(),
             nullifier_key.pub_key(),
             random,
         );
@@ -117,34 +108,6 @@ impl SpendableCommitment {
 
     pub fn nullifier(&self) -> Fr {
         self.inner.nullifier(&self.nullifier_key)
-    }
-}
-
-impl NullifiableCommitment {
-    #[must_use]
-    pub fn new(inner: BaseCommitment, nullifier_key: NullifierKey) -> Self {
-        NullifiableCommitment {
-            inner,
-            nullifier_key,
-        }
-    }
-
-    #[must_use]
-    pub fn nullifier(&self) -> Fr {
-        self.inner.nullifier(&self.nullifier_key)
-    }
-
-    /// Builds a [`SpendableCommitment`] carrying this note's real
-    /// committed data but no resolved spendability rule.
-    #[must_use]
-    pub fn as_pending_spendable(&self) -> SpendableCommitment {
-        SpendableCommitment {
-            inner: self.inner,
-            nullifier_key: self.nullifier_key,
-            spendability_address: Address::default(),
-            spendability_witness: Fr::default(),
-            spendability_input: Bytes::default(),
-        }
     }
 }
 
@@ -263,28 +226,6 @@ impl Commitment for BaseCommitment {
     }
 }
 
-impl Commitment for NullifiableCommitment {
-    fn asset_fr(&self) -> Fr {
-        self.inner.asset_fr()
-    }
-
-    fn amount_fr(&self) -> Fr {
-        self.inner.amount_fr()
-    }
-
-    fn spendability_hash(&self) -> Fr {
-        self.inner.spendability_hash()
-    }
-
-    fn random_fr(&self) -> Fr {
-        self.inner.random_fr()
-    }
-
-    fn nullifier_pub_key(&self) -> NullifierPubKey {
-        self.inner.nullifier_pub_key()
-    }
-}
-
 impl Commitment for SpendableCommitment {
     fn asset_fr(&self) -> Fr {
         self.inner.asset_fr()
@@ -334,7 +275,7 @@ mod tests {
     use insta::assert_snapshot;
 
     use super::*;
-    use crate::account::keys::Keys;
+    use crate::{account::Account, policy::Policy};
 
     #[test]
     fn commitment_hash() {
@@ -355,7 +296,7 @@ mod tests {
 
     #[test]
     fn commitment_encryption_decryption() {
-        let keys = Keys::from_seed(&[1; 32]);
+        let keys = Account::from_seed(&[1; 32], Policy::NONE);
 
         let spendable_commitment = SpendableCommitment::new(
             AssetId::from(Address::new([1; 20])),
@@ -370,7 +311,7 @@ mod tests {
         let mut rng = rand_core::OsRng;
         let encrypted = spendable_commitment
             .inner
-            .encrypt(&[keys.encryption_pub_key()], &mut rng)
+            .encrypt(&[keys.encryption_key.public_key()], &mut rng)
             .unwrap();
         let decrypted = BaseCommitment::from_encrypted(&encrypted, &keys.encryption_key).unwrap();
 

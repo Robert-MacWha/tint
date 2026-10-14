@@ -26,8 +26,10 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
 
     IVerifier public immutable VERIFIER;
 
-    event Deposited(bytes32 commitment, address indexed asset, uint128 amount, bytes encryptedPartial);
-    event Committed(bytes32 commitment, bytes encryptedNote);
+    event Deposited(
+        bytes32 commitment, uint64 leafIndex, address indexed asset, uint128 amount, bytes encryptedPartial
+    );
+    event Committed(bytes32 commitment, uint64 leafIndex, bytes encryptedNote);
     event Nullified(bytes32 nullifier);
     event Withdrawn(address indexed asset, uint128 amount, address indexed recipient);
 
@@ -51,9 +53,10 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
         external
     {
         bytes32 commitment = ProofLib.toCommitment(asset, amount, partialCommitment);
+        uint64 leafIndex = mmr.count;
         _append(commitment);
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
-        emit Deposited(commitment, asset, amount, encryptedPartial);
+        emit Deposited(commitment, leafIndex, asset, amount, encryptedPartial);
     }
 
     /// @notice Executes an operation against tint.
@@ -161,8 +164,9 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
         for (uint256 i; i < N_OUTPUTS; ++i) {
             bytes32 commitment = op.commitmentOut(i);
             if (commitment == 0) continue;
+            uint64 leafIndex = mmr.count;
             _append(commitment);
-            emit Committed(commitment, op.context.ciphertexts[i]);
+            emit Committed(commitment, leafIndex, op.context.ciphertexts[i]);
         }
 
         // Execute any unshielding transfers

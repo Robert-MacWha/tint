@@ -36,8 +36,8 @@ sol!(
 
     #[derive(Debug)]
     contract Tint {
-        event Deposited(bytes32 commitment, address indexed asset, uint128 amount, bytes encryptedPartial);
-        event Committed(bytes32 commitment, bytes encryptedNote);
+        event Deposited(bytes32 commitment, uint64 leafIndex, address indexed asset, uint128 amount, bytes encryptedPartial);
+        event Committed(bytes32 commitment, uint64 leafIndex, bytes encryptedNote);
         event Nullified(bytes32 nullifier);
         event Withdrawn(address indexed asset, uint128 amount, address indexed recipient);
 
@@ -45,7 +45,7 @@ sol!(
         function operate(IPrivacyPool.Operation calldata operation) public;
         function preVerify(bytes32 slot, IPrivacyPool.Operation calldata operation) public;
         function executePreVerified(bytes32 slot, IPrivacyPool.Operation calldata operation) public;
-        function latestRootIndex() external view returns (uint128);
+        function isSpent(bytes32 nullifierHash) external view returns (bool);
         function verifyFrontier(uint256 histRanks, uint256 histDepth, uint256 histCount, bytes32[] calldata frontier) external view returns (bool);
         function computePublicSignals(IPrivacyPool.Operation calldata op) public view returns (uint256[] memory);
         function verifyOperation(IPrivacyPool.Operation calldata op) public view;

@@ -30,7 +30,6 @@ sol!(
         struct Context {
             bytes[N_INPUTS] spendabilityInputs;
             bytes[N_OUTPUTS] ciphertexts;
-            address[N_WITHDRAWALS] unshieldRecipients;
         }
     }
 

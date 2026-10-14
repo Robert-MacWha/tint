@@ -77,7 +77,7 @@ library ProofLib {
     /// @notice Hashes the context fields the operation hash omits.
     /// @dev Mirrors `UnsignedOperation::context_hash`.
     function contextHash(IPrivacyPool.Operation calldata op) internal pure returns (uint256) {
-        return uint256(keccak256(abi.encode(op.context.ciphertexts, op.context.unshieldRecipients))) % BN254_FR_MODULUS;
+        return uint256(keccak256(abi.encode(op.context.ciphertexts))) % BN254_FR_MODULUS;
     }
 
     /// @notice Computes the commitment for a deposit.
@@ -114,14 +114,18 @@ library ProofLib {
     }
 
     function unshieldAmount(IPrivacyPool.Operation calldata op, uint256 i) internal pure returns (uint128) {
-        uint256 amount = uint256(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i]);
+        uint256 amount = uint256(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * i]);
         if (amount > type(uint128).max) revert InvalidPublicSignals();
         // forge-lint: disable-next-line(unsafe-typecast)
         return uint128(amount);
     }
 
     function unshieldAsset(IPrivacyPool.Operation calldata op, uint256 i) internal pure returns (address) {
-        return _toAddress(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i + 1]);
+        return _toAddress(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * i + 1]);
+    }
+
+    function unshieldRecipient(IPrivacyPool.Operation calldata op, uint256 i) internal pure returns (address) {
+        return _toAddress(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * i + 2]);
     }
 
     /// @notice Returns the unique spendability addresses in an operation.

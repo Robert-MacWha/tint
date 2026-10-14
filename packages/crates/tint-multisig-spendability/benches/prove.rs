@@ -24,8 +24,8 @@ fn main() {
     let witness = pubkey_hash::pubkey_hash(&pub_keys).unwrap();
 
     let mut operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> = Operation::default();
-    operation.inputs[0].spendability_address = contract_address;
-    operation.inputs[0].spendability_witness = witness;
+    operation.inputs[0].note.policy.address = contract_address;
+    operation.inputs[0].note.policy.witness = witness;
 
     let context_hash = Fr::from(0);
     let msg = fr_to_b256(poseidon2_compress(&[operation.hash(), context_hash])).0;

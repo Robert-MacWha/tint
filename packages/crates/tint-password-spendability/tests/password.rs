@@ -11,7 +11,7 @@ use tint::{
     circuit::join_split::JoinSplitCircuit,
     deposit::Deposit,
     note::asset::AssetId,
-    op::OperationBuilder,
+    operation::OperationBuilder,
     policy::Policy,
     skew_mmr::{SkewMmr, SkewMmrExt},
     syncer::{Syncer, rpc::RpcSyncer},
@@ -76,7 +76,7 @@ async fn password() {
 
     // Spend the note, which is only spendable using the `PasswordSpendability` contract / circuit.
     info!("Spending note");
-    let op = OperationBuilder::new(tint)
+    let op = OperationBuilder::new()
         .spend(notes[0].clone())
         .output(account_1.pub_account(), asset, amount - 150)
         .output(account_2.pub_account(), asset, 100)
@@ -89,7 +89,7 @@ async fn password() {
         .unwrap()
         .prove_with_mmr(&mmr, &artifacts, &mut rng)
         .unwrap();
-    send(&provider, proven.into()).await;
+    send(&provider, proven.transaction(tint)).await;
 
     info!("Syncing");
     let snapshot = syncer.sync(tint, ..).await.unwrap();

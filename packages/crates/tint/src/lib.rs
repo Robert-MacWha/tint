@@ -6,7 +6,6 @@ mod crypto;
 pub mod deposit;
 pub mod fr;
 pub mod note;
-pub mod op;
 pub mod operation;
 pub mod policy;
 pub mod provider_ext;

@@ -29,6 +29,7 @@ type BaseCommitment struct {
 }
 
 type Withdrawal struct {
-	AssetFr  frbn254.Element
-	AmountFr frbn254.Element
+	AssetFr     frbn254.Element
+	AmountFr    frbn254.Element
+	RecipientFr frbn254.Element
 }

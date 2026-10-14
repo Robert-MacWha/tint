@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, B256, Bytes};
+use alloy_primitives::B256;
 use ark_bn254::Fr;
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -7,20 +7,9 @@ use crate::{
     account::keys::{EncryptionKey, EncryptionPubKey, NullifierKey, NullifierPubKey},
     circuit::poseidon2::poseidon2_compress,
     crypto::envelope::EncryptedEnvelope,
-    fr::{address_to_fr, b256_to_fr},
+    fr::b256_to_fr,
     note::asset::AssetId,
-    policy::Policy,
 };
-
-/// A commitment that can be spent and nullified.
-#[derive(Clone, Debug)]
-pub struct SpendableCommitment {
-    pub inner: BaseCommitment,
-    pub nullifier_key: NullifierKey,
-    pub spendability_address: Address,
-    pub spendability_witness: Fr,
-    pub spendability_input: Bytes,
-}
 
 /// A receivable commitment.
 #[serde_with::serde_as]
@@ -49,46 +38,6 @@ pub enum CommitmentError {
     Encryption(#[from] crate::crypto::aaed::EncryptionError),
     #[error("serialization error")]
     Serialization(#[from] postcard::Error),
-}
-
-impl SpendableCommitment {
-    pub fn new(
-        asset: AssetId,
-        amount: u128,
-        nullifier_key: NullifierKey,
-        spendability_address: Address,
-        spendability_witness: Fr,
-        spendability_input: Bytes,
-        random: B256,
-    ) -> Self {
-        let base = BaseCommitment::new(
-            asset,
-            amount,
-            Policy::new(spendability_address, spendability_witness).hash(),
-            nullifier_key.pub_key(),
-            random,
-        );
-
-        SpendableCommitment {
-            inner: base,
-            nullifier_key,
-            spendability_address,
-            spendability_witness,
-            spendability_input,
-        }
-    }
-
-    pub fn spendability_address_fr(&self) -> Fr {
-        address_to_fr(self.spendability_address)
-    }
-
-    pub fn spendability_witness_fr(&self) -> Fr {
-        self.spendability_witness
-    }
-
-    pub fn nullifier(&self) -> Fr {
-        self.inner.nullifier(&self.nullifier_key)
-    }
 }
 
 impl BaseCommitment {
@@ -213,27 +162,6 @@ impl PartialCommitment {
     }
 }
 
-impl Default for SpendableCommitment {
-    fn default() -> Self {
-        let nullifier_key = NullifierKey::default();
-        let base = BaseCommitment::new(
-            AssetId::default(),
-            0,
-            Fr::from(0),
-            nullifier_key.pub_key(),
-            B256::default(),
-        );
-
-        SpendableCommitment {
-            inner: base,
-            nullifier_key,
-            spendability_address: Address::default(),
-            spendability_witness: Fr::default(),
-            spendability_input: Bytes::default(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use alloy_primitives::Address;
@@ -244,42 +172,32 @@ mod tests {
 
     #[test]
     fn commitment_hash() {
-        let spendable_commitment = SpendableCommitment::new(
-            AssetId::from(Address::new([1; 20])),
-            100,
-            NullifierKey::default(),
-            Address::new([2; 20]),
-            Fr::from(3),
-            Bytes::default(),
-            B256::new([5; 32]),
-        );
-        let base_commitment = spendable_commitment.inner.clone();
+        let commitment = test_commitment();
 
-        assert_eq!(base_commitment.hash(), spendable_commitment.inner.hash());
-        assert_snapshot!(base_commitment.hash().to_string(), @"151122391010099193331386929876946401472211150702802670594863584012381564898");
+        assert_snapshot!(commitment.hash().to_string(), @"151122391010099193331386929876946401472211150702802670594863584012381564898");
     }
 
     #[test]
     fn commitment_encryption_decryption() {
         let keys = Account::from_seed(&[1; 32], Policy::NONE);
-
-        let spendable_commitment = SpendableCommitment::new(
-            AssetId::from(Address::new([1; 20])),
-            100,
-            NullifierKey::default(),
-            Address::new([2; 20]),
-            Fr::from(3),
-            Bytes::default(),
-            B256::new([5; 32]),
-        );
+        let commitment = test_commitment();
 
         let mut rng = rand_core::OsRng;
-        let encrypted = spendable_commitment
-            .inner
+        let encrypted = commitment
             .encrypt(&[keys.encryption_key.public_key()], &mut rng)
             .unwrap();
         let decrypted = BaseCommitment::from_encrypted(&encrypted, &keys.encryption_key).unwrap();
 
-        assert_eq!(decrypted, spendable_commitment.inner);
+        assert_eq!(decrypted, commitment);
+    }
+
+    fn test_commitment() -> BaseCommitment {
+        BaseCommitment::new(
+            AssetId::from(Address::new([1; 20])),
+            100,
+            Policy::new(Address::new([2; 20]), Fr::from(3)).hash(),
+            NullifierKey::default().pub_key(),
+            B256::new([5; 32]),
+        )
     }
 }

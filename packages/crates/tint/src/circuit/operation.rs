@@ -26,6 +26,7 @@ pub struct OperationVar<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_W
 pub struct WithdrawalVar {
     pub asset: FrVar,
     pub amount: FrVar,
+    pub recipient: FrVar,
 }
 
 pub struct OperationResultVar<
@@ -247,13 +248,18 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
 impl WithdrawalVar {
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn hash(&self) -> Result<FrVar, SynthesisError> {
-        poseidon2_compress_gadget(&[self.asset.clone(), self.amount.clone()])
+        poseidon2_compress_gadget(&[
+            self.asset.clone(),
+            self.amount.clone(),
+            self.recipient.clone(),
+        ])
     }
 
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn enforce_equal(&self, other: &WithdrawalVar) -> Result<(), SynthesisError> {
         self.asset.enforce_equal(&other.asset)?;
         self.amount.enforce_equal(&other.amount)?;
+        self.recipient.enforce_equal(&other.recipient)?;
         Ok(())
     }
 }
@@ -296,8 +302,13 @@ impl AllocVar<Withdrawal, Fr> for WithdrawalVar {
 
         let asset = variable(cs.clone(), &value.asset_fr(), mode)?;
         let amount = variable(cs.clone(), &value.amount_fr(), mode)?;
+        let recipient = variable(cs.clone(), &value.recipient_fr(), mode)?;
 
-        Ok(Self { asset, amount })
+        Ok(Self {
+            asset,
+            amount,
+            recipient,
+        })
     }
 }
 
@@ -321,12 +332,12 @@ mod tests {
 
     fn default_operation() -> Operation<3, 3, 3> {
         let mut op = Operation::<3, 3, 3>::default();
-        op.inputs[0].inner.asset = DEAD_BEEF.into();
-        op.inputs[0].inner.amount = 10;
-        op.inputs[1].inner.asset = DEAD_BEEF.into();
-        op.inputs[1].inner.amount = 10;
-        op.inputs[2].inner.asset = C0FFEE.into();
-        op.inputs[2].inner.amount = 10;
+        op.inputs[0].note.note.asset = DEAD_BEEF.into();
+        op.inputs[0].note.note.amount = 10;
+        op.inputs[1].note.note.asset = DEAD_BEEF.into();
+        op.inputs[1].note.note.amount = 10;
+        op.inputs[2].note.note.asset = C0FFEE.into();
+        op.inputs[2].note.note.amount = 10;
         op
     }
 
@@ -395,12 +406,12 @@ mod tests {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let mut op = Operation::<3, 3, 3>::default();
 
-        op.inputs[0].inner.asset = DEAD_BEEF.into();
-        op.inputs[0].inner.amount = 10;
-        op.inputs[1].inner.asset = DEAD_BEEF.into();
-        op.inputs[1].inner.amount = 10;
-        op.inputs[2].inner.asset = C0FFEE.into();
-        op.inputs[2].inner.amount = 10;
+        op.inputs[0].note.note.asset = DEAD_BEEF.into();
+        op.inputs[0].note.note.amount = 10;
+        op.inputs[1].note.note.asset = DEAD_BEEF.into();
+        op.inputs[1].note.note.amount = 10;
+        op.inputs[2].note.note.asset = C0FFEE.into();
+        op.inputs[2].note.note.amount = 10;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
 
@@ -453,14 +464,17 @@ mod tests {
     fn nullifiers_zero_for_unused_inputs() {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let mut op = Operation::<3, 3, 3>::default();
-        op.inputs[0].inner.asset = DEAD_BEEF.into();
-        op.inputs[0].inner.amount = 10;
+        op.inputs[0].note.note.asset = DEAD_BEEF.into();
+        op.inputs[0].note.note.amount = 10;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
         let input_base_hashes: [FrVar; 3] = std::array::from_fn(|i| var.inputs[i].hash().unwrap());
         let nullifiers = var.nullifiers(&input_base_hashes).unwrap();
 
-        assert_eq!(nullifiers[0].value().unwrap(), op.inputs[0].nullifier());
+        assert_eq!(
+            nullifiers[0].value().unwrap(),
+            op.inputs[0].note.nullifier()
+        );
         assert_eq!(nullifiers[1].value().unwrap(), Fr::from(0));
         assert_eq!(nullifiers[2].value().unwrap(), Fr::from(0));
         assert!(cs.is_satisfied().unwrap());
@@ -506,8 +520,8 @@ mod tests {
     fn input_commitments_enforces_used_slots() {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let mut op = Operation::<3, 3, 3>::default();
-        op.inputs[0].inner.asset = DEAD_BEEF.into();
-        op.inputs[0].inner.amount = 10;
+        op.inputs[0].note.note.asset = DEAD_BEEF.into();
+        op.inputs[0].note.note.amount = 10;
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
         let wrong_leaves: [FrVar; 3] =

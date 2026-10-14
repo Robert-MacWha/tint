@@ -4,6 +4,7 @@ use ark_bn254::Fr;
 use k256::ecdsa::{Signature, VerifyingKey};
 use tint::{
     circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
+    fr::address_to_fr,
     note::{commitment::BaseCommitment, withdrawal::Withdrawal},
     operation::Operation,
 };
@@ -91,10 +92,13 @@ pub fn prove_via_go(
 
 impl From<&Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>> for TintOperation {
     fn from(op: &Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>) -> Self {
-        let inputs = std::array::from_fn(|i| TintSpendableCommitment {
-            inner: (&op.inputs[i].inner).into(),
-            spendability_address: op.inputs[i].spendability_address_fr().into(),
-            spendability_witness: op.inputs[i].spendability_witness_fr().into(),
+        let inputs = std::array::from_fn(|i| {
+            let input = &op.inputs[i].note;
+            TintSpendableCommitment {
+                inner: (&input.note).into(),
+                spendability_address: address_to_fr(input.policy.address).into(),
+                spendability_witness: input.policy.witness.into(),
+            }
         });
         let output_commitments = std::array::from_fn(|i| (&op.output_commitments[i]).into());
         let output_withdrawals = std::array::from_fn(|i| (&op.output_withdrawals[i]).into());
@@ -124,6 +128,7 @@ impl From<&Withdrawal> for TintWithdrawal {
         TintWithdrawal {
             asset_fr: w.asset_fr().into(),
             amount_fr: w.amount_fr().into(),
+            recipient_fr: w.recipient_fr().into(),
         }
     }
 }

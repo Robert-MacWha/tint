@@ -173,7 +173,7 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
         for (uint256 i; i < N_WITHDRAWALS; ++i) {
             address asset = op.unshieldAsset(i);
             uint128 amount = op.unshieldAmount(i);
-            address recipient = op.context.unshieldRecipients[i];
+            address recipient = op.unshieldRecipient(i);
             if (amount == 0) continue;
             IERC20(asset).safeTransfer(recipient, amount);
             emit Withdrawn(asset, amount, recipient);

@@ -14,7 +14,7 @@ use tint::{
     circuit::join_split::JoinSplitCircuit,
     deposit::Deposit,
     note::{asset::AssetId, owned::OwnedNote},
-    op::{OperationBuilder, UnsignedOperation},
+    operation::{OperationBuilder, UnsignedOperation},
     provider_ext::TintProviderExt,
     skew_mmr::{SkewMmr, SkewMmrExt},
     syncer::{Snapshot, Syncer, rpc::RpcSyncer},
@@ -136,7 +136,7 @@ pub async fn transfer(
     let asset = AssetId::from(token);
     let recipient = config::load_pub_account(to)?;
 
-    let op = OperationBuilder::new(session.tint_address)
+    let op = OperationBuilder::new()
         .spend(pick_note(session, asset, amount)?)
         .output(recipient, asset, amount)
         .change_to(session.account.pub_account())
@@ -156,7 +156,7 @@ pub async fn unshield(
 ) -> anyhow::Result<()> {
     let asset = AssetId::from(token);
 
-    let op = OperationBuilder::new(session.tint_address)
+    let op = OperationBuilder::new()
         .spend(pick_note(session, asset, amount)?)
         .withdraw(to, asset, amount)
         .change_to(session.account.pub_account())
@@ -190,7 +190,7 @@ async fn operate(session: &mut Session, op: UnsignedOperation) -> anyhow::Result
         &mut OsRng,
     )?;
 
-    send(session, proven.into()).await?;
+    send(session, proven.transaction(session.tint_address)).await?;
     sync(session).await?;
     print_balance(session);
     Ok(())

@@ -4,7 +4,8 @@ use ark_relations::gr1cs::SynthesisError;
 
 use crate::{
     circuit::{FrVar, poseidon2::poseidon2_compress_gadget, variable},
-    note::commitment::{BaseCommitment, SpendableCommitment},
+    fr::address_to_fr,
+    note::{commitment::BaseCommitment, owned::SpendableNote},
 };
 
 pub struct BaseCommitmentVar {
@@ -120,23 +121,25 @@ impl AllocVar<BaseCommitment, Fr> for BaseCommitmentVar {
     }
 }
 
-impl AllocVar<SpendableCommitment, Fr> for SpendableCommitmentVar {
-    fn new_variable<T: std::borrow::Borrow<SpendableCommitment>>(
+impl AllocVar<SpendableNote, Fr> for SpendableCommitmentVar {
+    fn new_variable<T: std::borrow::Borrow<SpendableNote>>(
         cs: impl Into<ark_relations::gr1cs::Namespace<Fr>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: ark_r1cs_std::prelude::AllocationMode,
     ) -> Result<Self, SynthesisError> {
         let cs = cs.into();
         let value = f()?;
-        let value = value.borrow();
+        let owned = &value.borrow().note;
+        let note = &owned.note;
 
-        let asset = variable(cs.clone(), &value.inner.asset_fr(), mode)?;
-        let amount = variable(cs.clone(), &value.inner.amount_fr(), mode)?;
-        let spendability_hash = variable(cs.clone(), &value.inner.spendability_hash, mode)?;
-        let random = variable(cs.clone(), &value.inner.random_fr(), mode)?;
-        let nullifying_key = variable(cs.clone(), &value.nullifier_key.0, mode)?;
-        let spendability_address = variable(cs.clone(), &value.spendability_address_fr(), mode)?;
-        let spendability_witness = variable(cs.clone(), &value.spendability_witness_fr(), mode)?;
+        let asset = variable(cs.clone(), &note.asset_fr(), mode)?;
+        let amount = variable(cs.clone(), &note.amount_fr(), mode)?;
+        let spendability_hash = variable(cs.clone(), &note.spendability_hash, mode)?;
+        let random = variable(cs.clone(), &note.random_fr(), mode)?;
+        let nullifying_key = variable(cs.clone(), &owned.nullifier_key.0, mode)?;
+        let spendability_address =
+            variable(cs.clone(), &address_to_fr(owned.policy.address), mode)?;
+        let spendability_witness = variable(cs.clone(), &owned.policy.witness, mode)?;
 
         Ok(Self {
             asset,
@@ -158,7 +161,7 @@ mod tests {
     use super::*;
     use crate::{
         circuit::witness,
-        note::commitment::{BaseCommitment, SpendableCommitment},
+        note::{commitment::BaseCommitment, owned::SpendableNote},
     };
 
     #[test]
@@ -191,10 +194,10 @@ mod tests {
     fn test_nullifier() {
         let cs = ConstraintSystem::<Fr>::new_ref();
 
-        let commitment = SpendableCommitment::default();
+        let commitment = SpendableNote::default();
         let commitment_var: SpendableCommitmentVar = witness(cs.clone(), &commitment).unwrap();
 
-        let nullifier = commitment.nullifier();
+        let nullifier = commitment.note.nullifier();
         let base_hash = commitment_var.hash().unwrap();
         let nullifier_var = commitment_var.nullifier(&base_hash).unwrap();
 

@@ -5,7 +5,7 @@ use std::io::{self, Write};
 
 use alloy::primitives::{Address, Bytes};
 use anyhow::Context;
-use tint::{op::UnsignedOperation, policy::Policy};
+use tint::{operation::UnsignedOperation, policy::Policy};
 use tint_multisig_spendability::{N_SIGNERS, THRESHOLD, policy::MultisigPolicy};
 use tint_password_spendability::policy::PasswordPolicy;
 

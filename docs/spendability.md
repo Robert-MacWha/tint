@@ -19,11 +19,11 @@ When a user wishes to spend a note, they will provide the `spendabilityAddress` 
 Spendability rules should authorize the operation's `signingHash` rather than its `operationHash`:
 
 ```
-contextHash = keccak256(abi.encode(ciphertexts, unshieldRecipients)) mod p
+contextHash = keccak256(abi.encode(ciphertexts)) mod p
 signingHash = poseidon2(operationHash, contextHash)
 ```
 
-`operationHash` covers the operation's notes and withdrawal amounts, but not where withdrawals are sent or the output ciphertexts. `signingHash` covers everything except the spendability inputs themselves, so whoever produces the proof can't redirect funds a rule authorized. Rule circuits witness the operation and `contextHash` and recompute `signingHash` in-circuit, keeping it their only operation-specific public input. Contracts compute it with `ProofLib.signingHash`.
+`operationHash` covers the operation's notes and withdrawals (asset, amount, and recipient), but not the output ciphertexts. `signingHash` covers everything except the spendability inputs themselves, so whoever produces the proof can't redirect funds a rule authorized. Rule circuits witness the operation and `contextHash` and recompute `signingHash` in-circuit, keeping it their only operation-specific public input. Contracts compute it with `ProofLib.signingHash`.
 
 ### Example
 ```solidity

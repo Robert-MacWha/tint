@@ -15,7 +15,7 @@ use tint::{
     deposit::Deposit,
     fr::u256_to_fr,
     note::asset::AssetId,
-    op::OperationBuilder,
+    operation::OperationBuilder,
     policy::Policy,
     skew_mmr::{SkewMmr, SkewMmrExt},
     syncer::{Syncer, rpc::RpcSyncer},
@@ -81,7 +81,7 @@ async fn public_signals_match_onchain() {
     let notes = snapshot.unspent(&account);
     assert_eq!(notes.len(), 1);
 
-    let proven = OperationBuilder::new(*tint.address())
+    let proven = OperationBuilder::new()
         .spend(notes[0].clone())
         .output(account.pub_account(), asset, amount - 100)
         .withdraw(Address::new([2; 20]), asset, 100)

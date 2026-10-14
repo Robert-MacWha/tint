@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS} from "../lib/Constants.sol";
+import {N_INPUTS, N_OUTPUTS} from "../lib/Constants.sol";
 import {ProofLib} from "../lib/ProofLib.sol";
 
 interface IPrivacyPool {
@@ -19,7 +19,6 @@ interface IPrivacyPool {
     struct Context {
         bytes[N_INPUTS] spendabilityInputs;
         bytes[N_OUTPUTS] ciphertexts;
-        address[N_WITHDRAWALS] unshieldRecipients;
     }
 
     function deposit(address asset, uint128 amount, bytes32 partialCommitment, bytes calldata encryptedNote) external;

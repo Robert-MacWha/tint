@@ -120,10 +120,10 @@ contract TintTests is Test {
         op.context.ciphertexts[1] = bytes("World!");
         op.setUnshieldAmount(0, 1);
         op.setUnshieldAsset(0, address(token));
-        op.context.unshieldRecipients[0] = address(0xdead);
+        op.setUnshieldRecipient(0, address(0xdead));
         op.setUnshieldAmount(1, 2);
         op.setUnshieldAsset(1, address(token));
-        op.context.unshieldRecipients[1] = address(0xbeef);
+        op.setUnshieldRecipient(1, address(0xbeef));
 
         uint256 tintBefore = token.balanceOf(address(tint));
         uint256 deadBefore = token.balanceOf(address(0xdead));
@@ -145,7 +145,7 @@ contract TintTests is Test {
 
         for (uint256 i; i < N_WITHDRAWALS; ++i) {
             vm.expectEmit();
-            emit Tint.Withdrawn(op.unshieldAsset(i), op.unshieldAmount(i), op.context.unshieldRecipients[i]);
+            emit Tint.Withdrawn(op.unshieldAsset(i), op.unshieldAmount(i), op.unshieldRecipient(i));
         }
 
         tint.operate(op.seal());

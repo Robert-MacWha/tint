@@ -83,8 +83,9 @@ func fromCBaseCommitment(c C.TintBaseCommitment) operation.BaseCommitment {
 
 func fromCWithdrawal(c C.TintWithdrawal) operation.Withdrawal {
 	return operation.Withdrawal{
-		AssetFr:  fromCFr(c.asset_fr),
-		AmountFr: fromCFr(c.amount_fr),
+		AssetFr:     fromCFr(c.asset_fr),
+		AmountFr:    fromCFr(c.amount_fr),
+		RecipientFr: fromCFr(c.recipient_fr),
 	}
 }
 

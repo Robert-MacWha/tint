@@ -37,6 +37,7 @@ typedef struct
 {
 	Bytes32 asset_fr;
 	Bytes32 amount_fr;
+	Bytes32 recipient_fr;
 } TintWithdrawal;
 
 typedef struct

@@ -165,8 +165,8 @@ mod tests {
         let witness = poseidon2_compress(&[secret]);
 
         let mut operation = Operation::default();
-        operation.inputs[0].spendability_address = spendability_address;
-        operation.inputs[0].spendability_witness = witness;
+        operation.inputs[0].note.policy.address = spendability_address;
+        operation.inputs[0].note.policy.witness = witness;
 
         let circuit = signed_circuit(spendability_address, operation, secret);
         circuit.synthesize(&cs).unwrap();
@@ -182,10 +182,10 @@ mod tests {
         let witness = poseidon2_compress(&[secret]);
 
         let mut operation = Operation::default();
-        operation.inputs[0].spendability_address = spendability_address;
-        operation.inputs[0].spendability_witness = witness;
-        operation.inputs[1].spendability_address = spendability_address;
-        operation.inputs[1].spendability_witness = witness;
+        operation.inputs[0].note.policy.address = spendability_address;
+        operation.inputs[0].note.policy.witness = witness;
+        operation.inputs[1].note.policy.address = spendability_address;
+        operation.inputs[1].note.policy.witness = witness;
 
         let circuit = signed_circuit(spendability_address, operation, secret);
         circuit.synthesize(&cs).unwrap();
@@ -203,8 +203,8 @@ mod tests {
         let invalid_secret = Fr::from(54321);
 
         let mut operation = Operation::default();
-        operation.inputs[0].spendability_address = spendability_address;
-        operation.inputs[0].spendability_witness = witness;
+        operation.inputs[0].note.policy.address = spendability_address;
+        operation.inputs[0].note.policy.witness = witness;
 
         let circuit = signed_circuit(spendability_address, operation, invalid_secret);
         circuit.synthesize(&cs).unwrap();
@@ -230,10 +230,10 @@ mod tests {
         let other_witness = poseidon2_compress(&[Fr::from(54321)]);
 
         let mut operation = Operation::default();
-        operation.inputs[0].spendability_address = spendability_address;
-        operation.inputs[0].spendability_witness = witness;
-        operation.inputs[1].spendability_address = spendability_address;
-        operation.inputs[1].spendability_witness = other_witness;
+        operation.inputs[0].note.policy.address = spendability_address;
+        operation.inputs[0].note.policy.witness = witness;
+        operation.inputs[1].note.policy.address = spendability_address;
+        operation.inputs[1].note.policy.witness = other_witness;
 
         let circuit = signed_circuit(spendability_address, operation, secret);
         circuit.synthesize(&cs).unwrap();
@@ -258,8 +258,8 @@ mod tests {
         let witness = poseidon2_compress(&[secret]);
 
         let mut operation = Operation::default();
-        operation.inputs[0].spendability_address = spendability_address;
-        operation.inputs[0].spendability_witness = witness;
+        operation.inputs[0].note.policy.address = spendability_address;
+        operation.inputs[0].note.policy.witness = witness;
 
         let mut circuit = signed_circuit(spendability_address, operation, secret);
         circuit.signing_hash += Fr::from(1);

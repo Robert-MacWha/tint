@@ -12,7 +12,7 @@ Monorepo split into two independently-built packages:
 
 - `packages/contracts/` — Foundry/Solidity. `Tint.sol` is the main privacy pool contract; it holds the note set in a skew-MMR (`LibSkewMmr` from the `efficient-inclusion-proofs` submodule, via its `SkewMmrWithHistory` contract, which Tint inherits for the frontier-commitment ring). `src/codegen/` holds the **generated** Groth16 verifiers (see below) — don't hand-edit them.
 - `packages/crates/` — Rust workspace (members: `tint`, `cli`, `circuit-profiler`).
-  - `tint/` — the core protocol crate: circuits (`src/circuit/`, arkworks + Groth16/BN254), accounts and key derivation (`src/account/`), spending policies (`src/policy.rs`), notes/commitments (`src/note/`), note encryption (`src/crypto/`), event sync into serializable `Snapshot`s (`src/syncer/`), the skew-MMR (`src/skew_mmr.rs`), the `Deposit` builder (`src/deposit.rs`), the `OperationBuilder` → `UnsignedOperation` → `AuthorizedOperation` → `ProvenOperation` flow that assembles transfer/unshield calls + proofs (`src/op.rs`), and `TintProviderExt` accessors for any alloy provider (`src/provider_ext.rs`). Note management is left to the caller. `src/codegen.rs` emits the Solidity verifier from a Groth16 `VerifyingKey`.
+  - `tint/` — the core protocol crate: circuits (`src/circuit/`, arkworks + Groth16/BN254), accounts and key derivation (`src/account/`), spending policies (`src/policy.rs`), notes/commitments (`src/note/`), note encryption (`src/crypto/`), event sync into serializable `Snapshot`s (`src/syncer/`), the skew-MMR (`src/skew_mmr.rs`), the `Deposit` builder (`src/deposit.rs`), the `OperationBuilder` → `UnsignedOperation` → `Operation` → `ProvenOperation` flow that assembles transfer/unshield calls + proofs; `Operation` is also the padded witness policy circuits consume (`src/operation.rs`), and `TintProviderExt` accessors for any alloy provider (`src/provider_ext.rs`). Note management is left to the caller. `src/codegen.rs` emits the Solidity verifier from a Groth16 `VerifyingKey`.
   - `cli/` — a minimal demo CLI (`tint-cli`) wrapping the `tint` crate; `src/chain.rs` handles RPC/tx flow, `src/config.rs` handles local account storage.
   - `tint-aml/` — separate circuit crate (AML-related), not part of the main protocol flow.
 
@@ -60,7 +60,7 @@ The public-signal vector is built by `ProofLib.toPublicSignals` and must match t
 | 4 | `histCount` — number of elements appended |
 | 5 .. | `nullifier[i]`, `spendabilityAddress[i]` for `N_INPUTS` |
 | .. | `commitmentOut[i]` for `N_OUTPUTS` |
-| .. | `unshieldAmount[i]`, `unshieldAsset[i]` for `N_WITHDRAWALS` |
+| .. | `unshieldAmount[i]`, `unshieldAsset[i]`, `unshieldRecipient[i]` for `N_WITHDRAWALS` |
 | `FRONTIER_OFFSET` .. | frontier roots, zero-padded to `MMR_MAX_DEPTH = 42` |
 
 `Operation.pub` carries only the live prefix (`FRONTIER_OFFSET + histDepth` words) as calldata; the contract zero-pads it back to `N_PUB`, and checks `pub[0]` against the hash recomputed from `context`.

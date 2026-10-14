@@ -7,10 +7,8 @@ edition = "2024"
 ignored = ["ruint"]
 
 [features]
-default = ["onchain"]
 asm = ["ark-ff/asm"]
 codegen = ["taceo-groth16-sol"]
-onchain = []
 parallel = ["ark-groth16/parallel"]
 print-trace = ["ark-std/print-trace"]
 

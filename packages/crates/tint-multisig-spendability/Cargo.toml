@@ -10,7 +10,7 @@ ark-ff = { workspace = true }
 k256 = { workspace = true }
 signature = { workspace = true }
 thiserror = { workspace = true }
-tint = { workspace = true, features = ["onchain"] }
+tint = { workspace = true }
 tracing = { workspace = true }
 
 [build-dependencies]

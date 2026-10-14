@@ -7,8 +7,6 @@ edition = "2024"
 ignored = ["alloy-contract"]
 
 [features]
-default = ["onchain"]
-onchain = ["tint/onchain"]
 codegen = ["taceo-groth16-sol"]
 parallel = ["ark-groth16/parallel"]
 

@@ -1,19 +1,14 @@
-#[cfg(feature = "onchain")]
 pub mod abis;
 pub mod account;
 pub mod array;
 pub mod circuit;
 mod crypto;
-#[cfg(feature = "onchain")]
 pub mod deposit;
 pub mod fr;
 pub mod note;
-#[cfg(feature = "onchain")]
 pub mod op;
 pub mod operation;
 pub mod policy;
-#[cfg(feature = "onchain")]
 pub mod provider_ext;
 pub mod skew_mmr;
-#[cfg(feature = "onchain")]
 pub mod syncer;

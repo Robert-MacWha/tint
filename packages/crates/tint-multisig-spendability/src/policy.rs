@@ -2,12 +2,7 @@ use alloy_primitives::{Address, Bytes};
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 use k256::ecdsa::{Signature, VerifyingKey};
-use tint::{
-    circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
-    fr::address_to_fr,
-    operation::Operation,
-    policy::Policy,
-};
+use tint::{fr::address_to_fr, op::UnsignedOperation, policy::Policy};
 
 use crate::{
     N_SIGNERS, THRESHOLD,
@@ -106,17 +101,14 @@ impl MultisigPolicy<N_SIGNERS, THRESHOLD> {
     }
 
     /// Proves that at least `THRESHOLD` of this multisig's `N_SIGNERS`
-    /// signers validly signed `operation`. The returned policy input
-    /// authorizes every input of `operation` bound to this policy.
+    /// signers validly signed `op`'s signing hash. The returned policy input
+    /// authorizes every input of `op` bound to this policy.
     ///
     /// # Errors
     ///
     /// Errors if a signer fails or proving fails.
-    pub fn authorize(
-        &self,
-        operation: &Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
-    ) -> Result<Bytes, MultisigPolicyError> {
-        let msg = fr_to_be_bytes(operation.hash());
+    pub fn authorize(&self, op: &UnsignedOperation) -> Result<Bytes, MultisigPolicyError> {
+        let msg = fr_to_be_bytes(op.signing_hash());
 
         let pub_keys = self.pub_keys();
         let signatures: [Option<Signature>; N_SIGNERS] =
@@ -125,7 +117,8 @@ impl MultisigPolicy<N_SIGNERS, THRESHOLD> {
         let solidity_proof = ffi::prove_via_go(
             &self.artifacts,
             address_to_fr(self.contract_address),
-            operation,
+            &op.operation(),
+            op.context_hash(),
             &pub_keys,
             &signatures,
         )?;
@@ -143,7 +136,14 @@ fn fr_to_be_bytes(f: Fr) -> [u8; 32] {
 
 #[cfg(test)]
 mod tests {
+    use alloy_primitives::B256;
+    use ark_std::rand::{SeedableRng, rngs::StdRng};
     use k256::{ecdsa::SigningKey, elliptic_curve::Generate};
+    use tint::{
+        account::Account,
+        note::{asset::AssetId, owned::OwnedNote},
+        op::OperationBuilder,
+    };
 
     use super::*;
 
@@ -163,11 +163,17 @@ mod tests {
         )
         .unwrap();
 
-        let policy = multisig.policy();
-        let mut operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> = Operation::default();
-        operation.inputs[0].spendability_address = policy.address;
-        operation.inputs[0].spendability_witness = policy.witness;
+        // Spend a note bound to this multisig back to its own account.
+        let account = Account::from_seed(&[1u8; 32], multisig.policy());
+        let note = account
+            .pub_account()
+            .commitment(AssetId::default(), 100, B256::ZERO);
+        let op = OperationBuilder::new(Address::ZERO)
+            .spend(OwnedNote::new(note, &account).unwrap())
+            .change_to(account.pub_account())
+            .build(&mut StdRng::seed_from_u64(1))
+            .unwrap();
 
-        multisig.authorize(&operation).unwrap();
+        multisig.authorize(&op).unwrap();
     }
 }

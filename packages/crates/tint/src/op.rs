@@ -24,8 +24,11 @@ use tracing::info;
 use crate::{
     abis::tint::{IPrivacyPool, Tint},
     account::pub_account::PubAccount,
-    circuit::join_split::{
-        FRONTIER_OFFSET, JoinSplit, JoinSplitCircuit, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS,
+    circuit::{
+        join_split::{
+            FRONTIER_OFFSET, JoinSplit, JoinSplitCircuit, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS,
+        },
+        poseidon2::poseidon2_compress,
     },
     fr::{fr_to_b256, fr_to_u256},
     note::{asset::AssetId, commitment::BaseCommitment, owned::OwnedNote, withdrawal::Withdrawal},
@@ -268,21 +271,26 @@ impl UnsignedOperation {
         self.operation().hash()
     }
 
-    /// The message spending policies should authorize.
+    /// The message spending policies authorize:
+    /// `poseidon2(operationHash, contextHash)`.
     ///
-    /// Covers everything in the operation except the policy inputs themselves,
-    /// including the unshield recipients and ciphertexts that [`Self::hash`] omits.
+    /// Covers everything in the operation except the policy inputs themselves.
+    /// Policy circuits witness the operation and [`Self::context_hash`] to
+    /// recompute it, so it is their only operation-specific public input.
     ///
-    /// Mirrors `keccak256(abi.encode(op.pub[1], op.context.ciphertexts, op.context.unshieldRecipients))`.
+    /// Mirrors `ProofLib.signingHash`.
     #[must_use]
-    pub fn signing_hash(&self) -> B256 {
+    pub fn signing_hash(&self) -> Fr {
+        poseidon2_compress(&[self.hash(), self.context_hash()])
+    }
+
+    /// The context fields [`Self::hash`] omits:
+    /// `keccak256(abi.encode(ciphertexts, unshieldRecipients)) mod p`.
+    #[must_use]
+    pub fn context_hash(&self) -> Fr {
         let context = self.context(&[]);
-        let params = (
-            fr_to_b256(self.hash()),
-            context.ciphertexts,
-            context.unshieldRecipients,
-        );
-        keccak256(params.abi_encode_params())
+        let params = (context.ciphertexts, context.unshieldRecipients);
+        Fr::from_be_bytes_mod_order(keccak256(params.abi_encode_params()).as_slice())
     }
 
     /// Attaches one policy input per input note, in input order. Inputs under

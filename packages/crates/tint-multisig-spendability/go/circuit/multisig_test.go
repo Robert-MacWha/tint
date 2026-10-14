@@ -13,6 +13,7 @@ import (
 	"github.com/consensys/gnark/test"
 
 	"github.com/Robert-MacWha/tint/packages/crates/tint-multisig-spendability/go/internal/operation"
+	"github.com/Robert-MacWha/tint/packages/crates/tint-multisig-spendability/go/internal/poseidon2"
 )
 
 type keypair struct {
@@ -38,8 +39,8 @@ func pubKeyVar(xy PubKeyXY) stdecdsa.PublicKey[emulated.Secp256k1Fp, emulated.Se
 	}
 }
 
-func signOperationHash(t testing.TB, priv *k1ecdsa.PrivateKey, opHash frbn254.Element) stdecdsa.Signature[emulated.Secp256k1Fr] {
-	msgBytes := opHash.Bytes()
+func signSigningHash(t testing.TB, priv *k1ecdsa.PrivateKey, signingHash frbn254.Element) stdecdsa.Signature[emulated.Secp256k1Fr] {
+	msgBytes := signingHash.Bytes()
 	sigBin, err := priv.Sign(msgBytes[:], nil)
 	if err != nil {
 		t.Fatal(err)
@@ -74,7 +75,7 @@ func buildOperation(nInputs int, spendabilityAddress frbn254.Element, witness fr
 
 // buildAssignment builds a MultisigSpendability witness with nInputs
 // populated operation-input slots and nValidSigs real signatures over the
-// resulting operation hash.
+// resulting signing hash.
 func buildAssignment(t testing.TB, nInputs, nValidSigs int) (*MultisigSpendability[emulated.Secp256k1Fp, emulated.Secp256k1Fr], [NSigners]keypair, frbn254.Element) {
 	t.Helper()
 
@@ -87,14 +88,15 @@ func buildAssignment(t testing.TB, nInputs, nValidSigs int) (*MultisigSpendabili
 	spendabilityAddress := frbn254.NewElement(9)
 
 	op := buildOperation(nInputs, spendabilityAddress, witness)
-	opHash := op.Hash()
+	contextHash := frbn254.NewElement(7)
+	signingHash := poseidon2.Compress2([2]frbn254.Element{op.Hash(), contextHash})
 
 	var signatures [NSigners]stdecdsa.Signature[emulated.Secp256k1Fr]
 	var pubKeys [NSigners]stdecdsa.PublicKey[emulated.Secp256k1Fp, emulated.Secp256k1Fr]
 	for i, k := range keys {
 		pubKeys[i] = pubKeyVar(k.xy)
 		if i < nValidSigs {
-			signatures[i] = signOperationHash(t, k.priv, opHash)
+			signatures[i] = signSigningHash(t, k.priv, signingHash)
 		} else {
 			// Unused slots are zeroed
 			signatures[i] = stdecdsa.Signature[emulated.Secp256k1Fr]{
@@ -106,11 +108,12 @@ func buildAssignment(t testing.TB, nInputs, nValidSigs int) (*MultisigSpendabili
 
 	return &MultisigSpendability[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
 		SpendabilityAddress: spendabilityAddress.String(),
-		OperationHash:       opHash.String(),
+		SigningHash:         signingHash.String(),
 		Operation:           op.ToVar(),
+		ContextHash:         contextHash.String(),
 		PubKeys:             pubKeys,
 		Signatures:          signatures,
-	}, keys, opHash
+	}, keys, signingHash
 }
 
 func TestValidCircuit(t *testing.T) {
@@ -134,11 +137,11 @@ func TestInvalidSignatureCountFails(t *testing.T) {
 	assert.CheckCircuit(&MultisigSpendability[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}, test.WithInvalidAssignment(assignment), test.WithCurves(ecc.BN254))
 }
 
-func TestInvalidOperationHashFails(t *testing.T) {
-	assignment, _, opHash := buildAssignment(t, 1, Threshold)
+func TestInvalidSigningHashFails(t *testing.T) {
+	assignment, _, signingHash := buildAssignment(t, 1, Threshold)
 
-	tampered := new(big.Int).Add(opHash.BigInt(new(big.Int)), big.NewInt(1))
-	assignment.OperationHash = tampered.String()
+	tampered := new(big.Int).Add(signingHash.BigInt(new(big.Int)), big.NewInt(1))
+	assignment.SigningHash = tampered.String()
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&MultisigSpendability[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}, test.WithInvalidAssignment(assignment), test.WithCurves(ecc.BN254))

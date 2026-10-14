@@ -9,6 +9,7 @@ import (
 	stdecdsa "github.com/consensys/gnark/std/signature/ecdsa"
 
 	"github.com/Robert-MacWha/tint/packages/crates/tint-multisig-spendability/go/internal/operation"
+	"github.com/Robert-MacWha/tint/packages/crates/tint-multisig-spendability/go/internal/poseidon2"
 )
 
 // MultisigSpendability proves that an operation is spendable under an
@@ -17,18 +18,20 @@ import (
 // 1. NSigners public keys are committed to via PubKeyHash (bound to the note's
 // spendability_witness)
 //
-// 2. At least `Threshold` of them must have validly signed `operation_hash`.
+// 2. At least `Threshold` of them must have validly signed `signing_hash`,
+// which commits to the witnessed `Operation` and `ContextHash`.
 type MultisigSpendability[Base, Scalar emulated.FieldParams] struct {
 	SpendabilityAddress frontend.Variable `gnark:",public"`
-	OperationHash       frontend.Variable `gnark:",public"`
+	SigningHash         frontend.Variable `gnark:",public"`
 
-	Operation  operation.OperationVar
-	PubKeys    [NSigners]stdecdsa.PublicKey[Base, Scalar]
-	Signatures [NSigners]stdecdsa.Signature[Scalar]
+	Operation   operation.OperationVar
+	ContextHash frontend.Variable
+	PubKeys     [NSigners]stdecdsa.PublicKey[Base, Scalar]
+	Signatures  [NSigners]stdecdsa.Signature[Scalar]
 }
 
 func (c *MultisigSpendability[Base, Scalar]) Define(api frontend.API) error {
-	if err := c.verifyOperationHash(api); err != nil {
+	if err := c.verifySigningHash(api); err != nil {
 		return err
 	}
 	if err := c.verifySpendabilityWitness(api); err != nil {
@@ -37,10 +40,12 @@ func (c *MultisigSpendability[Base, Scalar]) Define(api frontend.API) error {
 	return c.verifyThresholdSignatures(api)
 }
 
-// verifyOperationHash derives the operation's hash from the
-// witnessed `Operation and binds it to the public `operation_hash`.
-func (c *MultisigSpendability[Base, Scalar]) verifyOperationHash(api frontend.API) error {
-	api.AssertIsEqual(c.Operation.HashGadget(api), c.OperationHash)
+// verifySigningHash derives the signing hash from the witnessed `Operation`
+// and `ContextHash` and binds it to the public `signing_hash`.
+func (c *MultisigSpendability[Base, Scalar]) verifySigningHash(api frontend.API) error {
+	operationHash := c.Operation.HashGadget(api)
+	signingHash := poseidon2.CompressGadget2(api, [2]frontend.Variable{operationHash, c.ContextHash})
+	api.AssertIsEqual(signingHash, c.SigningHash)
 	return nil
 }
 
@@ -64,9 +69,9 @@ func (c *MultisigSpendability[Base, Scalar]) verifySpendabilityWitness(api front
 }
 
 // verifyThresholdSignatures checks each signer's signature over
-// operation_hash and asserts at least `Threshold` of them are valid.
+// signing_hash and asserts at least `Threshold` of them are valid.
 func (c *MultisigSpendability[Base, Scalar]) verifyThresholdSignatures(api frontend.API) error {
-	msg, err := c.operationHashAsScalar(api)
+	msg, err := c.signingHashAsScalar(api)
 	if err != nil {
 		return err
 	}
@@ -81,13 +86,13 @@ func (c *MultisigSpendability[Base, Scalar]) verifyThresholdSignatures(api front
 	return nil
 }
 
-// operationHashAsScalar carries OperationHash across into an emulated
+// signingHashAsScalar carries SigningHash across into an emulated
 // scalar-field element.
-func (c *MultisigSpendability[Base, Scalar]) operationHashAsScalar(api frontend.API) (*emulated.Element[Scalar], error) {
+func (c *MultisigSpendability[Base, Scalar]) signingHashAsScalar(api frontend.API) (*emulated.Element[Scalar], error) {
 	scalarField, err := emulated.NewField[Scalar](api)
 	if err != nil {
 		return nil, err
 	}
-	hashBits := stdbits.ToBinary(api, c.OperationHash)
+	hashBits := stdbits.ToBinary(api, c.SigningHash)
 	return scalarField.FromBits(hashBits...), nil
 }

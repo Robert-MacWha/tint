@@ -23,7 +23,7 @@ contract MultisigSpendability is ISpendability {
         for (uint256 i = 0; i < N_INPUTS; i++) {
             if (operation.spendabilityAddress(i) != address(this)) continue;
             bytes calldata proof = operation.context.spendabilityInputs[i];
-            uint256[2] memory pubSignals = [uint256(uint160(address(this))), uint256(operation.operationHash())];
+            uint256[2] memory pubSignals = [uint256(uint160(address(this))), operation.signingHash()];
 
             VERIFIER.verifyProof(proof, pubSignals);
             return;

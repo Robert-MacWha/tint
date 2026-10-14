@@ -51,12 +51,14 @@ pub fn prove_via_go(
     artifacts: &Artifacts,
     spendability_address: Fr,
     operation: &Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+    context_hash: Fr,
     pub_keys: &[VerifyingKey; N_SIGNERS],
     signatures: &[Option<Signature>; N_SIGNERS],
 ) -> Result<Vec<u8>, FfiError> {
     let mut input = TintProveInput {
         spendability_address: spendability_address.into(),
         operation: operation.into(),
+        context_hash: context_hash.into(),
         pub_keys: tint::array::try_from_fn(|i| TintPubKeyXY::try_from(&pub_keys[i]))?,
         signatures: std::array::from_fn(|i| signatures[i].as_ref().into()),
     };

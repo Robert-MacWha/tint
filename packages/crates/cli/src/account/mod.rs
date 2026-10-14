@@ -29,8 +29,8 @@ impl Authorizer {
     pub fn authorize(&self, op: &UnsignedOperation) -> anyhow::Result<Bytes> {
         match self {
             Authorizer::Noop => Ok(Bytes::new()),
-            Authorizer::Password(password) => Ok(password.authorize(&op.operation())?),
-            Authorizer::Multisig(multisig) => Ok(multisig.authorize(&op.operation())?),
+            Authorizer::Password(password) => Ok(password.authorize(op)?),
+            Authorizer::Multisig(multisig) => Ok(multisig.authorize(op)?),
         }
     }
 }

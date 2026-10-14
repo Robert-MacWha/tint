@@ -87,7 +87,7 @@ async fn multisig() {
         .output(account_2.pub_account(), asset, 100)
         .build(&mut rng)
         .unwrap();
-    let policy_input = multisig.authorize(&op.operation()).unwrap();
+    let policy_input = multisig.authorize(&op).unwrap();
     let proven = op
         .authorize(vec![policy_input])
         .unwrap()

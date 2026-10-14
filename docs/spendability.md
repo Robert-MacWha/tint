@@ -14,6 +14,17 @@ When creating a note for a counterparty, the sender includes their `spendability
 
 When a user wishes to spend a note, they will provide the `spendabilityAddress` and a `spendabilityInput` as public inputs and the `spendabilityWitness` as a private input. The circuit will verify that the `spendabilityHash` matches the expected value, then call the `spendabilityAddress` contract with the `spendabilityInput` and remaining operation data. The contract can then verify that the operation is valid according to the spendability rules, reverting if not.
 
+### Signing Hash
+
+Spendability rules should authorize the operation's `signingHash` rather than its `operationHash`:
+
+```
+contextHash = keccak256(abi.encode(ciphertexts, unshieldRecipients)) mod p
+signingHash = poseidon2(operationHash, contextHash)
+```
+
+`operationHash` covers the operation's notes and withdrawal amounts, but not where withdrawals are sent or the output ciphertexts. `signingHash` covers everything except the spendability inputs themselves, so whoever produces the proof can't redirect funds a rule authorized. Rule circuits witness the operation and `contextHash` and recompute `signingHash` in-circuit, keeping it their only operation-specific public input. Contracts compute it with `ProofLib.signingHash`.
+
 ### Example
 ```solidity
 contract SignatureSpendability is ISpendability {
@@ -43,7 +54,7 @@ Requires the right `privateKey` to spend the note.
 ```
 public:
     field spendabilityHash
-    field operationHash
+    field signingHash
 private:
     field spendabilityAddress
     field spendabilityWitness
@@ -80,7 +91,7 @@ Requires the current timestamp be greater than or equal to the `unlockTimestamp`
 ```
 public:
     field spendabilityHash
-    field operationHash
+    field signingHash
     field operationTimestamp
 private:
     field spendabilityAddress

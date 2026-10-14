@@ -62,6 +62,7 @@ typedef struct
 {
 	Bytes32 spendability_address;
 	TintOperation operation;
+	Bytes32 context_hash;
 	TintPubKeyXY pub_keys[N_SIGNERS];
 	TintSignatureRS signatures[N_SIGNERS];
 } TintProveInput;

@@ -1,5 +1,6 @@
 mod common;
 
+use alloy_primitives::Address;
 use alloy_provider::Provider;
 use alloy_rpc_types_eth::TransactionRequest;
 use ark_bn254::Fr;
@@ -77,11 +78,12 @@ async fn password() {
     info!("Spending note");
     let op = OperationBuilder::new(tint)
         .spend(notes[0].clone())
-        .output(account_1.pub_account(), asset, amount - 100)
+        .output(account_1.pub_account(), asset, amount - 150)
         .output(account_2.pub_account(), asset, 100)
+        .withdraw(Address::new([3; 20]), asset, 50)
         .build(&mut rng)
         .unwrap();
-    let policy_input = password.authorize(&op.operation()).unwrap();
+    let policy_input = password.authorize(&op).unwrap();
     let proven = op
         .authorize(vec![policy_input])
         .unwrap()
@@ -96,7 +98,7 @@ async fn password() {
     info!("Verifying balances");
     let notes_1 = snapshot.unspent(&account_1);
     assert_eq!(notes_1.len(), 1);
-    assert_eq!(notes_1[0].note.amount, amount - 100);
+    assert_eq!(notes_1[0].note.amount, amount - 150);
     assert_eq!(notes_1[0].note.asset, asset);
 
     let notes_2 = snapshot.unspent(&account_2);

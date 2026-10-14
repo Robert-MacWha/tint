@@ -6,12 +6,7 @@ use ark_relations::gr1cs::SynthesisError;
 use ark_snark::SNARK;
 use rand_core::OsRng;
 use tint::{
-    circuit::{
-        join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
-        poseidon2::poseidon2_compress,
-    },
-    fr::address_to_fr,
-    operation::Operation,
+    circuit::poseidon2::poseidon2_compress, fr::address_to_fr, op::UnsignedOperation,
     policy::Policy,
 };
 use tint_groth16::{artifacts::Artifacts, prove::prove_with_matrices};
@@ -51,20 +46,18 @@ impl PasswordPolicy {
         Policy::new(self.contract_address, poseidon2_compress(&[self.secret]))
     }
 
-    /// Proves knowledge of the password for `operation`. The returned policy
-    /// input authorizes every input of `operation` bound to this policy.
+    /// Proves knowledge of the password over `op`'s signing hash. The returned
+    /// policy input authorizes every input of `op` bound to this policy.
     ///
     /// # Errors
     ///
     /// Errors if proving fails.
-    pub fn authorize(
-        &self,
-        operation: &Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
-    ) -> Result<Bytes, PasswordPolicyError> {
+    pub fn authorize(&self, op: &UnsignedOperation) -> Result<Bytes, PasswordPolicyError> {
         let circuit = PasswordSpendability::new(
             address_to_fr(self.contract_address),
-            operation.hash(),
-            operation.clone(),
+            op.signing_hash(),
+            op.operation(),
+            op.context_hash(),
             self.secret,
         );
 

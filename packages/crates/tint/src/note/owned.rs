@@ -3,7 +3,7 @@ use ark_bn254::Fr;
 
 use crate::{
     account::{Account, keys::NullifierKey},
-    note::commitment::{BaseCommitment, Commitment, SpendableCommitment},
+    note::commitment::{BaseCommitment, SpendableCommitment},
     policy::Policy,
 };
 

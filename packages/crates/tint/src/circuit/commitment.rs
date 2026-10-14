@@ -4,7 +4,7 @@ use ark_relations::gr1cs::SynthesisError;
 
 use crate::{
     circuit::{FrVar, poseidon2::poseidon2_compress_gadget, variable},
-    note::commitment::{BaseCommitment, Commitment, SpendableCommitment},
+    note::commitment::{BaseCommitment, SpendableCommitment},
 };
 
 pub struct BaseCommitmentVar {
@@ -106,8 +106,8 @@ impl AllocVar<BaseCommitment, Fr> for BaseCommitmentVar {
 
         let asset = variable(cs.clone(), &value.asset_fr(), mode)?;
         let amount = variable(cs.clone(), &value.amount_fr(), mode)?;
-        let spendability_hash = variable(cs.clone(), &value.spendability_hash(), mode)?;
-        let nullifying_pub_key = variable(cs.clone(), &value.nullifier_pub_key().0, mode)?;
+        let spendability_hash = variable(cs.clone(), &value.spendability_hash, mode)?;
+        let nullifying_pub_key = variable(cs.clone(), &value.nullifier_pub_key.0, mode)?;
         let random = variable(cs.clone(), &value.random_fr(), mode)?;
 
         Ok(Self {
@@ -132,7 +132,7 @@ impl AllocVar<SpendableCommitment, Fr> for SpendableCommitmentVar {
 
         let asset = variable(cs.clone(), &value.inner.asset_fr(), mode)?;
         let amount = variable(cs.clone(), &value.inner.amount_fr(), mode)?;
-        let spendability_hash = variable(cs.clone(), &value.inner.spendability_hash(), mode)?;
+        let spendability_hash = variable(cs.clone(), &value.inner.spendability_hash, mode)?;
         let random = variable(cs.clone(), &value.inner.random_fr(), mode)?;
         let nullifying_key = variable(cs.clone(), &value.nullifier_key.0, mode)?;
         let spendability_address = variable(cs.clone(), &value.spendability_address_fr(), mode)?;
@@ -158,7 +158,7 @@ mod tests {
     use super::*;
     use crate::{
         circuit::witness,
-        note::commitment::{BaseCommitment, Commitment, SpendableCommitment},
+        note::commitment::{BaseCommitment, SpendableCommitment},
     };
 
     #[test]

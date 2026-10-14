@@ -9,10 +9,7 @@ use crate::{
     abis::erc20::ERC20,
     account::pub_account::PubAccount,
     fr::fr_to_b256,
-    note::{
-        asset::AssetId,
-        commitment::{BaseCommitment, Commitment},
-    },
+    note::{asset::AssetId, commitment::BaseCommitment},
 };
 
 pub struct Deposit {

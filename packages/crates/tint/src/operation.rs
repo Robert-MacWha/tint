@@ -5,7 +5,7 @@ use ark_bn254::Fr;
 use crate::{
     circuit::poseidon2::poseidon2_compress,
     note::{
-        commitment::{BaseCommitment, Commitment, SpendableCommitment},
+        commitment::{BaseCommitment, SpendableCommitment},
         withdrawal::Withdrawal,
     },
 };
@@ -36,10 +36,10 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     pub fn hash(&self) -> Fr {
         let mut hash = Fr::from(0u64);
         for input in &self.inputs {
-            let c = if input.amount_fr() == Fr::from(0u64) {
+            let c = if input.inner.amount == 0 {
                 Fr::from(0u64)
             } else {
-                input.hash()
+                input.inner.hash()
             };
             hash = poseidon2_compress(&[hash, c]);
         }

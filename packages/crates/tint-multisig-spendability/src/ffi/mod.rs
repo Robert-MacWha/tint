@@ -4,7 +4,7 @@ use ark_bn254::Fr;
 use k256::ecdsa::{Signature, VerifyingKey};
 use tint::{
     circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
-    note::{commitment::Commitment, withdrawal::Withdrawal},
+    note::{commitment::BaseCommitment, withdrawal::Withdrawal},
     operation::Operation,
 };
 
@@ -92,7 +92,7 @@ pub fn prove_via_go(
 impl From<&Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>> for TintOperation {
     fn from(op: &Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>) -> Self {
         let inputs = std::array::from_fn(|i| TintSpendableCommitment {
-            inner: (&op.inputs[i]).into(),
+            inner: (&op.inputs[i].inner).into(),
             spendability_address: op.inputs[i].spendability_address_fr().into(),
             spendability_witness: op.inputs[i].spendability_witness_fr().into(),
         });
@@ -107,14 +107,14 @@ impl From<&Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>> for TintOperation {
     }
 }
 
-impl<C: Commitment> From<&C> for TintBaseCommitment {
-    fn from(c: &C) -> Self {
+impl From<&BaseCommitment> for TintBaseCommitment {
+    fn from(c: &BaseCommitment) -> Self {
         TintBaseCommitment {
             asset_fr: c.asset_fr().into(),
             amount_fr: c.amount_fr().into(),
-            spendability_hash: c.spendability_hash().into(),
+            spendability_hash: c.spendability_hash.into(),
             random_fr: c.random_fr().into(),
-            nullifier_pub_key: c.nullifier_pub_key().0.into(),
+            nullifier_pub_key: c.nullifier_pub_key.0.into(),
         }
     }
 }

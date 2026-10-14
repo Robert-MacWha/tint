@@ -315,7 +315,6 @@ mod tests {
     use ark_relations::gr1cs::ConstraintSystem;
 
     use super::*;
-    use crate::note::commitment::Commitment;
 
     const DEAD_BEEF: Address = address!("0x00000000000000000000000000000000deadbeef");
     const C0FFEE: Address = address!("0x0000000000000000000000000000000000c0ffee");

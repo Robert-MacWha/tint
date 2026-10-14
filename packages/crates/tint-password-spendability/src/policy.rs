@@ -6,7 +6,7 @@ use ark_relations::gr1cs::SynthesisError;
 use ark_snark::SNARK;
 use rand_core::OsRng;
 use tint::{
-    circuit::poseidon2::poseidon2_compress, fr::address_to_fr, operation::UnsignedOperation,
+    circuit::poseidon2::poseidon2_compress, fr::address_to_fr, operation::UnauthorizedOperation,
     policy::Policy,
 };
 use tint_groth16::{artifacts::Artifacts, prove::prove_with_matrices};
@@ -52,7 +52,7 @@ impl PasswordPolicy {
     /// # Errors
     ///
     /// Errors if proving fails.
-    pub fn authorize(&self, op: &UnsignedOperation) -> Result<Bytes, PasswordPolicyError> {
+    pub fn authorize(&self, op: &UnauthorizedOperation) -> Result<Bytes, PasswordPolicyError> {
         let operation = op.operation();
         let circuit = PasswordSpendability::new(
             address_to_fr(self.contract_address),

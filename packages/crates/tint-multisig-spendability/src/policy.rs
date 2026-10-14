@@ -2,7 +2,7 @@ use alloy_primitives::{Address, Bytes};
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 use k256::ecdsa::{Signature, VerifyingKey};
-use tint::{fr::address_to_fr, operation::UnsignedOperation, policy::Policy};
+use tint::{fr::address_to_fr, operation::UnauthorizedOperation, policy::Policy};
 
 use crate::{
     N_SIGNERS, THRESHOLD,
@@ -107,7 +107,7 @@ impl MultisigPolicy<N_SIGNERS, THRESHOLD> {
     /// # Errors
     ///
     /// Errors if a signer fails or proving fails.
-    pub fn authorize(&self, op: &UnsignedOperation) -> Result<Bytes, MultisigPolicyError> {
+    pub fn authorize(&self, op: &UnauthorizedOperation) -> Result<Bytes, MultisigPolicyError> {
         let operation = op.operation();
         let msg = fr_to_be_bytes(operation.signing_hash());
 

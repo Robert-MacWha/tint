@@ -17,16 +17,14 @@ use crate::{
     },
 };
 
-/// A set of events emitted by a Tint deployment within a given block range.
+/// A set of contiguous events emitted by a Tint deployment within a given block range.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Snapshot {
-    /// The Tint deployment these events belong to.
+    /// The Tint deployment these events were emitted from.
     pub tint: Address,
     /// The half-open block range these events cover.
     pub range: Range<u64>,
-    /// The events the deployment emitted within `range`, in emission order.
-    ///
-    /// Commitments must be contiguous and in ascending order by leaf index.
+    /// The events the deployment emitted within `range` in emission order.
     pub events: Vec<SyncEvent>,
 }
 
@@ -94,7 +92,7 @@ impl Snapshot {
         }
     }
 
-    /// Notes `account` can spend that are not nullified within this snapshot.
+    /// Returns the unspent notes `account` can spend from this snapshot.
     #[must_use]
     pub fn unspent(&self, account: &Account) -> Vec<OwnedNote> {
         let nullifiers = self.nullifiers();
@@ -103,7 +101,7 @@ impl Snapshot {
             .collect()
     }
 
-    /// Notes `account` can spend that are nullified within this snapshot.
+    /// Returns the notes `account` has spent within this snapshot.
     #[must_use]
     pub fn spent(&self, account: &Account) -> Vec<OwnedNote> {
         let nullifiers = self.nullifiers();
@@ -112,13 +110,12 @@ impl Snapshot {
             .collect()
     }
 
-    /// Notes in this snapshot that `key` can decrypt, regardless of who can spend them.
+    /// Returns the notes decryptable by `key` within this snapshot.
     #[must_use]
     pub fn notes(&self, key: &EncryptionKey) -> Vec<BaseCommitment> {
         self.events.iter().filter_map(|e| e.decrypt(key)).collect()
     }
 
-    /// Nullifiers spent within this snapshot.
     #[must_use]
     pub fn nullifiers(&self) -> HashSet<Fr> {
         self.events
@@ -130,8 +127,11 @@ impl Snapshot {
             .collect()
     }
 
-    /// Appends the events of `next`, a later sync of the same deployment.
-    /// Events `next` shares with this snapshot are dropped.
+    /// Extends this snapshot with `next`.
+    ///
+    /// `next` must be for the same deployment and its block range must overlap
+    /// or abut this snapshot's range. Events `next` shares with this snapshot's
+    /// range are ignored.
     ///
     /// # Errors
     ///
@@ -154,7 +154,6 @@ impl Snapshot {
         Ok(())
     }
 
-    /// Notes `account` can spend, spent or not.
     fn owned(&self, account: &Account) -> impl Iterator<Item = OwnedNote> {
         self.notes(&account.encryption_key)
             .into_iter()

@@ -12,6 +12,7 @@ use crate::{
     note::{asset::AssetId, commitment::BaseCommitment},
 };
 
+/// A deposit into Tint.
 pub struct Deposit {
     pub instance: Address,
     pub receiver: PubAccount,
@@ -50,6 +51,10 @@ impl Deposit {
             .commitment(self.asset, self.amount, self.random)
     }
 
+    /// The ERC20 approval for this deposit.
+    ///
+    /// Returns a transaction that approves the Tint instance to spend `amount` of
+    /// `asset` on behalf of the sender.
     #[must_use]
     pub fn approval(&self) -> TransactionRequest {
         let approval_call = ERC20::approveCall {
@@ -62,7 +67,8 @@ impl Deposit {
             .input(approval_call.abi_encode().into())
     }
 
-    pub fn request<R: RngCore + CryptoRng>(
+    /// The deposit transaction for this deposit.
+    pub fn transaction<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
     ) -> Result<TransactionRequest, DepositError> {

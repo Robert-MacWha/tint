@@ -61,7 +61,7 @@ async fn public_signals_match_onchain() {
         &mut rng,
     );
     send(&provider, deposit.approval()).await;
-    send(&provider, deposit.request(&mut rng).unwrap()).await;
+    send(&provider, deposit.transaction(&mut rng).unwrap()).await;
 
     info!("Syncing");
     let snapshot = RpcSyncer::new(provider.clone())

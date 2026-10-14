@@ -1,15 +1,3 @@
-//! Builds, authorizes, and proves `Tint.operate` calls.
-//!
-//! ```text
-//! OperationBuilder --build--> UnsignedOperation --authorize--> Operation --prove--> ProvenOperation
-//! ```
-//!
-//! Outputs and their randomness are fixed at `build`, so the operation's hash
-//! (and anything a spending policy signs over) is stable before authorization.
-//!
-//! [`Operation`] is padded to the circuit's slot counts. A slot with a zero
-//! amount is padding, matching how the circuit treats it.
-
 use std::array::repeat;
 
 use alloy_primitives::{Address, B256, Bytes, keccak256};
@@ -54,8 +42,8 @@ pub struct OperationBuilder {
     change: Option<PubAccount>,
 }
 
-/// An operation whose outputs are fixed, awaiting one policy input per input note.
-pub struct UnsignedOperation {
+/// An operation missing its policy authorization inputs.
+pub struct UnauthorizedOperation {
     operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
 }
 
@@ -155,7 +143,7 @@ impl OperationBuilder {
     pub fn build<R: RngCore + CryptoRng>(
         self,
         rng: &mut R,
-    ) -> Result<UnsignedOperation, OperationError> {
+    ) -> Result<UnauthorizedOperation, OperationError> {
         if self.inputs.is_empty() {
             return Err(OperationError::NoInputs);
         }
@@ -189,7 +177,7 @@ impl OperationBuilder {
             .inputs
             .into_iter()
             .map(|note| note.spendable(Bytes::new()));
-        Ok(UnsignedOperation {
+        Ok(UnauthorizedOperation {
             operation: Operation {
                 inputs: pad(inputs),
                 output_commitments: pad(commitments),
@@ -253,7 +241,7 @@ impl OperationBuilder {
     }
 }
 
-impl UnsignedOperation {
+impl UnauthorizedOperation {
     /// The padded operation, as spending policies witness it. Policy inputs
     /// are empty; they don't affect [`Operation::signing_hash`].
     #[must_use]
@@ -290,9 +278,7 @@ impl UnsignedOperation {
 impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>
 {
-    /// This operation's binding hash, mirroring [`OperationVar::hash`].
-    ///
-    /// [`OperationVar::hash`]: crate::circuit::operation::OperationVar::hash
+    /// This operation's binding hash, mirroring [`crate::circuit::operation::OperationVar::hash`].
     pub fn hash(&self) -> Fr {
         let mut hash = Fr::from(0u64);
         for input in &self.inputs {
@@ -419,8 +405,7 @@ impl Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
         let (public_inputs, proof) =
             prove_with_matrices(&artifacts.matrices, &artifacts.pk, &circuit, rng)?;
 
-        // The release-mode prover doesn't check satisfiability, so catch a bad
-        // witness here rather than as an opaque on-chain revert.
+        // Catch bad witnesses before submitting.
         if !Groth16::<Bn254>::verify(&artifacts.vk, &public_inputs, &proof)? {
             return Err(OperationError::InvalidProof);
         }

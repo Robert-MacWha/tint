@@ -49,7 +49,7 @@ async fn unshield() {
 
     let deposit = Deposit::new(tint, account_1.pub_account(), asset, amount, &mut rng);
     send(&provider, deposit.approval()).await;
-    send(&provider, deposit.request(&mut rng).unwrap()).await;
+    send(&provider, deposit.transaction(&mut rng).unwrap()).await;
 
     info!("Syncing");
     let syncer = RpcSyncer::new(provider.clone());

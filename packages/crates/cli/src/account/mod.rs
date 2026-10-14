@@ -5,7 +5,7 @@ use std::io::{self, Write};
 
 use alloy::primitives::{Address, Bytes};
 use anyhow::Context;
-use tint::{operation::UnsignedOperation, policy::Policy};
+use tint::{operation::UnauthorizedOperation, policy::Policy};
 use tint_multisig_spendability::{N_SIGNERS, THRESHOLD, policy::MultisigPolicy};
 use tint_password_spendability::policy::PasswordPolicy;
 
@@ -26,7 +26,7 @@ impl Authorizer {
     }
 
     /// Produces the policy input authorizing `op`'s inputs under this policy.
-    pub fn authorize(&self, op: &UnsignedOperation) -> anyhow::Result<Bytes> {
+    pub fn authorize(&self, op: &UnauthorizedOperation) -> anyhow::Result<Bytes> {
         match self {
             Authorizer::Noop => Ok(Bytes::new()),
             Authorizer::Password(password) => Ok(password.authorize(op)?),
@@ -37,7 +37,7 @@ impl Authorizer {
 
 /// Resolves the on-chain spendability contract address,
 /// preferring `env_var` and falling back to user input.
-pub(crate) fn resolve_spendability_address(env_var: &str, name: &str) -> anyhow::Result<Address> {
+pub fn resolve_spendability_address(env_var: &str, name: &str) -> anyhow::Result<Address> {
     if let Ok(value) = std::env::var(env_var) {
         return value
             .parse()

@@ -14,7 +14,7 @@ use tint::{
     circuit::join_split::JoinSplitCircuit,
     deposit::Deposit,
     note::{asset::AssetId, owned::OwnedNote},
-    operation::{OperationBuilder, UnsignedOperation},
+    operation::{OperationBuilder, UnauthorizedOperation},
     provider_ext::TintProviderExt,
     skew_mmr::{SkewMmr, SkewMmrExt},
     syncer::{Snapshot, Syncer, rpc::RpcSyncer},
@@ -118,7 +118,7 @@ pub async fn shield(session: &mut Session, token: Address, amount: u128) -> anyh
     send(session, deposit.approval()).await?;
 
     tracing::info!("Depositing...");
-    send(session, deposit.request(&mut OsRng)?).await?;
+    send(session, deposit.transaction(&mut OsRng)?).await?;
 
     sync(session).await?;
     print_balance(session);
@@ -182,7 +182,7 @@ pub fn print_balance(session: &Session) {
 }
 
 /// Authorizes, proves, and submits `op`, then re-syncs.
-async fn operate(session: &mut Session, op: UnsignedOperation) -> anyhow::Result<()> {
+async fn operate(session: &mut Session, op: UnauthorizedOperation) -> anyhow::Result<()> {
     let policy_input = session.authorizer.authorize(&op)?;
     let proven = op.authorize(vec![policy_input])?.prove_with_mmr(
         &session.mmr,

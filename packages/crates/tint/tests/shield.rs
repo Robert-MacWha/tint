@@ -40,7 +40,7 @@ async fn shield() {
 
     let deposit = Deposit::new(tint, account.pub_account(), asset, amount, &mut rng);
     send(&provider, deposit.approval()).await;
-    let shield_receipt = send(&provider, deposit.request(&mut rng).unwrap()).await;
+    let shield_receipt = send(&provider, deposit.transaction(&mut rng).unwrap()).await;
     info!("Shielded for {} gas", shield_receipt.gas_used);
 
     info!("Syncing");

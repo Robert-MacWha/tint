@@ -19,7 +19,7 @@ fn pubkey_hash_matches_go() {
     let mut arr: [TintPubKeyXY; N_SIGNERS] =
         tint::array::try_from_fn(|i| TintPubKeyXY::try_from(&pub_keys[i])).unwrap();
     let mut out = Bytes32 { data: [0; 32] };
-    unsafe { PubKeyHash(arr.as_mut_ptr(), &mut out) };
+    unsafe { PubKeyHash(arr.as_mut_ptr(), &raw mut out) };
 
     assert_eq!(pubkey_hash(&pub_keys).unwrap(), out.into());
 }

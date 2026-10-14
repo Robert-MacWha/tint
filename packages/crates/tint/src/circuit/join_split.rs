@@ -2,6 +2,7 @@ use std::{array::from_fn, borrow::Borrow};
 
 use alloy_primitives::Address;
 use ark_bn254::Fr;
+use ark_ff::Fp;
 use ark_hybrid_compression::circuit::{CompressedCircuit, CompressibleCircuit, Flatten};
 use ark_r1cs_std::{
     GR1CSVar,
@@ -11,6 +12,7 @@ use ark_r1cs_std::{
     fields::FieldVar,
 };
 use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
+use skew_mmr::{proof::Proof, state::State};
 
 use crate::{
     array::try_from_fn,
@@ -238,7 +240,7 @@ impl<
         // Verify that the inclusion proofs are valid and all use the same MMR state.
         // Skipped for zero-valued elements (padding), which `OperationVar::verify` ties to
         // the unused (zero-amount) input slots.
-        for proof in self.inclusion_proofs.iter() {
+        for proof in &self.inclusion_proofs {
             let used = !proof.element.is_zero()?;
 
             //? Verify the proof's public states are all equal
@@ -362,11 +364,11 @@ impl<
 {
     fn default() -> Self {
         Self {
-            hist_state: Default::default(),
+            hist_state: State::default(),
             frontier: from_fn(|_| None),
-            bound_params_hash: Default::default(),
-            inclusion_proofs: from_fn(|_| Default::default()),
-            operation: Default::default(),
+            bound_params_hash: Fp::default(),
+            inclusion_proofs: from_fn(|_| Proof::default()),
+            operation: Operation::default(),
         }
     }
 }

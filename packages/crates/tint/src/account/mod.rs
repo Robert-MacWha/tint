@@ -41,8 +41,8 @@ impl Account {
 
     /// Derives an account's keys from a 32-byte seed using HKDF-SHA256.
     #[must_use]
-    #[allow(clippy::expect_used)]
-    #[allow(clippy::missing_panics_doc)]
+    #[expect(clippy::expect_used)]
+    #[expect(clippy::missing_panics_doc)]
     pub fn from_seed(seed: &[u8; 32], policy: Policy) -> Self {
         let hkdf = Hkdf::<Sha256>::new(None, seed);
 

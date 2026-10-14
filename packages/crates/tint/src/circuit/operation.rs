@@ -88,7 +88,7 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     }
 
     #[tracing::instrument(target = "r1cs", skip_all)]
-    #[allow(clippy::unused_self)]
+    #[expect(clippy::unused_self)]
     fn hash_inner(
         &self,
         input_commitment_hashes: &[FrVar; N_INPUTS],
@@ -510,7 +510,7 @@ mod tests {
         let zero_leaves: [FrVar; 3] =
             std::array::from_fn(|_| FpVar::new_witness(cs.clone(), || Ok(Fr::from(0))).unwrap());
 
-        let _ = var.verify_input_commitments(&zero_leaves).unwrap();
+        var.verify_input_commitments(&zero_leaves).unwrap();
         assert!(cs.is_satisfied().unwrap());
     }
 
@@ -527,7 +527,7 @@ mod tests {
         let wrong_leaves: [FrVar; 3] =
             std::array::from_fn(|_| FpVar::new_witness(cs.clone(), || Ok(Fr::from(1234))).unwrap());
 
-        let _ = var.verify_input_commitments(&wrong_leaves).unwrap();
+        var.verify_input_commitments(&wrong_leaves).unwrap();
         assert!(!cs.is_satisfied().unwrap());
     }
 }

@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use ark_bn254::Fr;
 use ark_ff::UniformRand;
 use ark_relations::gr1cs::ConstraintSystem;

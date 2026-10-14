@@ -170,7 +170,7 @@ mod tests {
 
         let circuit = signed_circuit(spendability_address, operation, secret);
         circuit.synthesize(&cs).unwrap();
-        assert!(cs.is_satisfied().unwrap())
+        assert!(cs.is_satisfied().unwrap());
     }
 
     #[test]
@@ -189,7 +189,7 @@ mod tests {
 
         let circuit = signed_circuit(spendability_address, operation, secret);
         circuit.synthesize(&cs).unwrap();
-        assert!(cs.is_satisfied().unwrap())
+        assert!(cs.is_satisfied().unwrap());
     }
 
     #[test]

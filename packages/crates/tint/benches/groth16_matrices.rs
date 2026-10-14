@@ -1,7 +1,8 @@
 //! Benchmarks for Groth16 proving with matrices.
 //!
 //! Compares the performance of Groth16 proving using the arkworks baseline
-//! implementation against pre-computed matrices for the JoinSplit circuit.
+//! implementation against pre-computed matrices for the `JoinSplit` circuit.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use std::time::Instant;
 
@@ -27,6 +28,6 @@ fn main() {
     let _ = prove_with_matrices(&artifacts.matrices, &artifacts.pk, &circuit, &mut rng).unwrap();
     let matrices_prove_time = matrices_prove_start.elapsed();
 
-    println!("groth16 prove (baseline): {:?}", baseline_prove_time);
-    println!("groth16 prove (matrices): {:?}", matrices_prove_time);
+    println!("groth16 prove (baseline): {baseline_prove_time:?}");
+    println!("groth16 prove (matrices): {matrices_prove_time:?}");
 }

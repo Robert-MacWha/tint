@@ -1,3 +1,5 @@
+#![expect(clippy::expect_used, clippy::unwrap_used)]
+
 //! Generates `packages/contracts/src/Groth16Verifier.sol` from the dev
 //! trusted setup's `VerifyingKey`.
 
@@ -7,7 +9,6 @@ use taceo_groth16_sol::{SolidityVerifierConfig, SolidityVerifierContext, askama:
 use tint::circuit::join_split::JoinSplitCircuit;
 use tint_groth16::artifacts::Artifacts;
 
-#[allow(clippy::expect_used)]
 fn main() {
     let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>()
         .expect("failed to generate JoinSplit artifacts");

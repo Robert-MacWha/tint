@@ -33,7 +33,7 @@ fn operation_hash_matches_go() {
 
     let mut c_op = (&op).into();
     let mut out = Bytes32 { data: [0; 32] };
-    unsafe { OperationHash(&mut c_op, &mut out) };
+    unsafe { OperationHash(&raw mut c_op, &raw mut out) };
 
     assert_eq!(op.hash(), out.into());
 }

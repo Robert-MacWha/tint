@@ -2,7 +2,7 @@
 ///
 /// # Errors
 /// Errors if the provided fn returns an error for any index.
-#[allow(clippy::unreachable)]
+#[expect(clippy::unreachable)]
 pub fn try_from_fn<T, E, const N: usize>(
     mut f: impl FnMut(usize) -> Result<T, E>,
 ) -> Result<[T; N], E> {
@@ -19,7 +19,7 @@ pub fn try_from_fn<T, E, const N: usize>(
 ///
 /// # Errors
 /// Errors if the provided fn returns an error for any element of the input array.
-#[allow(clippy::unreachable)]
+#[expect(clippy::unreachable)]
 pub fn try_map<T, U, E, const N: usize>(
     arr: [T; N],
     mut f: impl FnMut(T) -> Result<U, E>,
@@ -35,6 +35,7 @@ pub fn try_map<T, U, E, const N: usize>(
 }
 
 #[cfg(test)]
+#[expect(clippy::cast_possible_wrap)]
 mod tests {
     use super::*;
 

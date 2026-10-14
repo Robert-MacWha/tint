@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use std::time::Instant;
 
 use alloy_primitives::Address;
@@ -46,5 +48,5 @@ fn main() {
     .unwrap();
     let prove_time = prove_start.elapsed();
 
-    println!("groth16 prove+verify+solidity (go ffi): {:?}", prove_time);
+    println!("groth16 prove+verify+solidity (go ffi): {prove_time:?}");
 }

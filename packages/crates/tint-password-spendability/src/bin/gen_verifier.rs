@@ -9,7 +9,7 @@ use taceo_groth16_sol::{SolidityVerifierConfig, SolidityVerifierContext, askama:
 use tint_groth16::artifacts::Artifacts;
 use tint_password_spendability::circuit::PasswordSpendability;
 
-#[allow(clippy::expect_used)]
+#[expect(clippy::expect_used, clippy::unwrap_used)]
 fn main() {
     let artifacts = Artifacts::generate_deterministic::<PasswordSpendability>()
         .expect("failed to generate artifacts");

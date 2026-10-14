@@ -174,6 +174,6 @@ mod tests {
         assert_eq!(bindings::N_OUTPUTS, N_OUTPUTS as u32);
         assert_eq!(bindings::N_WITHDRAWALS, N_WITHDRAWALS as u32);
         assert_eq!(bindings::N_SIGNERS, N_SIGNERS as u32);
-        assert_eq!(bindings::THRESHOLD, THRESHOLD as u32)
+        assert_eq!(bindings::THRESHOLD, THRESHOLD as u32);
     }
 }

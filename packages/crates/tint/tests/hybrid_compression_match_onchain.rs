@@ -24,33 +24,32 @@ sol!(
 
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
-async fn hybrid_compression_match_onchain() {
+async fn hybrid_compression_match_onchain() -> Result<(), Box<dyn std::error::Error>> {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
     let anvil = Anvil::new().spawn();
     let rpc_url = anvil.endpoint();
-    let signer = PrivateKeySigner::from_slice(&anvil.first_key().to_bytes()).unwrap();
+    let signer = PrivateKeySigner::from_slice(&anvil.first_key().to_bytes())?;
 
     let provider = ProviderBuilder::new()
         .wallet(signer)
-        .connect_http(rpc_url.parse().unwrap())
+        .connect_http(rpc_url.parse()?)
         .erased();
 
-    let hybrid_compression = HybridCompression::deploy(provider.clone()).await.unwrap();
+    let hybrid_compression = HybridCompression::deploy(provider.clone()).await?;
 
     let stmt: Vec<Fr> = (0..N_PUB).map(|i| Fr::from(i as u64 + 1)).collect();
     let (alpha, beta, gamma) =
-        ark_hybrid_compression::circuit::compress::<Fr, Poseidon2ChainCrh>(&(), &stmt).unwrap();
+        ark_hybrid_compression::circuit::compress::<Fr, Poseidon2ChainCrh>(&(), &stmt)?;
 
     let sol_stmt: [U256; N_PUB] = std::array::from_fn(|i| fr_to_u256(stmt[i]));
     let (sol_alpha, sol_gamma) = {
         let compressed = hybrid_compression
             .toCompressedSignals(sol_stmt, fr_to_u256(beta))
             .call()
-            .await
-            .unwrap();
+            .await?;
         (u256_to_fr(compressed[0]), u256_to_fr(compressed[2]))
     };
 
@@ -61,4 +60,6 @@ async fn hybrid_compression_match_onchain() {
     );
     assert_eq!(alpha, sol_alpha, "alpha does not match on-chain value");
     assert_eq!(gamma, sol_gamma, "gamma does not match on-chain value");
+
+    Ok(())
 }

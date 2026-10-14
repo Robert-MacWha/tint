@@ -8,16 +8,6 @@ pub mod poseidon2;
 
 pub type FrVar = ark_r1cs_std::fields::fp::FpVar<ark_bn254::Fr>;
 
-/// Helper to create a new constant variable in the constraint system with the given
-/// value.
-#[allow(dead_code)]
-pub fn constant<T, F: Field, TVar: AllocVar<T, F>>(
-    cs: impl Into<ark_relations::gr1cs::Namespace<F>>,
-    value: &T,
-) -> Result<TVar, ark_relations::gr1cs::SynthesisError> {
-    TVar::new_constant(cs, value)
-}
-
 /// Helper to create a new public input variable in the constraint system
 /// with the given value.
 pub fn input<T, F: Field, TVar: AllocVar<T, F>>(
@@ -46,7 +36,6 @@ where
 
 /// Helper to create a new witness variable in the constraint system with the given
 /// value.
-#[allow(dead_code)]
 pub fn witness<T, F: Field, TVar: AllocVar<T, F>>(
     cs: impl Into<ark_relations::gr1cs::Namespace<F>>,
     value: &T,

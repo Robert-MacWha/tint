@@ -16,16 +16,16 @@ mod common;
 
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
-async fn shield() {
+async fn shield() -> Result<(), Box<dyn std::error::Error>> {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
-        .add_directive("gr1cs=off".parse().unwrap())
-        .add_directive("r1cs=off".parse().unwrap());
+        .add_directive("gr1cs=off".parse()?)
+        .add_directive("r1cs=off".parse()?);
 
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
     let mut rng = StdRng::seed_from_u64(1);
-    let instance = anvil::setup().await.unwrap();
+    let instance = anvil::setup().await?;
 
     let provider = instance.provider;
     let tint = *instance.tint.address();
@@ -39,24 +39,20 @@ async fn shield() {
     let amount = 1_000u128;
 
     let deposit = Deposit::new(tint, account.pub_account(), asset, amount, &mut rng);
-    send(&provider, deposit.approval()).await;
-    let shield_receipt = send(&provider, deposit.transaction(&mut rng).unwrap()).await;
+    send(&provider, deposit.approval()).await?;
+    let shield_receipt = send(&provider, deposit.transaction(&mut rng)?).await?;
     info!("Shielded for {} gas", shield_receipt.gas_used);
 
     info!("Syncing");
-    let snapshot = RpcSyncer::new(provider.clone())
-        .sync(tint, ..)
-        .await
-        .unwrap();
+    let snapshot = RpcSyncer::new(provider.clone()).sync(tint, ..).await?;
 
     // Verify balances
     info!("Verifying balances");
-    assert_eq!(
-        token.balanceOf(tint).call().await.unwrap(),
-        U256::from(amount)
-    );
+    assert_eq!(token.balanceOf(tint).call().await?, U256::from(amount));
 
     let notes = snapshot.unspent(&account);
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0].note, deposit.note());
+
+    Ok(())
 }

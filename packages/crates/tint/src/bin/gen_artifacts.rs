@@ -1,3 +1,4 @@
+#![expect(clippy::expect_used)]
 //! Generates groth16 proving & verifying artifacts for the `JoinSplit` circuit,
 //! compresses them, and writes them to disk.
 
@@ -9,7 +10,6 @@ use tint_groth16::{
 
 const ARTIFACTS_DIR: &str = "artifacts/";
 
-#[allow(clippy::expect_used)]
 fn main() {
     println!("Generating artifacts");
     let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>()
@@ -38,7 +38,6 @@ fn main() {
     println!("Done generating artifacts");
 }
 
-#[allow(clippy::expect_used)]
 fn write_to_file(path: &str, data: &[u8]) {
     println!("Writing compressed data to {path}");
     std::fs::write(path, data).expect("failed to write compressed data to file");

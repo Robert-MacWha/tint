@@ -46,15 +46,13 @@ pub fn address_to_fr(address: Address) -> Fr {
 
 #[cfg(test)]
 mod tests {
-    use std::u128;
-
     use super::*;
 
     #[test]
     fn test_fr_to_u128() {
-        let fr = Fr::from(123456789u128);
+        let fr = Fr::from(123_456_789u128);
         let u128_value = fr_to_u128(&fr);
-        assert_eq!(u128_value, 123456789u128);
+        assert_eq!(u128_value, 123_456_789u128);
     }
 
     #[test]
@@ -74,7 +72,7 @@ mod tests {
 
     #[test]
     fn test_u256_to_fr() {
-        let u256_value = U256::from(123456789u128);
+        let u256_value = U256::from(123_456_789u128);
         let fr_value = u256_to_fr(u256_value);
         let u256_back = fr_to_u256(fr_value);
         assert_eq!(u256_value, u256_back);

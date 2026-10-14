@@ -25,16 +25,16 @@ use crate::common::anvil;
 /// Test that we can spend a note using the `PasswordSpendability` circuit.
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
-async fn password() {
+async fn password() -> Result<(), Box<dyn std::error::Error>> {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
-        .add_directive("gr1cs=off".parse().unwrap())
-        .add_directive("r1cs=off".parse().unwrap());
+        .add_directive("gr1cs=off".parse()?)
+        .add_directive("r1cs=off".parse()?);
 
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
     let mut rng = StdRng::seed_from_u64(1);
-    let instance = anvil::setup().await.unwrap();
+    let instance = anvil::setup().await?;
 
     let provider = instance.provider;
     let tint = *instance.tint.address();
@@ -43,9 +43,8 @@ async fn password() {
 
     // Setup circuits
     info!("Setting up circuits...");
-    let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>().unwrap();
-    let spendability_artifacts =
-        Artifacts::generate_deterministic::<PasswordSpendability>().unwrap();
+    let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>()?;
+    let spendability_artifacts = Artifacts::generate_deterministic::<PasswordSpendability>()?;
 
     // Setup policy
     info!("Setting up password policy...");
@@ -63,14 +62,14 @@ async fn password() {
     let amount = 1_000u128;
 
     let deposit = Deposit::new(tint, account_1.pub_account(), asset, amount, &mut rng);
-    send(&provider, deposit.approval()).await;
-    send(&provider, deposit.transaction(&mut rng).unwrap()).await;
+    send(&provider, deposit.approval()).await?;
+    send(&provider, deposit.transaction(&mut rng)?).await?;
 
     info!("Syncing");
     let syncer = RpcSyncer::new(provider.clone());
-    let snapshot = syncer.sync(tint, ..).await.unwrap();
+    let snapshot = syncer.sync(tint, ..).await?;
     let mut mmr = SkewMmr::new();
-    mmr.append_events(&snapshot.events).unwrap();
+    mmr.append_events(&snapshot.events)?;
 
     let notes = snapshot.unspent(&account_1);
 
@@ -81,18 +80,15 @@ async fn password() {
         .output(account_1.pub_account(), asset, amount - 150)
         .output(account_2.pub_account(), asset, 100)
         .withdraw(Address::new([3; 20]), asset, 50)
-        .build(&mut rng)
-        .unwrap();
-    let policy_input = password.authorize(&op).unwrap();
+        .build(&mut rng)?;
+    let policy_input = password.authorize(&op)?;
     let proven = op
-        .authorize(vec![policy_input])
-        .unwrap()
-        .prove_with_mmr(&mmr, &artifacts, &mut rng)
-        .unwrap();
-    send(&provider, proven.transaction(tint)).await;
+        .authorize(vec![policy_input])?
+        .prove_with_mmr(&mmr, &artifacts, &mut rng)?;
+    send(&provider, proven.transaction(tint)).await?;
 
     info!("Syncing");
-    let snapshot = syncer.sync(tint, ..).await.unwrap();
+    let snapshot = syncer.sync(tint, ..).await?;
 
     // Verify balances
     info!("Verifying balances");
@@ -105,15 +101,13 @@ async fn password() {
     assert_eq!(notes_2.len(), 1);
     assert_eq!(notes_2[0].note.amount, 100);
     assert_eq!(notes_2[0].note.asset, asset);
+
+    Ok(())
 }
 
-async fn send(provider: &impl Provider, tx: TransactionRequest) {
-    let receipt = provider
-        .send_transaction(tx)
-        .await
-        .unwrap()
-        .get_receipt()
-        .await
-        .unwrap();
+async fn send(provider: &impl Provider, tx: TransactionRequest) -> anyhow::Result<()> {
+    let receipt = provider.send_transaction(tx).await?.get_receipt().await?;
     assert!(receipt.status());
+
+    Ok(())
 }

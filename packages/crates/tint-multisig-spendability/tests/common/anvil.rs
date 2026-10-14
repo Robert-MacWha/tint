@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use alloy_node_bindings::{Anvil, AnvilInstance};
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use alloy_signer_local::PrivateKeySigner;
@@ -9,10 +10,8 @@ use crate::common::anvil::{
     spendability::MultisigSpendability::MultisigSpendabilityInstance,
 };
 
-#[allow(dead_code)]
 pub struct Instance {
     // Anvil instance. Kills the anvil process when dropped.
-    #[allow(dead_code)]
     pub anvil: AnvilInstance,
     pub provider: DynProvider,
     pub tint: TintInstance<DynProvider>,
@@ -55,8 +54,7 @@ pub mod spendability {
 }
 
 /// Sets up an anvil instance for testing, deploying Tint, a mock ERC20, and
-/// the MultisigSpendability contracts.
-#[allow(dead_code)]
+/// the `MultisigSpendability` contracts.
 pub async fn setup() -> anyhow::Result<Instance> {
     let anvil = Anvil::new().spawn();
     let rpc_url = anvil.endpoint();
@@ -64,7 +62,7 @@ pub async fn setup() -> anyhow::Result<Instance> {
 
     let provider = ProviderBuilder::new()
         .wallet(signer)
-        .connect_http(rpc_url.parse().unwrap())
+        .connect_http(rpc_url.parse()?)
         .erased();
 
     let verifier = TintVerifier::deploy(provider.clone()).await?;

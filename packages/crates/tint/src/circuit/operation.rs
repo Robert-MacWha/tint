@@ -3,13 +3,13 @@ use std::borrow::Borrow;
 use ark_bn254::Fr;
 use ark_r1cs_std::{alloc::AllocVar, eq::EqGadget, fields::FieldVar};
 use ark_relations::gr1cs::{Namespace, SynthesisError};
+use tint_poseidon2::poseidon2_compress_gadget;
 
 use crate::{
     array::try_from_fn,
     circuit::{
         FrVar,
         commitment::{BaseCommitmentVar, SpendableCommitmentVar},
-        poseidon2::poseidon2_compress_gadget,
         variable,
     },
     note::withdrawal::Withdrawal,

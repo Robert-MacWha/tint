@@ -1,6 +1,6 @@
 use ark_bn254::Fr;
 
-use crate::circuit::poseidon2::element::PoseidonElement;
+use crate::element::PoseidonElement;
 
 const ALPHA: u64 = 5;
 

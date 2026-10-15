@@ -6,10 +6,10 @@ use ark_relations::gr1cs::SynthesisError;
 use ark_snark::SNARK;
 use rand_core::OsRng;
 use tint::{
-    abis::tint::ProofLib, circuit::poseidon2::poseidon2_compress, fr::address_to_fr,
-    operation::UnauthorizedOperation, policy::Policy,
+    abis::tint::ProofLib, fr::address_to_fr, operation::UnauthorizedOperation, policy::Policy,
 };
 use tint_groth16::{artifacts::Artifacts, prove::prove_with_matrices};
+use tint_poseidon2::poseidon2_compress;
 use tracing::info;
 
 use crate::circuit::PasswordSpendability;

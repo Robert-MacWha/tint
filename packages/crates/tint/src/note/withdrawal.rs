@@ -1,7 +1,8 @@
 use alloy_primitives::Address;
 use ark_bn254::Fr;
+use tint_poseidon2::poseidon2_compress;
 
-use crate::{circuit::poseidon2::poseidon2_compress, fr::address_to_fr, note::asset::AssetId};
+use crate::{fr::address_to_fr, note::asset::AssetId};
 
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct Withdrawal {

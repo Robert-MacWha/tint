@@ -1,9 +1,10 @@
 use ark_bn254::Fr;
 use ark_r1cs_std::{alloc::AllocVar, eq::EqGadget, fields::FieldVar};
 use ark_relations::gr1cs::SynthesisError;
+use tint_poseidon2::poseidon2_compress_gadget;
 
 use crate::{
-    circuit::{FrVar, poseidon2::poseidon2_compress_gadget, variable},
+    circuit::{FrVar, variable},
     fr::address_to_fr,
     note::{commitment::BaseCommitment, owned::SpendableNote},
 };

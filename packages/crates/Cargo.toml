@@ -5,6 +5,7 @@ members = [
     "tint-groth16",
     "tint-multisig-spendability",
     "tint-password-spendability",
+    "tint-poseidon2",
 ]
 resolver = "3"
 
@@ -71,6 +72,7 @@ tint = { path = "./tint", default-features = false }
 tint-groth16 = { path = "./tint-groth16" }
 tint-multisig-spendability = { path = "./tint-multisig-spendability" }
 tint-password-spendability = { path = "./tint-password-spendability" }
+tint-poseidon2 = { path = "./tint-poseidon2" }
 tokio = { version = "1" }
 tracing = "0.1.44"
 tracing-subscriber = "0.3"

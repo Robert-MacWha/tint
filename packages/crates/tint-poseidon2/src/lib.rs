@@ -9,7 +9,9 @@ mod t8;
 use ark_bn254::Fr;
 use ark_relations::gr1cs::SynthesisError;
 
-use crate::circuit::{FrVar, poseidon2::element::PoseidonElement};
+use crate::element::PoseidonElement;
+
+pub type FrVar = ark_r1cs_std::fields::fp::FpVar<ark_bn254::Fr>;
 
 /// Compresses `T` field elements into one using the Poseidon2 permutation.
 /// Supported: `T` = 1, 2, 3, 8.

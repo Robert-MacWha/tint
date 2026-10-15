@@ -3,7 +3,7 @@ use std::borrow::Borrow;
 use ark_bn254::Fr;
 use ark_crypto_primitives::crh::CRHScheme;
 
-use crate::circuit::poseidon2::poseidon2_compress;
+use crate::poseidon2_compress;
 
 pub mod constraints;
 

@@ -8,11 +8,11 @@ use tint::{
         FrVar, input,
         join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
         operation::OperationVar,
-        poseidon2::poseidon2_compress_gadget,
         variable, witness,
     },
     operation::Operation,
 };
+use tint_poseidon2::poseidon2_compress_gadget;
 
 /// Spendability circuit for the "Password" rule, which proves knowledge of a
 /// private key bound to a note's spendability hash for a given operation's
@@ -144,7 +144,8 @@ impl PasswordSpendabilityVar {
 mod tests {
     use alloy_primitives::{Address, address};
     use ark_relations::gr1cs::trace::{ConstraintLayer, TracingMode};
-    use tint::{circuit::poseidon2::poseidon2_compress, fr::address_to_fr};
+    use tint::fr::address_to_fr;
+    use tint_poseidon2::poseidon2_compress;
     use tracing_subscriber::layer::SubscriberExt;
 
     use super::*;

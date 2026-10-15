@@ -2,7 +2,7 @@
 #![expect(clippy::too_many_arguments)]
 
 use ark_bn254::Fr;
-use tint::circuit::poseidon2::poseidon2_compress;
+use tint_poseidon2::poseidon2_compress;
 
 use crate::ffi::bindings::{
     Bytes32, Poseidon2Compress1, Poseidon2Compress2, Poseidon2Compress3, Poseidon2Compress8,

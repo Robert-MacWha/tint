@@ -5,7 +5,7 @@ use ark_ff::{AdditiveGroup, Field};
 use ark_r1cs_std::fields::FieldVar;
 use ark_relations::gr1cs::SynthesisError;
 
-use crate::circuit::FrVar;
+use crate::FrVar;
 
 /// A native field element (`Fr`) or its in-circuit counterpart (`FrVar`).
 pub trait PoseidonElement: Sized + Clone + Add<Self, Output = Self> {

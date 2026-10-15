@@ -3,12 +3,10 @@ use ark_crypto_primitives::crh::CRHSchemeGadget;
 use ark_r1cs_std::fields::FieldVar;
 use ark_relations::gr1cs::SynthesisError;
 
-use crate::circuit::{
+use crate::{
     FrVar,
-    poseidon2::{
-        crh::{Poseidon2ChainCrh, RATE, WIDTH},
-        poseidon2_compress_gadget,
-    },
+    crh::{Poseidon2ChainCrh, RATE, WIDTH},
+    poseidon2_compress_gadget,
 };
 
 /// In-circuit counterpart of [`Poseidon2ChainCrh`].

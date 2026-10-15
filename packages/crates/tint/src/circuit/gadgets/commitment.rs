@@ -87,8 +87,11 @@ mod tests {
     fn hash() {
         let cs = ConstraintSystem::<Fr>::new_ref();
 
-        let mut commitment = Commitment::default();
-        commitment.amount = 123;
+        let commitment = Commitment {
+            amount: 1234,
+            ..Commitment::default()
+        };
+
         let commitment_var: CommitmentVar = witness(cs.clone(), &commitment).unwrap();
 
         let commitment_hash = commitment.hash();

@@ -14,6 +14,7 @@ import (
 
 	"github.com/Robert-MacWha/tint/packages/crates/tint-multisig-spendability/go/circuit"
 	"github.com/Robert-MacWha/tint/packages/crates/tint-multisig-spendability/go/internal/operation"
+	"github.com/Robert-MacWha/tint/packages/crates/tint-multisig-spendability/go/internal/poseidon2"
 )
 
 func fromCProveInput(input *C.TintProveInput) circuit.MultisigSpendability[emulated.Secp256k1Fp, emulated.Secp256k1Fr] {
@@ -35,12 +36,14 @@ func fromCProveInput(input *C.TintProveInput) circuit.MultisigSpendability[emula
 	}
 
 	spendabilityAddress := fromCFr(input.spendability_address)
-	operationHash := operation.Hash()
+	contextHash := fromCFr(input.context_hash)
+	signingHash := poseidon2.Compress2([2]frbn254.Element{operation.Hash(), contextHash})
 
 	return circuit.MultisigSpendability[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
 		SpendabilityAddress: spendabilityAddress.String(),
-		OperationHash:       operationHash.String(),
+		SigningHash:         signingHash.String(),
 		Operation:           operation.ToVar(),
+		ContextHash:         contextHash.String(),
 		PubKeys:             pubKeys,
 		Signatures:          signatures,
 	}
@@ -80,8 +83,9 @@ func fromCBaseCommitment(c C.TintBaseCommitment) operation.BaseCommitment {
 
 func fromCWithdrawal(c C.TintWithdrawal) operation.Withdrawal {
 	return operation.Withdrawal{
-		AssetFr:  fromCFr(c.asset_fr),
-		AmountFr: fromCFr(c.amount_fr),
+		AssetFr:     fromCFr(c.asset_fr),
+		AmountFr:    fromCFr(c.amount_fr),
+		RecipientFr: fromCFr(c.recipient_fr),
 	}
 }
 

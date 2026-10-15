@@ -8,10 +8,7 @@ use anyhow::Context;
 use ark_bn254::{Bn254, Fr};
 use ark_relations::gr1cs::ConstraintSynthesizer;
 use serde::{Deserialize, Serialize};
-use tint::{
-    self,
-    account::{Account, keys::Keys, receiver::Receiver, spending::NoopSpendingAccount},
-};
+use tint::account::{Account, pub_account::PubAccount};
 use tint_groth16::{
     artifacts::Artifacts,
     serde::{
@@ -23,8 +20,9 @@ use tint_multisig_spendability::N_SIGNERS;
 use tracing::info;
 
 use crate::account::{
-    multisig::{create_multisig_account, load_multisig_account},
-    password::{create_password_account, load_password_account},
+    Authorizer,
+    multisig::{create_multisig_account, load_multisig_authorizer},
+    password::{create_password_account, load_password_authorizer},
 };
 
 #[derive(Clone, clap::ValueEnum)]
@@ -37,7 +35,7 @@ pub enum AccountSpendability {
 #[derive(Serialize, Deserialize)]
 struct StoredAccount {
     seed: String,
-    receiver: Receiver,
+    receiver: PubAccount,
     spendability: SpendabilityState,
 }
 
@@ -80,7 +78,7 @@ pub fn list_accounts() -> anyhow::Result<Vec<String>> {
 }
 
 /// Creates a new named account, failing if one with this name already exists.
-pub fn create_account(name: &str, spendability: AccountSpendability) -> anyhow::Result<Account> {
+pub fn create_account(name: &str, spendability: AccountSpendability) -> anyhow::Result<()> {
     let dir = account_dir(name);
     if dir.exists() {
         anyhow::bail!("account \"{name}\" already exists at {}", dir.display());
@@ -89,45 +87,42 @@ pub fn create_account(name: &str, spendability: AccountSpendability) -> anyhow::
 
     let mut seed = [0u8; 32];
     rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut seed);
-    let keys = Keys::from_seed(&seed);
 
-    let (account, state) = match spendability {
-        AccountSpendability::Noop => (
-            Account::from_keys(keys, NoopSpendingAccount),
-            SpendabilityState::Noop,
-        ),
-        AccountSpendability::Password => create_password_account(name, keys)?,
-        AccountSpendability::Multisig => create_multisig_account(name, keys)?,
+    let (authorizer, state) = match spendability {
+        AccountSpendability::Noop => (Authorizer::Noop, SpendabilityState::Noop),
+        AccountSpendability::Password => create_password_account(name)?,
+        AccountSpendability::Multisig => create_multisig_account(name)?,
     };
+    let account = Account::from_seed(&seed, authorizer.policy());
 
     let stored = StoredAccount {
         seed: hex::encode_prefixed(seed),
-        receiver: account.receiver(),
+        receiver: account.pub_account(),
         spendability: state,
     };
     fs::write(account_file(name), serde_json::to_string_pretty(&stored)?)
         .with_context(|| format!("writing account file for \"{name}\""))?;
 
-    Ok(account)
+    Ok(())
 }
 
-/// Loads a previously created named account
-pub fn load_account(name: &str) -> anyhow::Result<Account> {
+/// Loads a previously created named account and its policy's authorizer.
+pub fn load_account(name: &str) -> anyhow::Result<(Account, Authorizer)> {
     let stored = read_stored_account(name)?;
     let seed = decode_seed(name, &stored.seed)?;
-    let keys = Keys::from_seed(&seed);
 
-    match stored.spendability {
-        SpendabilityState::Noop => Ok(Account::from_keys(keys, NoopSpendingAccount)),
-        SpendabilityState::Password { address } => load_password_account(keys, address),
+    let authorizer = match stored.spendability {
+        SpendabilityState::Noop => Authorizer::Noop,
+        SpendabilityState::Password { address } => load_password_authorizer(address)?,
         SpendabilityState::Multisig { address, signers } => {
-            load_multisig_account(keys, address, &signers)
+            load_multisig_authorizer(address, &signers)?
         }
-    }
+    };
+    Ok((Account::from_seed(&seed, authorizer.policy()), authorizer))
 }
 
-/// Loads a previously created named account's receiver.
-pub fn load_receiver(name: &str) -> anyhow::Result<Receiver> {
+/// Loads a previously created named account's public account.
+pub fn load_pub_account(name: &str) -> anyhow::Result<PubAccount> {
     Ok(read_stored_account(name)?.receiver)
 }
 

@@ -1,85 +1,73 @@
-use std::sync::Arc;
-
-use alloy_primitives::Address;
 use ark_bn254::Fr;
+use ark_ff::PrimeField;
+use hkdf::Hkdf;
+use sha2::Sha256;
+use x25519_dalek::StaticSecret;
 
 use crate::{
     account::{
-        keys::Keys, nullifying::NullifyingAccount, receiver::Receiver, spending::SpendingAccount,
-        viewing::ViewingAccount,
+        keys::{EncryptionKey, NullifierKey},
+        pub_account::PubAccount,
     },
-    circuit::poseidon2::poseidon2_compress,
-    fr::address_to_fr,
+    policy::Policy,
 };
 
 pub mod keys;
-pub mod nullifying;
-pub mod receiver;
-pub mod spending;
-pub mod viewing;
+pub mod pub_account;
 
-/// A full account that can view, nullify, and authorize spending of its own
-/// notes.
+/// An account that can view and spend notes under its policy.
+///
+/// The private counterpart of a [`PubAccount`].
 #[derive(Clone, Debug)]
 pub struct Account {
-    viewing: ViewingAccount,
-    nullifying: NullifyingAccount,
-    spending: Arc<dyn SpendingAccount + Send + Sync>,
+    pub nullifier_key: NullifierKey,
+    pub encryption_key: EncryptionKey,
+    pub policy: Policy,
 }
 
+// Info strings used for HKDF key derivation.
+const NULLIFIER_KEY_INFO: &[u8] = b"tint/nullifier-key/v1";
+const ENCRYPTION_KEY_INFO: &[u8] = b"tint/encryption-key/v1";
+
 impl Account {
-    pub fn new(
-        viewing: ViewingAccount,
-        nullifying: NullifyingAccount,
-        spending: impl SpendingAccount + Send + Sync + 'static,
-    ) -> Self {
+    #[must_use]
+    pub fn new(nullifier_key: NullifierKey, encryption_key: EncryptionKey, policy: Policy) -> Self {
         Self {
-            viewing,
-            nullifying,
-            spending: Arc::new(spending),
+            nullifier_key,
+            encryption_key,
+            policy,
         }
     }
 
-    pub fn from_keys(keys: Keys, spending: impl SpendingAccount + Send + Sync + 'static) -> Self {
-        Self::new(
-            ViewingAccount::new(keys.encryption_key),
-            NullifyingAccount::new(keys.nullifier_key),
-            spending,
+    /// Derives an account's keys from a 32-byte seed using HKDF-SHA256.
+    #[must_use]
+    #[expect(clippy::expect_used)]
+    #[expect(clippy::missing_panics_doc)]
+    pub fn from_seed(seed: &[u8; 32], policy: Policy) -> Self {
+        let hkdf = Hkdf::<Sha256>::new(None, seed);
+
+        // SAFETY: 32 bytes is a valid HKDF-SHA256 output length, so the `expect` here
+        // should never fail.
+        let mut nullifier_bytes = [0u8; 32];
+        hkdf.expand(NULLIFIER_KEY_INFO, &mut nullifier_bytes)
+            .expect("32 bytes is a valid HKDF-SHA256 output length");
+        let nullifier_key = NullifierKey(Fr::from_le_bytes_mod_order(&nullifier_bytes));
+
+        let mut encryption_bytes = [0u8; 32];
+        hkdf.expand(ENCRYPTION_KEY_INFO, &mut encryption_bytes)
+            .expect("32 bytes is a valid HKDF-SHA256 output length");
+        let encryption_key = EncryptionKey(StaticSecret::from(encryption_bytes));
+
+        Self::new(nullifier_key, encryption_key, policy)
+    }
+
+    /// The public account others send notes to.
+    #[must_use]
+    pub fn pub_account(&self) -> PubAccount {
+        PubAccount::new(
+            self.nullifier_key.pub_key(),
+            self.encryption_key.public_key(),
+            self.policy.hash(),
         )
     }
-
-    #[must_use]
-    pub fn viewing(&self) -> &ViewingAccount {
-        &self.viewing
-    }
-
-    #[must_use]
-    pub fn nullifying(&self) -> &NullifyingAccount {
-        &self.nullifying
-    }
-
-    #[must_use]
-    pub fn spending(&self) -> &(dyn SpendingAccount + Send + Sync) {
-        self.spending.as_ref()
-    }
-
-    #[must_use]
-    pub fn receiver(&self) -> Receiver {
-        Receiver::new(
-            self.nullifying.pub_key(),
-            self.viewing.pub_key(),
-            self.spending.spendability_hash(),
-        )
-    }
-
-    #[must_use]
-    pub fn address(&self) -> Vec<u8> {
-        self.receiver().address()
-    }
-}
-
-#[must_use]
-pub fn spendability_hash(address: Address, witness: Fr) -> Fr {
-    let address = address_to_fr(address);
-    poseidon2_compress(&[address, witness])
 }

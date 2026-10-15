@@ -18,7 +18,7 @@ func (c BaseCommitment) Hash() frbn254.Element {
 
 // Hash mirrors Withdrawal::hash
 func (w Withdrawal) Hash() frbn254.Element {
-	return poseidon2.Compress2([2]frbn254.Element{w.AssetFr, w.AmountFr})
+	return poseidon2.Compress3([3]frbn254.Element{w.AssetFr, w.AmountFr, w.RecipientFr})
 }
 
 // Hash mirrors Operation::hash(): a running T=2 poseidon2 accumulator over

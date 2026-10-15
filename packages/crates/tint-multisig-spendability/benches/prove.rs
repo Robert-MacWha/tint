@@ -1,12 +1,18 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use std::time::Instant;
 
 use alloy_primitives::Address;
+use ark_bn254::Fr;
 use k256::{
     ecdsa::{Signature, SigningKey, VerifyingKey, signature::hazmat::PrehashSigner},
     elliptic_curve::Generate,
 };
 use tint::{
-    circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
+    circuit::{
+        join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
+        poseidon2::poseidon2_compress,
+    },
     fr::{address_to_fr, fr_to_b256},
     operation::Operation,
 };
@@ -20,10 +26,11 @@ fn main() {
     let witness = pubkey_hash::pubkey_hash(&pub_keys).unwrap();
 
     let mut operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> = Operation::default();
-    operation.inputs[0].spendability_address = contract_address;
-    operation.inputs[0].spendability_witness = witness;
+    operation.inputs[0].note.policy.address = contract_address;
+    operation.inputs[0].note.policy.witness = witness;
 
-    let msg = fr_to_b256(operation.hash()).0;
+    let context_hash = Fr::from(0);
+    let msg = fr_to_b256(poseidon2_compress(&[operation.hash(), context_hash])).0;
     let signatures: [Option<Signature>; N_SIGNERS] =
         tint::array::try_from_fn(|i| signers[i].sign_prehash(&msg).map(Some)).unwrap();
 
@@ -34,11 +41,12 @@ fn main() {
         &artifacts,
         address_to_fr(contract_address),
         &operation,
+        context_hash,
         &pub_keys,
         &signatures,
     )
     .unwrap();
     let prove_time = prove_start.elapsed();
 
-    println!("groth16 prove+verify+solidity (go ffi): {:?}", prove_time);
+    println!("groth16 prove+verify+solidity (go ffi): {prove_time:?}");
 }

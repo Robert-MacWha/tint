@@ -49,7 +49,7 @@ pub fn poseidon2_compress_gadget<const T: usize>(
     Ok(state[0].clone() + input[0].clone())
 }
 
-#[allow(clippy::unwrap_used, clippy::unreachable)]
+#[expect(clippy::unwrap_used, clippy::unreachable)]
 fn permute<E: PoseidonElement, const T: usize>(state: &mut [E; T]) -> Result<(), E::Error> {
     const {
         assert!(

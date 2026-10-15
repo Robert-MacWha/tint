@@ -85,7 +85,7 @@ contract TintTests is Test {
 
         vm.expectEmit();
         bytes32 commitment = 0x2ee5225f16cda90e5c31a84c3ff505613050d79f01b022a6a629ee951a050715;
-        emit Tint.Deposited(commitment, address(token), 100, "");
+        emit Tint.Deposited(commitment, uint64(tint.count()), address(token), 100, "");
         tint.deposit(address(token), 100, bytes32(uint256(1)), "");
 
         assertEq(token.balanceOf(address(this)), callerBefore - 100);
@@ -120,10 +120,10 @@ contract TintTests is Test {
         op.context.ciphertexts[1] = bytes("World!");
         op.setUnshieldAmount(0, 1);
         op.setUnshieldAsset(0, address(token));
-        op.context.unshieldRecipients[0] = address(0xdead);
+        op.setUnshieldRecipient(0, address(0xdead));
         op.setUnshieldAmount(1, 2);
         op.setUnshieldAsset(1, address(token));
-        op.context.unshieldRecipients[1] = address(0xbeef);
+        op.setUnshieldRecipient(1, address(0xbeef));
 
         uint256 tintBefore = token.balanceOf(address(tint));
         uint256 deadBefore = token.balanceOf(address(0xdead));
@@ -136,15 +136,16 @@ contract TintTests is Test {
         }
 
         // Only non-zero outputs are appended; zero is the padding value.
+        uint64 leafIndex = uint64(tint.count());
         for (uint256 i; i < N_OUTPUTS; ++i) {
             if (op.commitmentOut(i) == bytes32(0)) continue;
             vm.expectEmit();
-            emit Tint.Committed(op.commitmentOut(i), op.context.ciphertexts[i]);
+            emit Tint.Committed(op.commitmentOut(i), leafIndex++, op.context.ciphertexts[i]);
         }
 
         for (uint256 i; i < N_WITHDRAWALS; ++i) {
             vm.expectEmit();
-            emit Tint.Withdrawn(op.unshieldAsset(i), op.unshieldAmount(i), op.context.unshieldRecipients[i]);
+            emit Tint.Withdrawn(op.unshieldAsset(i), op.unshieldAmount(i), op.unshieldRecipient(i));
         }
 
         tint.operate(op.seal());

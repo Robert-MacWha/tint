@@ -100,7 +100,7 @@ contract TintGasReportTest is Test {
         op.setCommitmentOut(0, bytes32(uint256(keccak256(abi.encode("commitment", uint256(0)))) % BN254_FR_MODULUS));
         op.setUnshieldAmount(0, 1);
         op.setUnshieldAsset(0, address(token));
-        op.context.unshieldRecipients[0] = address(1);
+        op.setUnshieldRecipient(0, address(1));
 
         vm.resetGasMetering();
         tint.toPublicSignals(op.seal());
@@ -117,7 +117,7 @@ contract TintGasReportTest is Test {
         op.setCommitmentOut(0, bytes32(uint256(keccak256(abi.encode("commitment", uint256(0)))) % BN254_FR_MODULUS));
         op.setUnshieldAmount(0, 1);
         op.setUnshieldAsset(0, address(token));
-        op.context.unshieldRecipients[0] = address(1);
+        op.setUnshieldRecipient(0, address(1));
 
         vm.resetGasMetering();
         tint.verifyOperation(op.seal());
@@ -132,7 +132,7 @@ contract TintGasReportTest is Test {
         op.setCommitmentOut(0, bytes32(uint256(keccak256(abi.encode("commitment", uint256(0)))) % BN254_FR_MODULUS));
         op.setUnshieldAmount(0, 1);
         op.setUnshieldAsset(0, address(token));
-        op.context.unshieldRecipients[0] = address(1);
+        op.setUnshieldRecipient(0, address(1));
 
         vm.resetGasMetering();
         tint.operate(op.seal());
@@ -152,7 +152,7 @@ contract TintGasReportTest is Test {
         for (uint120 i = 0; i < N_WITHDRAWALS; i++) {
             op.setUnshieldAmount(i, 1);
             op.setUnshieldAsset(i, address(token));
-            op.context.unshieldRecipients[i] = address(uint160(i + 1));
+            op.setUnshieldRecipient(i, address(uint160(i + 1)));
         }
 
         vm.resetGasMetering();

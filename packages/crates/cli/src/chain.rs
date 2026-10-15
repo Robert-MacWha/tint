@@ -1,32 +1,27 @@
-use std::sync::Arc;
-
 use alloy::{
     network::TransactionBuilder,
     primitives::{Address, B256, U256},
     providers::{DynProvider, Provider as AlloyProvider, ProviderBuilder},
     rpc::types::TransactionRequest,
-    sol,
-    sol_types::SolCall,
 };
 use alloy_provider::ext::TenderlyAdminApi;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::Context;
+use ark_bn254::Bn254;
 use rand_core::OsRng;
 use tint::{
-    account::{Account, receiver::Receiver},
+    account::Account,
     circuit::join_split::JoinSplitCircuit,
-    indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
-    note::{asset::AssetId, commitment::NullifiableCommitment},
-    provider::Provider as TintProvider,
+    deposit::Deposit,
+    note::{asset::AssetId, owned::OwnedNote},
+    operation::{OperationBuilder, UnauthorizedOperation},
+    provider_ext::TintProviderExt,
+    skew_mmr::{SkewMmr, SkewMmrExt},
+    syncer::{Snapshot, Syncer, rpc::RpcSyncer},
 };
+use tint_groth16::artifacts::Artifacts;
 
-use crate::config;
-
-sol! {
-    interface IERC20 {
-        function approve(address spender, uint256 amount) external returns (bool);
-    }
-}
+use crate::{account::Authorizer, config};
 
 /// A signing provider connection plus the Tint state needed to shield,
 /// transfer, and unshield funds for a single local account.
@@ -35,14 +30,17 @@ pub struct Session {
     tint_address: Address,
     from: Address,
     account: Account,
-    tint_provider: TintProvider,
+    authorizer: Authorizer,
+    artifacts: Artifacts<Bn254>,
+    snapshot: Snapshot,
+    mmr: SkewMmr,
 }
 
-/// Signs with a local private key and bootstraps the Tint indexer/provider
-/// for `account`, mirroring the setup in `tint`'s shield/transfer/unshield
-/// integration tests.
+/// Signs with a local private key and syncs Tint's state for `account`,
+/// mirroring the setup in `tint`'s shield/transfer/unshield integration tests.
 pub async fn connect(
     account: Account,
+    authorizer: Authorizer,
     tint_address: Address,
     rpc_url: &str,
     private_key: B256,
@@ -56,24 +54,22 @@ pub async fn connect(
         .connect_http(rpc_url.parse().context("invalid RPC URL")?)
         .erased();
 
-    let syncer = Arc::new(RpcSyncer::new(provider.clone(), tint_address));
-    let verifier = Arc::new(RpcVerifier::new(provider.clone(), tint_address));
-    let indexer = Indexer::new(syncer, verifier).await?;
-
     let artifacts = config::load_circuit::<JoinSplitCircuit>("join_split")?;
-    let mut tint_provider = TintProvider::new(indexer, artifacts);
-    tint_provider.add_account(account.clone()).await;
 
-    tracing::info!("Syncing with chain...");
-    tint_provider.sync().await?;
-
-    Ok(Session {
+    let mut session = Session {
         provider,
         tint_address,
         from,
         account,
-        tint_provider,
-    })
+        authorizer,
+        artifacts,
+        snapshot: Snapshot::new(tint_address, 0..0, Vec::new()),
+        mmr: SkewMmr::new(),
+    };
+
+    tracing::info!("Syncing with chain...");
+    sync(&mut session).await?;
+    Ok(session)
 }
 
 /// Derives the Ethereum address for a private key.
@@ -110,29 +106,27 @@ pub async fn set_erc20_balance(
 
 /// Auto-approves `token` for `amount` and deposits it into Tint.
 pub async fn shield(session: &mut Session, token: Address, amount: u128) -> anyhow::Result<()> {
-    let asset = AssetId::from(token);
+    let deposit = Deposit::new(
+        session.tint_address,
+        session.account.pub_account(),
+        AssetId::from(token),
+        amount,
+        &mut OsRng,
+    );
 
     tracing::info!("Approving Tint to spend {amount} of {token}...");
-    let approve_call = IERC20::approveCall {
-        spender: session.tint_address,
-        amount: U256::from(amount),
-    };
-    send(session, token, approve_call.abi_encode()).await?;
+    send(session, deposit.approval()).await?;
 
     tracing::info!("Depositing...");
-    let call =
-        session
-            .tint_provider
-            .deposit(session.account.receiver(), asset, amount, &mut OsRng)?;
-    send(session, session.tint_address, call.abi_encode()).await?;
+    send(session, deposit.transaction(&mut OsRng)?).await?;
 
-    session.tint_provider.sync().await?;
+    sync(session).await?;
     print_balance(session);
     Ok(())
 }
 
-/// Transfers `amount` of `token` to `to` (a local account name or an
-/// exported shielded address), sending any leftover change back to `account`.
+/// Transfers `amount` of `token` to `to` (a local account name), sending any
+/// leftover change back to `account`.
 pub async fn transfer(
     session: &mut Session,
     to: &str,
@@ -140,33 +134,16 @@ pub async fn transfer(
     amount: u128,
 ) -> anyhow::Result<()> {
     let asset = AssetId::from(token);
-    let recipient = resolve_receiver(to)?;
-    let note = pick_note(session, asset, amount)?;
-    let change = note.inner.amount - amount;
-    let sender = session.account.receiver();
+    let recipient = config::load_pub_account(to)?;
+
+    let op = OperationBuilder::new()
+        .spend(pick_note(session, asset, amount)?)
+        .output(recipient, asset, amount)
+        .change_to(session.account.pub_account())
+        .build(&mut OsRng)?;
 
     tracing::info!("Building transfer proof...");
-    let call = if change > 0 {
-        session
-            .tint_provider
-            .operate(
-                [note],
-                [(recipient, asset, amount), (sender, asset, change)],
-                [],
-                &mut OsRng,
-            )
-            .await?
-    } else {
-        session
-            .tint_provider
-            .operate([note], [(recipient, asset, amount)], [], &mut OsRng)
-            .await?
-    };
-
-    send(session, session.tint_address, call.abi_encode()).await?;
-    session.tint_provider.sync().await?;
-    print_balance(session);
-    Ok(())
+    operate(session, op).await
 }
 
 /// Withdraws `amount` of `token` to the plain address `to`, sending any
@@ -178,75 +155,85 @@ pub async fn unshield(
     amount: u128,
 ) -> anyhow::Result<()> {
     let asset = AssetId::from(token);
-    let note = pick_note(session, asset, amount)?;
-    let change = note.inner.amount - amount;
-    let sender = session.account.receiver();
+
+    let op = OperationBuilder::new()
+        .spend(pick_note(session, asset, amount)?)
+        .withdraw(to, asset, amount)
+        .change_to(session.account.pub_account())
+        .build(&mut OsRng)?;
 
     tracing::info!("Building unshield proof...");
-    let call = if change > 0 {
-        session
-            .tint_provider
-            .operate(
-                [note],
-                [(sender, asset, change)],
-                [(to, asset, amount)],
-                &mut OsRng,
-            )
-            .await?
-    } else {
-        session
-            .tint_provider
-            .operate([note], [], [(to, asset, amount)], &mut OsRng)
-            .await?
-    };
+    operate(session, op).await
+}
 
-    send(session, session.tint_address, call.abi_encode()).await?;
-    session.tint_provider.sync().await?;
+/// Prints the shielded balance of each token for the connected account.
+pub fn print_balance(session: &Session) {
+    let balances = session.snapshot.unspent(&session.account).iter().fold(
+        std::collections::HashMap::<AssetId, u128>::new(),
+        |mut acc, note| {
+            *acc.entry(note.note.asset).or_default() += note.note.amount;
+            acc
+        },
+    );
+    tracing::info!("Shielded balances:");
+    for (asset, amount) in balances {
+        tracing::info!("{asset}: {amount}");
+    }
+}
+
+/// Authorizes, proves, and submits `op`, then re-syncs.
+async fn operate(session: &mut Session, op: UnauthorizedOperation) -> anyhow::Result<()> {
+    let policy_input = session.authorizer.authorize(&op)?;
+    let proven = op.authorize(vec![policy_input])?.prove_with_mmr(
+        &session.mmr,
+        &session.artifacts,
+        &mut OsRng,
+    )?;
+
+    send(session, proven.transaction(session.tint_address)).await?;
+    sync(session).await?;
     print_balance(session);
     Ok(())
 }
 
-/// Resolves a transfer recipient to a local account's receiver. This doesn't
-/// require the recipient's password, since receiving funds doesn't require
-/// spending capability.
-fn resolve_receiver(to: &str) -> anyhow::Result<Receiver> {
-    config::load_receiver(to)
+/// Fetches events since the last sync, overlapping its final block, and
+/// checks the resulting MMR against the chain.
+async fn sync(session: &mut Session) -> anyhow::Result<()> {
+    // Tint has no known deployment block to start from, so fetch everything
+    // in a single `eth_getLogs` call rather than batching from genesis.
+    let syncer = RpcSyncer::new(session.provider.clone()).with_batch_size(u64::MAX);
+    let from = session.snapshot.range.end.saturating_sub(1);
+    let next = syncer.sync(session.tint_address, from..).await?;
+
+    session.mmr.append_events(&next.events)?;
+    session.snapshot.extend(next)?;
+
+    // The contract pre-fills its frontier history to avoid cold writes, so an
+    // empty frontier never verifies. An empty MMR can't back any proofs anyway.
+    if session.mmr.is_empty() {
+        return Ok(());
+    }
+    let verified = session
+        .provider
+        .tint_verify_mmr(session.tint_address, &session.mmr)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
+    if !verified {
+        anyhow::bail!("local skew-MMR does not match the on-chain frontier");
+    }
+    Ok(())
 }
 
 /// Picks a single spendable note covering `amount` of `asset`. Tint supports
 /// spending multiple notes at once, but this CLI keeps things simple and
 /// only ever spends one.
-fn pick_note(
-    session: &Session,
-    asset: AssetId,
-    amount: u128,
-) -> anyhow::Result<NullifiableCommitment> {
+fn pick_note(session: &Session, asset: AssetId, amount: u128) -> anyhow::Result<OwnedNote> {
     session
-        .tint_provider
-        .notes(session.account.receiver())
+        .snapshot
+        .unspent(&session.account)
         .into_iter()
-        .find(|note| note.inner.asset == asset && note.inner.amount >= amount)
-        .copied()
+        .find(|note| note.note.asset == asset && note.note.amount >= amount)
         .ok_or_else(|| anyhow::anyhow!("no single spendable note covers {amount} of this asset"))
-}
-
-/// Prints the shielded balance of `token` for the connected account.
-pub fn print_balance(session: &Session) {
-    let balances = session
-        .tint_provider
-        .notes(session.account.receiver())
-        .iter()
-        .fold(
-            std::collections::HashMap::<AssetId, u128>::new(),
-            |mut acc, note| {
-                *acc.entry(note.inner.asset).or_default() += note.inner.amount;
-                acc
-            },
-        );
-    tracing::info!("Shielded balances:");
-    for (asset, amount) in balances {
-        tracing::info!("{asset}: {amount}");
-    }
 }
 
 /// Builds a bare (unsigned) provider connection for admin RPC calls that
@@ -261,11 +248,8 @@ fn connect_admin(rpc_url: &str) -> anyhow::Result<DynProvider> {
         .erased())
 }
 
-async fn send(session: &Session, to: Address, data: Vec<u8>) -> anyhow::Result<()> {
-    let tx = TransactionRequest::default()
-        .with_from(session.from)
-        .with_to(to)
-        .with_input(data);
+async fn send(session: &Session, tx: TransactionRequest) -> anyhow::Result<()> {
+    let tx = tx.with_from(session.from);
 
     let receipt = session
         .provider

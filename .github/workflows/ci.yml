@@ -23,6 +23,7 @@ jobs:
     - uses: Swatinem/rust-cache@v2
       with:
         workspaces: "packages/crates"
+        key: ${{ hashFiles('**/*.nix', '**/flake.lock') }}
 
     - run: nix develop .#ci
     - run: nix develop .#ci --command bash -c "just build"

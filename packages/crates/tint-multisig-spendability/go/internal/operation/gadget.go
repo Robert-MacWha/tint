@@ -15,7 +15,7 @@ func (c BaseCommitmentVar) HashGadget(api frontend.API) frontend.Variable {
 }
 
 func (w WithdrawalVar) HashGadget(api frontend.API) frontend.Variable {
-	return poseidon2.CompressGadget2(api, [2]frontend.Variable{w.AssetFr, w.AmountFr})
+	return poseidon2.CompressGadget3(api, [3]frontend.Variable{w.AssetFr, w.AmountFr, w.RecipientFr})
 }
 
 // HashGadget computes a running T=2 poseidon2 accumulator over its

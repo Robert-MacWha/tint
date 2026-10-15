@@ -2,13 +2,7 @@ use alloy_primitives::{Address, Bytes};
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 use k256::ecdsa::{Signature, VerifyingKey};
-use tint::{
-    account::spending::{SpendingAccount, SpendingAccountError},
-    circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
-    fr::address_to_fr,
-    note::commitment::{NullifiableCommitment, SpendableCommitment},
-    operation::Operation,
-};
+use tint::{fr::address_to_fr, operation::UnauthorizedOperation, policy::Policy};
 
 use crate::{
     N_SIGNERS, THRESHOLD,
@@ -40,22 +34,29 @@ impl Signer for k256::ecdsa::SigningKey {
     }
 }
 
-/// A [`SpendingAccount`] for notes using the [`MultisigSpendability`] rule:
-/// an M-of-N secp256k1-ECDSA multisig proven via the Go/gnark circuit in
+/// Authorizes spending notes bound to the [`MultisigSpendability`] rule: an
+/// M-of-N secp256k1-ECDSA multisig proven via the Go/gnark circuit in
 /// `go/circuit/multisig.go`.
 ///
 /// [`MultisigSpendability`]: https://github.com/Robert-MacWha/tint
-pub struct MultisigSpendingAccount<const N_SIGNERS: usize, const THRESHOLD: usize> {
+pub struct MultisigPolicy<const N_SIGNERS: usize, const THRESHOLD: usize> {
     contract_address: Address,
     signers: [Box<dyn Signer + Send + Sync>; N_SIGNERS],
     /// `pubkey_hash::pubkey_hash(&pub_keys)`, computed once at construction
-    /// so `spendability_witness()` (whose signature is fixed by
-    /// [`SpendingAccount`]) can return it infallibly.
+    /// so [`Self::policy`] can return it infallibly.
     witness: Fr,
     artifacts: Artifacts,
 }
 
-impl<const N_SIGNERS: usize, const THRESHOLD: usize> MultisigSpendingAccount<N_SIGNERS, THRESHOLD> {
+#[derive(Debug, thiserror::Error)]
+pub enum MultisigPolicyError {
+    #[error("signing error: {0}")]
+    Signature(#[from] signature::Error),
+    #[error("proving error: {0}")]
+    Ffi(#[from] ffi::FfiError),
+}
+
+impl<const N_SIGNERS: usize, const THRESHOLD: usize> MultisigPolicy<N_SIGNERS, THRESHOLD> {
     pub fn new(
         contract_address: Address,
         signers: [Box<dyn Signer + Send + Sync>; N_SIGNERS],
@@ -83,58 +84,47 @@ impl<const N_SIGNERS: usize, const THRESHOLD: usize> MultisigSpendingAccount<N_S
 }
 
 impl<const N_SIGNERS: usize, const THRESHOLD: usize> std::fmt::Debug
-    for MultisigSpendingAccount<N_SIGNERS, THRESHOLD>
+    for MultisigPolicy<N_SIGNERS, THRESHOLD>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MultisigSpendingAccount")
+        f.debug_struct("MultisigPolicy")
             .field("contract_address", &self.contract_address)
             .finish_non_exhaustive()
     }
 }
 
-#[async_trait::async_trait]
-impl SpendingAccount for MultisigSpendingAccount<N_SIGNERS, THRESHOLD> {
-    fn spendability_address(&self) -> Address {
-        self.contract_address
+impl MultisigPolicy<N_SIGNERS, THRESHOLD> {
+    /// The policy notes for this multisig are bound to.
+    #[must_use]
+    pub fn policy(&self) -> Policy {
+        Policy::new(self.contract_address, self.witness)
     }
 
-    fn spendability_witness(&self) -> Fr {
-        self.witness
-    }
-
-    /// Proves that at least `THRESHOLD` of this account's `N_SIGNERS` signers
-    /// validly signed the operation.
-    async fn as_spendable(
-        &self,
-        base: NullifiableCommitment,
-        operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
-    ) -> Result<SpendableCommitment, SpendingAccountError> {
-        let operation_hash = operation.hash();
-        let msg = fr_to_be_bytes(operation_hash);
+    /// Proves that at least `THRESHOLD` of this multisig's `N_SIGNERS`
+    /// signers validly signed `op`'s signing hash. The returned policy input
+    /// authorizes every input of `op` bound to this policy.
+    ///
+    /// # Errors
+    ///
+    /// Errors if a signer fails or proving fails.
+    pub fn authorize(&self, op: &UnauthorizedOperation) -> Result<Bytes, MultisigPolicyError> {
+        let operation = op.operation();
+        let msg = fr_to_be_bytes(operation.signing_hash());
 
         let pub_keys = self.pub_keys();
         let signatures: [Option<Signature>; N_SIGNERS] =
-            tint::array::try_from_fn(|i| self.signers[i].sign_prehash_optional(&msg))
-                .map_err(SpendingAccountError::new)?;
+            tint::array::try_from_fn(|i| self.signers[i].sign_prehash_optional(&msg))?;
 
         let solidity_proof = ffi::prove_via_go(
             &self.artifacts,
             address_to_fr(self.contract_address),
-            &operation,
+            operation,
+            operation.context_hash(),
             &pub_keys,
             &signatures,
-        )
-        .map_err(SpendingAccountError::new)?;
+        )?;
 
-        Ok(SpendableCommitment::new(
-            base.inner.asset,
-            base.inner.amount,
-            base.nullifier_key,
-            self.spendability_address(),
-            self.spendability_witness(),
-            Bytes::from(solidity_proof),
-            base.inner.random,
-        ))
+        Ok(Bytes::from(solidity_proof))
     }
 }
 
@@ -147,33 +137,44 @@ fn fr_to_be_bytes(f: Fr) -> [u8; 32] {
 
 #[cfg(test)]
 mod tests {
+    use alloy_primitives::B256;
+    use ark_std::rand::{SeedableRng, rngs::StdRng};
     use k256::{ecdsa::SigningKey, elliptic_curve::Generate};
-    use tint::{account::keys::NullifierKey, note::commitment::BaseCommitment};
+    use tint::{
+        account::Account,
+        note::{asset::AssetId, owned::OwnedNote},
+        operation::OperationBuilder,
+    };
 
     use super::*;
 
-    #[tokio::test]
+    #[test]
     #[ignore = "run with `cargo test --release -- --ignored`"]
-    async fn multisig() {
+    fn multisig() {
         let contract_address = Address::new([9u8; 20]);
 
         let signers: [Box<dyn Signer + Send + Sync>; N_SIGNERS] = std::array::from_fn(|_| {
             Box::new(SigningKey::generate()) as Box<dyn Signer + Send + Sync>
         });
 
-        let account = MultisigSpendingAccount::<N_SIGNERS, THRESHOLD>::new(
+        let multisig = MultisigPolicy::<N_SIGNERS, THRESHOLD>::new(
             contract_address,
             signers,
             ffi::artifacts::load_artifacts().unwrap(),
         )
         .unwrap();
 
-        let mut operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> = Operation::default();
-        operation.inputs[0].spendability_address = account.spendability_address();
-        operation.inputs[0].spendability_witness = account.spendability_witness();
+        // Spend a note bound to this multisig back to its own account.
+        let account = Account::from_seed(&[1u8; 32], multisig.policy());
+        let note = account
+            .pub_account()
+            .commitment(AssetId::default(), 100, B256::ZERO);
+        let op = OperationBuilder::new()
+            .spend(OwnedNote::new(note, &account).unwrap())
+            .change_to(account.pub_account())
+            .build(&mut StdRng::seed_from_u64(1))
+            .unwrap();
 
-        let base = NullifiableCommitment::new(BaseCommitment::default(), NullifierKey::default());
-
-        account.as_spendable(base, operation).await.unwrap();
+        multisig.authorize(&op).unwrap();
     }
 }

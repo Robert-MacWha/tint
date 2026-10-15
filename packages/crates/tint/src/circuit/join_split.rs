@@ -2,6 +2,7 @@ use std::{array::from_fn, borrow::Borrow};
 
 use alloy_primitives::Address;
 use ark_bn254::Fr;
+use ark_ff::Fp;
 use ark_hybrid_compression::circuit::{CompressedCircuit, CompressibleCircuit, Flatten};
 use ark_r1cs_std::{
     GR1CSVar,
@@ -11,6 +12,7 @@ use ark_r1cs_std::{
     fields::FieldVar,
 };
 use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
+use skew_mmr::{proof::Proof, state::State};
 
 use crate::{
     array::try_from_fn,
@@ -45,7 +47,7 @@ const N_CONST: usize = 5;
 /// Index of the first frontier root.
 ///
 /// Mirrors `Constants.sol`'s `FRONTIER_OFFSET`.
-pub const FRONTIER_OFFSET: usize = N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * N_WITHDRAWALS;
+pub const FRONTIER_OFFSET: usize = N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * N_WITHDRAWALS;
 
 /// Length of the flattened statement vector `JoinSplitResultVar`.
 ///
@@ -107,6 +109,7 @@ pub struct JoinSplitResult<
     pub output_commitment_hashes: [Fr; N_OUTPUTS],
     pub withdrawal_amounts: [u128; N_WITHDRAWALS],
     pub withdrawal_assets: [AssetId; N_WITHDRAWALS],
+    pub withdrawal_recipients: [Address; N_WITHDRAWALS],
 }
 
 #[derive(Clone, Debug)]
@@ -128,6 +131,7 @@ pub struct JoinSplitResultVar<
     pub output_commitment_hashes: [FrVar; N_OUTPUTS],
     pub withdrawal_amounts: [FrVar; N_WITHDRAWALS],
     pub withdrawal_assets: [FrVar; N_WITHDRAWALS],
+    pub withdrawal_recipients: [FrVar; N_WITHDRAWALS],
 }
 
 impl<
@@ -199,6 +203,7 @@ impl<
         for i in 0..N_WITHDRAWALS {
             stmt.push(self.withdrawal_amounts[i].clone());
             stmt.push(self.withdrawal_assets[i].clone());
+            stmt.push(self.withdrawal_recipients[i].clone());
         }
 
         for i in 0..MMR_MAX_DEPTH {
@@ -235,7 +240,7 @@ impl<
         // Verify that the inclusion proofs are valid and all use the same MMR state.
         // Skipped for zero-valued elements (padding), which `OperationVar::verify` ties to
         // the unused (zero-amount) input slots.
-        for proof in self.inclusion_proofs.iter() {
+        for proof in &self.inclusion_proofs {
             let used = !proof.element.is_zero()?;
 
             //? Verify the proof's public states are all equal
@@ -264,6 +269,7 @@ impl<
             output_commitment_hashes: operation_result.output_commitment_hashes,
             withdrawal_amounts: from_fn(|i| operation_result.withdrawals[i].amount.clone()),
             withdrawal_assets: from_fn(|i| operation_result.withdrawals[i].asset.clone()),
+            withdrawal_recipients: from_fn(|i| operation_result.withdrawals[i].recipient.clone()),
         })
     }
 }
@@ -327,10 +333,12 @@ impl<
         let output_commitment_hashes = self.output_commitment_hashes.value()?;
         let withdrawal_amounts = self.withdrawal_amounts.value()?;
         let withdrawal_assets = self.withdrawal_assets.value()?;
+        let withdrawal_recipients = self.withdrawal_recipients.value()?;
 
         let spendability_addresses = from_fn(|i| fr_to_address(spendability_addresses[i]));
         let withdrawal_amounts = from_fn(|i| fr_to_u128(&withdrawal_amounts[i]));
         let withdrawal_assets = from_fn(|i| withdrawal_assets[i].into());
+        let withdrawal_recipients = from_fn(|i| fr_to_address(withdrawal_recipients[i]));
 
         Ok(Self::Value {
             hist_state,
@@ -342,6 +350,7 @@ impl<
             output_commitment_hashes,
             withdrawal_amounts,
             withdrawal_assets,
+            withdrawal_recipients,
         })
     }
 }
@@ -355,11 +364,11 @@ impl<
 {
     fn default() -> Self {
         Self {
-            hist_state: Default::default(),
+            hist_state: State::default(),
             frontier: from_fn(|_| None),
-            bound_params_hash: Default::default(),
-            inclusion_proofs: from_fn(|_| Default::default()),
-            operation: Default::default(),
+            bound_params_hash: Fp::default(),
+            inclusion_proofs: from_fn(|_| Proof::default()),
+            operation: Operation::default(),
         }
     }
 }

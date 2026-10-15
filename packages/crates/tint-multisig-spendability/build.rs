@@ -7,7 +7,7 @@
 
 use std::{env, path::PathBuf, process::Command};
 
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[expect(clippy::unwrap_used, clippy::expect_used)]
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let go_dir = manifest_dir.join("go");

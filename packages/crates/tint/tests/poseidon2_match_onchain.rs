@@ -22,30 +22,30 @@ sol!(
 
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
-async fn poseidon2_match_onchain() {
+async fn poseidon2_match_onchain() -> Result<(), Box<dyn std::error::Error>> {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
-        .add_directive("gr1cs=off".parse().unwrap())
-        .add_directive("r1cs=off".parse().unwrap());
+        .add_directive("gr1cs=off".parse()?)
+        .add_directive("r1cs=off".parse()?);
 
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
     let anvil = Anvil::new().spawn();
     let rpc_url = anvil.endpoint();
-    let signer = PrivateKeySigner::from_slice(&anvil.first_key().to_bytes()).unwrap();
+    let signer = PrivateKeySigner::from_slice(&anvil.first_key().to_bytes())?;
 
     let provider = ProviderBuilder::new()
         .wallet(signer)
-        .connect_http(rpc_url.parse().unwrap())
+        .connect_http(rpc_url.parse()?)
         .erased();
 
-    let poseidon2 = Poseidon2::deploy(provider.clone()).await.unwrap();
+    let poseidon2 = Poseidon2::deploy(provider.clone()).await?;
 
     let t2_local_inputs = [Fr::from(1), Fr::from(2)];
     let t2_sol_inputs = [U256::from(1), U256::from(2)];
 
     let t2_local_output = poseidon2_compress(&t2_local_inputs);
-    let t2_sol_output = poseidon2.poseidon2T2(t2_sol_inputs).call().await.unwrap();
+    let t2_sol_output = poseidon2.poseidon2T2(t2_sol_inputs).call().await?;
 
     info!(
         t2_local_output = ?t2_local_output,
@@ -62,7 +62,7 @@ async fn poseidon2_match_onchain() {
     let t3_sol_inputs = [U256::from(1), U256::from(2), U256::from(3)];
 
     let t3_local_output = poseidon2_compress(&t3_local_inputs);
-    let t3_sol_output = poseidon2.poseidon2T3(t3_sol_inputs).call().await.unwrap();
+    let t3_sol_output = poseidon2.poseidon2T3(t3_sol_inputs).call().await?;
 
     info!(
         t3_local_output = ?t3_local_output,
@@ -74,4 +74,6 @@ async fn poseidon2_match_onchain() {
         t3_sol_output.as_le_slice(),
         "poseidon2T3 local and on-chain outputs do not match"
     );
+
+    Ok(())
 }

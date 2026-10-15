@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use std::time::Instant;
 
 use ark_bn254::Bn254;
@@ -35,7 +37,7 @@ fn main() {
         "{:<20} {:>6}",
         "witness variables:", cs_profile.stats.num_witness_variables
     );
-    println!("");
+    println!();
 
     println!("constraint breakdown:");
     format::render(cs_profile.nodes, format);

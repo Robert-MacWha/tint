@@ -37,6 +37,7 @@ typedef struct
 {
 	Bytes32 asset_fr;
 	Bytes32 amount_fr;
+	Bytes32 recipient_fr;
 } TintWithdrawal;
 
 typedef struct
@@ -62,6 +63,7 @@ typedef struct
 {
 	Bytes32 spendability_address;
 	TintOperation operation;
+	Bytes32 context_hash;
 	TintPubKeyXY pub_keys[N_SIGNERS];
 	TintSignatureRS signatures[N_SIGNERS];
 } TintProveInput;

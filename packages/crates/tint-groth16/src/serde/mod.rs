@@ -76,7 +76,7 @@ mod tests {
 
     #[test]
     fn canonical_round_trip() {
-        let value = ark_bn254::Fr::from(1234567u64);
+        let value = ark_bn254::Fr::from(1_234_567u64);
         let bytes = serialize_canonical(&value).unwrap();
         let decoded: ark_bn254::Fr = deserialize_canonical(&bytes).unwrap();
         assert_eq!(value, decoded);

@@ -1,40 +1,42 @@
-//! Cross-checks that the public-input vector `Provider::public_inputs`
-//! computes locally matches what `Tint.computePublicSignals` computes
-//! on-chain for the same operation.
+//! Cross-checks that the public-signal vector proven locally matches what
+//! `Tint.computePublicSignals` computes on-chain for the same operation.
 
 mod common;
 
-use std::sync::Arc;
-
-use alloy_primitives::{Address, U256};
+use alloy_primitives::{Address, Bytes, U256};
+use alloy_sol_types::SolCall;
 use ark_bn254::Fr;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{
-    account::{Account, keys::Keys, spending::NoopSpendingAccount},
+    abis::tint::Tint,
+    account::Account,
     circuit::join_split::JoinSplitCircuit,
+    deposit::Deposit,
     fr::u256_to_fr,
-    indexer::{Indexer, syncer::RpcSyncer, verifier::RpcVerifier},
     note::asset::AssetId,
-    provider::Provider,
+    operation::OperationBuilder,
+    policy::Policy,
+    skew_mmr::{SkewMmr, SkewMmrExt},
+    syncer::{Syncer, rpc::RpcSyncer},
 };
 use tint_groth16::artifacts::Artifacts;
 use tracing::info;
 
-use crate::common::anvil::{self};
+use crate::common::anvil::{self, send};
 
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
-async fn public_signals_match_onchain() {
+async fn public_signals_match_onchain() -> Result<(), Box<dyn std::error::Error>> {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
-        .add_directive("gr1cs=off".parse().unwrap())
-        .add_directive("r1cs=off".parse().unwrap());
+        .add_directive("gr1cs=off".parse()?)
+        .add_directive("r1cs=off".parse()?);
 
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
     let mut rng = StdRng::seed_from_u64(1);
-    let instance = anvil::setup().await.unwrap();
+    let instance = anvil::setup().await?;
 
     let provider = instance.provider;
     let tint = instance.tint;
@@ -42,76 +44,58 @@ async fn public_signals_match_onchain() {
 
     // Setup circuits
     info!("Setting up circuits...");
-    let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>().unwrap();
+    let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>()?;
 
-    // Setup tint provider
-    info!("Setting up tint provider...");
-    let keys = Keys::from_seed(&[11u8; 32]);
-    let account = Account::from_keys(keys, NoopSpendingAccount);
-
-    let syncer = Arc::new(RpcSyncer::new(provider.clone(), *tint.address()));
-    let verifier = Arc::new(RpcVerifier::new(provider.clone(), *tint.address()));
-    let indexer = Indexer::new(syncer, verifier).await.unwrap();
-    let mut tint_provider = Provider::new(indexer, artifacts);
-    tint_provider.add_account(account.clone()).await;
-
-    // Approve Tint to pull the deposit.
-    let _ = token
-        .approve(*tint.address(), U256::MAX)
-        .send()
-        .await
-        .unwrap()
-        .get_receipt()
-        .await
-        .unwrap();
+    let account = Account::from_seed(&[11u8; 32], Policy::NONE);
 
     // Deposit into Tint
     info!("Depositing into Tint");
     let asset = AssetId::from(*token.address());
     let amount = 1_000u128;
 
-    let call = tint_provider
-        .deposit(account.receiver(), asset, amount, &mut rng)
-        .unwrap();
-    tint.call_builder(&call)
-        .send()
-        .await
-        .unwrap()
-        .get_receipt()
-        .await
-        .unwrap();
+    let deposit = Deposit::new(
+        *tint.address(),
+        account.pub_account(),
+        asset,
+        amount,
+        &mut rng,
+    );
+    send(&provider, deposit.approval()).await?;
+    send(&provider, deposit.transaction(&mut rng)?).await?;
 
     info!("Syncing");
-    tint_provider.sync().await.unwrap();
+    let snapshot = RpcSyncer::new(provider.clone())
+        .sync(*tint.address(), ..)
+        .await?;
+    let mut mmr = SkewMmr::new();
+    mmr.append_events(&snapshot.events)?;
 
     // Verify balances
     info!("Verifying balances");
     assert_eq!(
-        token.balanceOf(*tint.address()).call().await.unwrap(),
+        token.balanceOf(*tint.address()).call().await?,
         U256::from(amount)
     );
 
-    let notes = tint_provider.notes(account.receiver());
+    let notes = snapshot.unspent(&account);
     assert_eq!(notes.len(), 1);
-    assert_eq!(notes[0].inner.amount, amount);
-    assert_eq!(notes[0].inner.asset, asset);
 
-    let (call, local_signals) = tint_provider
-        .public_inputs(
-            [notes[0].clone()],
-            [(account.receiver(), asset, amount - 100)],
-            [(Address::new([2; 20]), asset, 100)],
-            &mut rng,
-        )
-        .await
-        .unwrap();
+    let proven = OperationBuilder::new()
+        .spend(notes[0].clone())
+        .output(account.pub_account(), asset, amount - 100)
+        .withdraw(Address::new([2; 20]), asset, 100)
+        .build(&mut rng)?
+        .authorize(vec![Bytes::default()])?
+        .prove_with_mmr(&mmr, &artifacts, &mut rng)?;
 
-    let onchain_signals = tint.call_builder(&call).call().await.unwrap();
+    let call = Tint::computePublicSignalsCall::new((proven.operation().clone(),));
+    let onchain_signals = tint.call_builder(&call).call().await?;
 
-    public_signal_diff(&local_signals, &onchain_signals);
+    public_signal_diff(proven.public_signals(), &onchain_signals)?;
+    Ok(())
 }
 
-fn public_signal_diff(local: &[Fr], onchain: &[U256]) {
+fn public_signal_diff(local: &[Fr], onchain: &[U256]) -> anyhow::Result<()> {
     assert_eq!(local.len(), onchain.len(), "public signal length mismatch");
     let mut mismatch_found = false;
     for i in 0..local.len() {
@@ -127,8 +111,9 @@ fn public_signal_diff(local: &[Fr], onchain: &[U256]) {
     }
 
     if mismatch_found {
-        panic!("Public signal mismatch found. See above for details.");
-    } else {
-        info!("All public signals match between local and on-chain computation.");
+        anyhow::bail!("Public signal mismatch found. See above for details.");
     }
+
+    info!("All public signals match between local and on-chain computation.");
+    Ok(())
 }

@@ -7,11 +7,10 @@ edition = "2024"
 alloy-primitives = { workspace = true }
 ark-bn254 = { workspace = true, features = ["scalar_field"] }
 ark-ff = { workspace = true }
-async-trait = { workspace = true }
 k256 = { workspace = true }
 signature = { workspace = true }
 thiserror = { workspace = true }
-tint = { workspace = true, features = ["onchain"] }
+tint = { workspace = true }
 tracing = { workspace = true }
 
 [build-dependencies]
@@ -21,6 +20,7 @@ bindgen = { workspace = true }
 alloy-contract = { workspace = true }
 alloy-node-bindings = { workspace = true }
 alloy-provider = { workspace = true }
+alloy-rpc-types-eth = { workspace = true }
 alloy-signer-local = { workspace = true }
 alloy-sol-macro = { workspace = true, features = ["json"] }
 alloy-sol-types = { workspace = true }

@@ -14,7 +14,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
     owner = "chyanju";
     repo = "Picus";
     rev = "${finalAttrs.version}";
-    hash = "sha256-wgCuJZDWI3TqxHHAzydG5oA43pui/WcxUWlmTQsCn5I=";
+    hash = "sha256-nlCbfpmRn5tqw+gmHJA0AcaklnoHCZhf18AKPSR69l0=";
   };
 
   cargoLock.lockFile = "${finalAttrs.src}/Cargo.lock";

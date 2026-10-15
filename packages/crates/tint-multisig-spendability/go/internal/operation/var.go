@@ -23,8 +23,9 @@ type BaseCommitmentVar struct {
 }
 
 type WithdrawalVar struct {
-	AssetFr  frontend.Variable
-	AmountFr frontend.Variable
+	AssetFr     frontend.Variable
+	AmountFr    frontend.Variable
+	RecipientFr frontend.Variable
 }
 
 func (c BaseCommitment) ToVar() BaseCommitmentVar {
@@ -47,8 +48,9 @@ func (c SpendableCommitment) ToVar() SpendableCommitmentVar {
 
 func (w Withdrawal) ToVar() WithdrawalVar {
 	return WithdrawalVar{
-		AssetFr:  w.AssetFr.String(),
-		AmountFr: w.AmountFr.String(),
+		AssetFr:     w.AssetFr.String(),
+		AmountFr:    w.AmountFr.String(),
+		RecipientFr: w.RecipientFr.String(),
 	}
 }
 

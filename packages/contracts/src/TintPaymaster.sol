@@ -126,7 +126,7 @@ contract TintPaymaster is Tint, BasePaymaster {
                 continue;
             }
 
-            if (data.operation.context.unshieldRecipients[i] != address(this)) {
+            if (data.operation.unshieldRecipient(i) != address(this)) {
                 continue;
             }
 

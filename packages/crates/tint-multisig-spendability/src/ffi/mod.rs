@@ -4,7 +4,8 @@ use ark_bn254::Fr;
 use k256::ecdsa::{Signature, VerifyingKey};
 use tint::{
     circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
-    note::{commitment::Commitment, withdrawal::Withdrawal},
+    fr::address_to_fr,
+    note::{commitment::BaseCommitment, withdrawal::Withdrawal},
     operation::Operation,
 };
 
@@ -51,12 +52,14 @@ pub fn prove_via_go(
     artifacts: &Artifacts,
     spendability_address: Fr,
     operation: &Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+    context_hash: Fr,
     pub_keys: &[VerifyingKey; N_SIGNERS],
     signatures: &[Option<Signature>; N_SIGNERS],
 ) -> Result<Vec<u8>, FfiError> {
     let mut input = TintProveInput {
         spendability_address: spendability_address.into(),
         operation: operation.into(),
+        context_hash: context_hash.into(),
         pub_keys: tint::array::try_from_fn(|i| TintPubKeyXY::try_from(&pub_keys[i]))?,
         signatures: std::array::from_fn(|i| signatures[i].as_ref().into()),
     };
@@ -89,10 +92,13 @@ pub fn prove_via_go(
 
 impl From<&Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>> for TintOperation {
     fn from(op: &Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>) -> Self {
-        let inputs = std::array::from_fn(|i| TintSpendableCommitment {
-            inner: (&op.inputs[i]).into(),
-            spendability_address: op.inputs[i].spendability_address_fr().into(),
-            spendability_witness: op.inputs[i].spendability_witness_fr().into(),
+        let inputs = std::array::from_fn(|i| {
+            let input = &op.inputs[i].note;
+            TintSpendableCommitment {
+                inner: (&input.note).into(),
+                spendability_address: address_to_fr(input.policy.address).into(),
+                spendability_witness: input.policy.witness.into(),
+            }
         });
         let output_commitments = std::array::from_fn(|i| (&op.output_commitments[i]).into());
         let output_withdrawals = std::array::from_fn(|i| (&op.output_withdrawals[i]).into());
@@ -105,14 +111,14 @@ impl From<&Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>> for TintOperation {
     }
 }
 
-impl<C: Commitment> From<&C> for TintBaseCommitment {
-    fn from(c: &C) -> Self {
+impl From<&BaseCommitment> for TintBaseCommitment {
+    fn from(c: &BaseCommitment) -> Self {
         TintBaseCommitment {
             asset_fr: c.asset_fr().into(),
             amount_fr: c.amount_fr().into(),
-            spendability_hash: c.spendability_hash().into(),
+            spendability_hash: c.spendability_hash.into(),
             random_fr: c.random_fr().into(),
-            nullifier_pub_key: c.nullifier_pub_key().0.into(),
+            nullifier_pub_key: c.nullifier_pub_key.0.into(),
         }
     }
 }
@@ -122,6 +128,7 @@ impl From<&Withdrawal> for TintWithdrawal {
         TintWithdrawal {
             asset_fr: w.asset_fr().into(),
             amount_fr: w.amount_fr().into(),
+            recipient_fr: w.recipient_fr().into(),
         }
     }
 }
@@ -167,6 +174,6 @@ mod tests {
         assert_eq!(bindings::N_OUTPUTS, N_OUTPUTS as u32);
         assert_eq!(bindings::N_WITHDRAWALS, N_WITHDRAWALS as u32);
         assert_eq!(bindings::N_SIGNERS, N_SIGNERS as u32);
-        assert_eq!(bindings::THRESHOLD, THRESHOLD as u32)
+        assert_eq!(bindings::THRESHOLD, THRESHOLD as u32);
     }
 }

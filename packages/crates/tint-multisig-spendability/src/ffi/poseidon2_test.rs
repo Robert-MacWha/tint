@@ -1,4 +1,6 @@
 #![cfg(test)]
+#![expect(clippy::too_many_arguments)]
+
 use ark_bn254::Fr;
 use tint::circuit::poseidon2::poseidon2_compress;
 

@@ -2,15 +2,17 @@ use std::io::{self, Write};
 
 use alloy::{hex, primitives::Address};
 use k256::ecdsa::{Signature, VerifyingKey, signature::hazmat::PrehashSigner};
-use tint::account::{Account, keys::Keys};
 use tint_multisig_spendability::{
     N_SIGNERS, THRESHOLD,
-    account::{MultisigSpendingAccount, Signer},
     ffi::artifacts::load_artifacts as multisig_artifacts,
+    policy::{MultisigPolicy, Signer},
 };
 use tracing::info;
 
-use crate::{account::resolve_spendability_address, config::SpendabilityState};
+use crate::{
+    account::{Authorizer, resolve_spendability_address},
+    config::SpendabilityState,
+};
 
 const SPENDABILITY_ADDRESS_ENV_VAR: &str = "MULTISIG_SPENDABILITY_ADDRESS";
 
@@ -21,45 +23,40 @@ struct PromptSigner {
     verifying_key: VerifyingKey,
 }
 
-pub fn create_multisig_account(
-    name: &str,
-    keys: Keys,
-) -> anyhow::Result<(Account, SpendabilityState)> {
+pub fn create_multisig_account(name: &str) -> anyhow::Result<(Authorizer, SpendabilityState)> {
     let address = resolve_spendability_address(SPENDABILITY_ADDRESS_ENV_VAR, name)?;
     let pub_keys = prompt_multisig_pub_keys(name)?;
-    let account = multisig_account(keys, address, &pub_keys)?;
+    let authorizer = multisig_authorizer(address, &pub_keys)?;
     let signers = pub_keys.map(|pk| hex::encode_prefixed(pk.to_sec1_bytes()));
-    Ok((account, SpendabilityState::Multisig { address, signers }))
+    Ok((authorizer, SpendabilityState::Multisig { address, signers }))
 }
 
-pub fn load_multisig_account(
-    keys: Keys,
+pub fn load_multisig_authorizer(
     address: Address,
     signers: &[String; N_SIGNERS],
-) -> anyhow::Result<Account> {
+) -> anyhow::Result<Authorizer> {
     let pub_keys = tint::array::try_from_fn(|i| -> anyhow::Result<VerifyingKey> {
         Ok(VerifyingKey::from_sec1_bytes(&hex::decode(&signers[i])?)?)
     })?;
-    multisig_account(keys, address, &pub_keys)
+    multisig_authorizer(address, &pub_keys)
 }
 
-fn multisig_account(
-    keys: Keys,
+fn multisig_authorizer(
     contract_address: Address,
     pub_keys: &[VerifyingKey; N_SIGNERS],
-) -> anyhow::Result<Account> {
+) -> anyhow::Result<Authorizer> {
     let signers: [Box<dyn Signer + Send + Sync>; N_SIGNERS] = std::array::from_fn(|i| {
         Box::new(PromptSigner {
             index: i,
             verifying_key: pub_keys[i],
         }) as Box<dyn Signer + Send + Sync>
     });
-    let account = MultisigSpendingAccount::<N_SIGNERS, THRESHOLD>::new(
+    let policy = MultisigPolicy::<N_SIGNERS, THRESHOLD>::new(
         contract_address,
         signers,
         multisig_artifacts()?,
     )?;
-    Ok(Account::from_keys(keys, account))
+    Ok(Authorizer::Multisig(policy))
 }
 
 /// Prompts once per signer for their uncompressed secp256k1 public key.

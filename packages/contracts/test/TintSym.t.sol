@@ -120,13 +120,13 @@ contract TintSymTest is Test, SymTest {
         for (uint256 i = 2; i < N_WITHDRAWALS; ++i) {
             vm.assume(op.unshieldAmount(i) == 0);
             vm.assume(op.unshieldAsset(i) == address(0));
-            vm.assume(op.context.unshieldRecipients[i] == address(0));
+            vm.assume(op.unshieldRecipient(i) == address(0));
         }
     }
 
     /// Check that operate appends its outputs, records nullifiers, and maintains invariants.
     ///
-    /// @custom:halmos --array-lengths op.pub=26
+    /// @custom:halmos --array-lengths op.pub=28
     function check_operate(IPrivacyPool.Operation calldata op) public {
         _assumeState();
         _bindFrontier(op);
@@ -155,7 +155,7 @@ contract TintSymTest is Test, SymTest {
     /// @dev Assumes that all ERC20 transfers are infallible. In practice not true,
     /// but implementors could have erc20 whitelists to reduce risk.
     ///
-    /// @custom:halmos --array-lengths op.pub=26
+    /// @custom:halmos --array-lengths op.pub=28
     function check_verifiedOperationAlwaysExecutes(IPrivacyPool.Operation calldata op) public {
         _assumeState();
         _bindFrontier(op);

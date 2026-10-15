@@ -3,12 +3,41 @@ pub mod password;
 
 use std::io::{self, Write};
 
-use alloy::primitives::Address;
+use alloy::primitives::{Address, Bytes};
 use anyhow::Context;
+use tint::{operation::UnauthorizedOperation, policy::Policy};
+use tint_multisig_spendability::{N_SIGNERS, THRESHOLD, policy::MultisigPolicy};
+use tint_password_spendability::policy::PasswordPolicy;
+
+/// An account's spending policy, able to authorize its notes' spends.
+pub enum Authorizer {
+    Noop,
+    Password(Box<PasswordPolicy>),
+    Multisig(MultisigPolicy<N_SIGNERS, THRESHOLD>),
+}
+
+impl Authorizer {
+    pub fn policy(&self) -> Policy {
+        match self {
+            Authorizer::Noop => Policy::NONE,
+            Authorizer::Password(password) => password.policy(),
+            Authorizer::Multisig(multisig) => multisig.policy(),
+        }
+    }
+
+    /// Produces the policy input authorizing `op`'s inputs under this policy.
+    pub fn authorize(&self, op: &UnauthorizedOperation) -> anyhow::Result<Bytes> {
+        match self {
+            Authorizer::Noop => Ok(Bytes::new()),
+            Authorizer::Password(password) => Ok(password.authorize(op)?),
+            Authorizer::Multisig(multisig) => Ok(multisig.authorize(op)?),
+        }
+    }
+}
 
 /// Resolves the on-chain spendability contract address,
 /// preferring `env_var` and falling back to user input.
-pub(crate) fn resolve_spendability_address(env_var: &str, name: &str) -> anyhow::Result<Address> {
+pub fn resolve_spendability_address(env_var: &str, name: &str) -> anyhow::Result<Address> {
     if let Ok(value) = std::env::var(env_var) {
         return value
             .parse()

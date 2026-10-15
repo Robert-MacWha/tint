@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {LibPoseidon2T2_BN254} from "./LibPoseidon2T2_BN254.sol";
 import {LibPoseidon2T3_BN254} from "./LibPoseidon2T3_BN254.sol";
 import {LibHybridCompression} from "./LibHybridCompression.sol";
 import {IPrivacyPool} from "../interfaces/IPrivacyPool.sol";
@@ -65,6 +66,20 @@ library ProofLib {
         return uint256(keccak256(abi.encode(op.context))) % BN254_FR_MODULUS;
     }
 
+    /// @notice Computes the message spending policies authorize:
+    /// `poseidon2(operationHash, contextHash)`. Covers everything in the
+    /// operation except the policy inputs themselves.
+    /// @dev Mirrors `UnsignedOperation::signing_hash`.
+    function signingHash(IPrivacyPool.Operation calldata op) internal pure returns (uint256) {
+        return LibPoseidon2T2_BN254.compress(uint256(operationHash(op)), contextHash(op), 0);
+    }
+
+    /// @notice Hashes the context fields the operation hash omits.
+    /// @dev Mirrors `UnsignedOperation::context_hash`.
+    function contextHash(IPrivacyPool.Operation calldata op) internal pure returns (uint256) {
+        return uint256(keccak256(abi.encode(op.context.ciphertexts))) % BN254_FR_MODULUS;
+    }
+
     /// @notice Computes the commitment for a deposit.
     function toCommitment(address asset, uint128 amount, bytes32 partialCommitment) internal pure returns (bytes32) {
         return
@@ -99,14 +114,18 @@ library ProofLib {
     }
 
     function unshieldAmount(IPrivacyPool.Operation calldata op, uint256 i) internal pure returns (uint128) {
-        uint256 amount = uint256(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i]);
+        uint256 amount = uint256(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * i]);
         if (amount > type(uint128).max) revert InvalidPublicSignals();
         // forge-lint: disable-next-line(unsafe-typecast)
         return uint128(amount);
     }
 
     function unshieldAsset(IPrivacyPool.Operation calldata op, uint256 i) internal pure returns (address) {
-        return _toAddress(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i + 1]);
+        return _toAddress(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * i + 1]);
+    }
+
+    function unshieldRecipient(IPrivacyPool.Operation calldata op, uint256 i) internal pure returns (address) {
+        return _toAddress(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * i + 2]);
     }
 
     /// @notice Returns the unique spendability addresses in an operation.

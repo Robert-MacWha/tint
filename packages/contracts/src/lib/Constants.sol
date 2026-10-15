@@ -15,7 +15,7 @@ uint128 constant N_WITHDRAWALS = 2;
 
 /// @dev Index of the first frontier root. The frontier is the tail of the public-signal
 /// vector, zero-padded to `MMR_MAX_DEPTH`.
-uint128 constant FRONTIER_OFFSET = N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * N_WITHDRAWALS;
+uint128 constant FRONTIER_OFFSET = N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * N_WITHDRAWALS;
 uint128 constant N_PUB = FRONTIER_OFFSET + MMR_MAX_DEPTH;
 
 /// @dev Number of public inputs the Groth16 verifier checks after hybrid compression.

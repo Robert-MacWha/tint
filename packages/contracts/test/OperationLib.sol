@@ -55,18 +55,26 @@ library OperationLib {
     }
 
     function unshieldAmount(IPrivacyPool.Operation memory op, uint256 i) internal pure returns (uint128) {
-        return uint128(uint256(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i]));
+        return uint128(uint256(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * i]));
     }
 
     function setUnshieldAmount(IPrivacyPool.Operation memory op, uint256 i, uint128 v) internal pure {
-        op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i] = bytes32(uint256(v));
+        op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * i] = bytes32(uint256(v));
     }
 
     function unshieldAsset(IPrivacyPool.Operation memory op, uint256 i) internal pure returns (address) {
-        return address(uint160(uint256(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i + 1])));
+        return address(uint160(uint256(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * i + 1])));
     }
 
     function setUnshieldAsset(IPrivacyPool.Operation memory op, uint256 i, address v) internal pure {
-        op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 2 * i + 1] = bytes32(uint256(uint160(v)));
+        op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * i + 1] = bytes32(uint256(uint160(v)));
+    }
+
+    function unshieldRecipient(IPrivacyPool.Operation memory op, uint256 i) internal pure returns (address) {
+        return address(uint160(uint256(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * i + 2])));
+    }
+
+    function setUnshieldRecipient(IPrivacyPool.Operation memory op, uint256 i, address v) internal pure {
+        op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * i + 2] = bytes32(uint256(uint160(v)));
     }
 }

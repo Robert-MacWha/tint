@@ -14,7 +14,7 @@ use ark_groth16::VerifyingKey;
 /// Based on `SnarkJS`'s groth16 verifier contract, remixed to use string formatting
 /// instead of EJS.
 #[must_use]
-#[allow(clippy::similar_names, clippy::too_many_lines)]
+#[expect(clippy::similar_names, clippy::too_many_lines)]
 pub fn groth16_verifier_solidity(
     vk: &VerifyingKey<Bn254>,
     contract_name: &str,
@@ -28,7 +28,7 @@ pub fn groth16_verifier_solidity(
     let (deltax1, deltax2, deltay1, deltay2) = g2(&vk.delta_g2);
 
     // SAFETY: write! on a String is infallible.
-    #[allow(clippy::unwrap_used)]
+    #[expect(clippy::unwrap_used)]
     let ic_constants: String =
         vk.gamma_abc_g1
             .iter()
@@ -41,7 +41,7 @@ pub fn groth16_verifier_solidity(
                 acc
             });
 
-    #[allow(clippy::unwrap_used)]
+    #[expect(clippy::unwrap_used)]
     let check_field_loop: String = (0..n_public).fold(String::new(), |mut acc, i| {
         let _ = writeln!(
             acc,
@@ -51,7 +51,7 @@ pub fn groth16_verifier_solidity(
         acc
     });
 
-    #[allow(clippy::unwrap_used)]
+    #[expect(clippy::unwrap_used)]
     let mul_acc_loop: String = (1..=n_public).fold(String::new(), |mut acc, i| {
         let _ = writeln!(
             acc,

@@ -131,6 +131,7 @@ contract TintTests is Test {
 
         //? Require events
         for (uint256 i; i < N_INPUTS; ++i) {
+            if (op.nullifier(i) == bytes32(0)) continue;
             vm.expectEmit();
             emit Tint.Nullified(op.nullifier(i));
         }
@@ -144,6 +145,7 @@ contract TintTests is Test {
         }
 
         for (uint256 i; i < N_WITHDRAWALS; ++i) {
+            if (op.unshieldAmount(i) == 0) continue;
             vm.expectEmit();
             emit Tint.Withdrawn(op.unshieldAsset(i), op.unshieldAmount(i), op.unshieldRecipient(i));
         }

@@ -6,13 +6,13 @@ use ark_relations::gr1cs::SynthesisError;
 use ark_snark::SNARK;
 use rand_core::OsRng;
 use tint::{
-    circuit::poseidon2::poseidon2_compress, fr::address_to_fr, operation::UnauthorizedOperation,
-    policy::Policy,
+    abis::tint::ProofLib, circuit::poseidon2::poseidon2_compress, fr::address_to_fr,
+    operation::UnauthorizedOperation, policy::Policy,
 };
 use tint_groth16::{artifacts::Artifacts, prove::prove_with_matrices};
 use tracing::info;
 
-use crate::{abis::ProofLib, circuit::PasswordSpendability};
+use crate::circuit::PasswordSpendability;
 
 /// Authorizes spending notes bound to the [`PasswordSpendability`] circuit.
 #[derive(Clone)]

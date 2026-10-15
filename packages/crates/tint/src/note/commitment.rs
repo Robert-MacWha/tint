@@ -1,5 +1,6 @@
 use alloy_primitives::B256;
 use ark_bn254::Fr;
+use ark_ff::AdditiveGroup;
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use tint_poseidon2::poseidon2_compress;
@@ -18,7 +19,7 @@ pub struct Commitment {
     pub asset: AssetId,
     pub amount: u128,
     #[serde_as(as = "tint_groth16::serde::field::FieldAsBytes")]
-    pub spendability_hash: Fr,
+    pub policy_hash: Fr,
     pub random: B256,
     pub nullifier_pub_key: NullifierPubKey,
 }
@@ -27,7 +28,7 @@ pub struct Commitment {
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PartialCommitment {
     #[serde_as(as = "tint_groth16::serde::field::FieldAsBytes")]
-    pub spendability_hash: Fr,
+    pub policy_hash: Fr,
     pub random: B256,
     pub nullifier_pub_key: NullifierPubKey,
 }
@@ -45,14 +46,14 @@ impl Commitment {
     pub fn new(
         asset: AssetId,
         amount: u128,
-        spendability_hash: Fr,
+        policy_hash: Fr,
         nullifier_pub_key: NullifierPubKey,
         random: B256,
     ) -> Self {
         Commitment {
             asset,
             amount,
-            spendability_hash,
+            policy_hash,
             random,
             nullifier_pub_key,
         }
@@ -72,7 +73,7 @@ impl Commitment {
         Commitment {
             asset,
             amount,
-            spendability_hash: partial.spendability_hash,
+            policy_hash: partial.policy_hash,
             random: partial.random,
             nullifier_pub_key: partial.nullifier_pub_key,
         }
@@ -81,7 +82,7 @@ impl Commitment {
     #[must_use]
     pub fn partial(&self) -> PartialCommitment {
         PartialCommitment {
-            spendability_hash: self.spendability_hash,
+            policy_hash: self.policy_hash,
             random: self.random,
             nullifier_pub_key: self.nullifier_pub_key,
         }
@@ -94,11 +95,7 @@ impl Commitment {
 
     #[must_use]
     pub fn partial_hash(&self) -> Fr {
-        poseidon2_compress(&[
-            self.spendability_hash,
-            self.nullifier_pub_key.0,
-            self.random_fr(),
-        ])
+        poseidon2_compress(&[self.policy_hash, self.nullifier_pub_key.0, self.random_fr()])
     }
 
     #[must_use]
@@ -118,7 +115,11 @@ impl Commitment {
 
     #[must_use]
     pub fn nullifier(&self, nullifier_key: &NullifierKey) -> Fr {
-        poseidon2_compress(&[nullifier_key.0, self.hash()])
+        if self.amount == 0 {
+            Fr::ZERO
+        } else {
+            poseidon2_compress(&[nullifier_key.0, self.hash()])
+        }
     }
 
     pub fn encrypt<R: RngCore + CryptoRng>(
@@ -134,9 +135,9 @@ impl Commitment {
 
 impl PartialCommitment {
     #[must_use]
-    pub fn new(spendability_hash: Fr, nullifier_pub_key: NullifierPubKey, random: B256) -> Self {
+    pub fn new(policy_hash: Fr, nullifier_pub_key: NullifierPubKey, random: B256) -> Self {
         PartialCommitment {
-            spendability_hash,
+            policy_hash,
             random,
             nullifier_pub_key,
         }

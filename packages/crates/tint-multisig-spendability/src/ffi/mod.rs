@@ -100,8 +100,8 @@ impl From<&Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>> for TintOperation {
                 spendability_witness: input.policy.witness.into(),
             }
         });
-        let output_commitments = std::array::from_fn(|i| (&op.output_commitments[i]).into());
-        let output_withdrawals = std::array::from_fn(|i| (&op.output_withdrawals[i]).into());
+        let output_commitments = std::array::from_fn(|i| (&op.outputs[i]).into());
+        let output_withdrawals = std::array::from_fn(|i| (&op.withdrawals[i]).into());
 
         TintOperation {
             inputs,
@@ -116,7 +116,7 @@ impl From<&Commitment> for TintBaseCommitment {
         TintBaseCommitment {
             asset_fr: c.asset_fr().into(),
             amount_fr: c.amount_fr().into(),
-            spendability_hash: c.spendability_hash.into(),
+            spendability_hash: c.policy_hash.into(),
             random_fr: c.random_fr().into(),
             nullifier_pub_key: c.nullifier_pub_key.0.into(),
         }

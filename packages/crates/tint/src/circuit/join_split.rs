@@ -1,18 +1,15 @@
 use std::{array::from_fn, borrow::Borrow};
 
-use alloy_primitives::Address;
 use ark_bn254::Fr;
 use ark_ff::Fp;
 use ark_hybrid_compression::circuit::{CompressedCircuit, CompressibleCircuit, Flatten};
 use ark_r1cs_std::{
-    GR1CSVar,
     alloc::{AllocVar, AllocationMode},
     boolean::Boolean,
     eq::EqGadget,
     fields::FieldVar,
 };
 use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
-use skew_mmr::{proof::Proof, state::State};
 use tint_poseidon2::{
     crh::{Poseidon2ChainCrh, constraints::Poseidon2ChainCrhGadget},
     skew_mmr::Poseidon2Hasher,
@@ -20,11 +17,17 @@ use tint_poseidon2::{
 
 use crate::{
     array::try_from_fn,
-    circuit::{FrVar, operation::OperationVar, variable, witness},
-    fr::{fr_to_address, fr_to_u128},
-    note::asset::AssetId,
+    circuit::{FrVar, gadgets::operation::OperationVar, variable, witness},
     operation::Operation,
 };
+
+type SkewMmrProof<const MMR_MAX_DEPTH: usize> =
+    skew_mmr::proof::Proof<MMR_MAX_DEPTH, Fr, Poseidon2Hasher>;
+type SkewMmrProofVar<const MMR_MAX_DEPTH: usize> =
+    skew_mmr::constraints::ProofVar<MMR_MAX_DEPTH, Fr, Poseidon2Hasher>;
+type SkewMmrState<const MMR_MAX_DEPTH: usize> = skew_mmr::state::State<MMR_MAX_DEPTH>;
+type SkewMmrStateVar<const MMR_MAX_DEPTH: usize> =
+    skew_mmr::constraints::state::StateVar<MMR_MAX_DEPTH, Fr>;
 
 pub const N_INPUTS: usize = 5;
 pub const N_OUTPUTS: usize = 5;
@@ -43,12 +46,29 @@ const N_CONST: usize = 5;
 /// Index of the first frontier root.
 ///
 /// Mirrors `Constants.sol`'s `FRONTIER_OFFSET`.
-pub const FRONTIER_OFFSET: usize = N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * N_WITHDRAWALS;
+pub const FRONTIER_OFFSET: usize = frontier_offset(N_INPUTS, N_OUTPUTS, N_WITHDRAWALS);
 
 /// Length of the flattened statement vector `JoinSplitResultVar`.
 ///
 /// Mirrors `Constants.sol`'s `N_PUB`.
-pub const N_PUB: usize = FRONTIER_OFFSET + MMR_MAX_DEPTH;
+pub const N_PUB: usize = n_pub(N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH);
+
+/// Index of the first frontier root for a `JoinSplit` of the given size.
+#[must_use]
+pub const fn frontier_offset(n_inputs: usize, n_outputs: usize, n_withdrawals: usize) -> usize {
+    N_CONST + 2 * n_inputs + n_outputs + 3 * n_withdrawals
+}
+
+/// Length of the flattened statement vector for a `JoinSplit` of the given size.
+#[must_use]
+pub const fn n_pub(
+    n_inputs: usize,
+    n_outputs: usize,
+    n_withdrawals: usize,
+    mmr_max_depth: usize,
+) -> usize {
+    frontier_offset(n_inputs, n_outputs, n_withdrawals) + mmr_max_depth
+}
 
 /// Concrete type alias for a compressed `JoinSplit` circuit, using `Poseidon2`
 /// as its hash function.
@@ -65,11 +85,11 @@ pub struct JoinSplit<
     const N_WITHDRAWALS: usize,
     const MMR_MAX_DEPTH: usize,
 > {
-    pub hist_state: skew_mmr::state::State<MMR_MAX_DEPTH>,
+    pub hist_state: SkewMmrState<MMR_MAX_DEPTH>,
     pub frontier: [Option<Fr>; MMR_MAX_DEPTH],
-    pub bound_params_hash: Fr,
-    pub inclusion_proofs: [skew_mmr::proof::Proof<MMR_MAX_DEPTH, Fr, Poseidon2Hasher>; N_INPUTS],
     pub operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+    pub inclusion_proofs: [SkewMmrProof<MMR_MAX_DEPTH>; N_INPUTS],
+    pub bound_params_hash: Fr,
 }
 
 pub struct JoinSplitVar<
@@ -78,34 +98,11 @@ pub struct JoinSplitVar<
     const N_WITHDRAWALS: usize,
     const MMR_MAX_DEPTH: usize,
 > {
-    pub hist_state: skew_mmr::constraints::state::StateVar<MMR_MAX_DEPTH, Fr>,
+    pub hist_state: SkewMmrStateVar<MMR_MAX_DEPTH>,
     pub frontier: [FrVar; MMR_MAX_DEPTH],
-    pub bound_params_hash: FrVar,
-    pub inclusion_proofs:
-        [skew_mmr::constraints::ProofVar<MMR_MAX_DEPTH, Fr, Poseidon2Hasher>; N_INPUTS],
     pub operation: OperationVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct JoinSplitResult<
-    const N_INPUTS: usize,
-    const N_OUTPUTS: usize,
-    const N_WITHDRAWALS: usize,
-    const MMR_MAX_DEPTH: usize,
-> {
-    // Circuit inputs.
-    pub hist_state: skew_mmr::state::State<MMR_MAX_DEPTH>,
-    pub frontier: [Fr; MMR_MAX_DEPTH],
-    pub bound_params_hash: Fr,
-
-    // Circuit outputs.
-    pub operation_hash: Fr,
-    pub nullifiers: [Fr; N_INPUTS],
-    pub spendability_addresses: [Address; N_INPUTS],
-    pub output_commitment_hashes: [Fr; N_OUTPUTS],
-    pub withdrawal_amounts: [u128; N_WITHDRAWALS],
-    pub withdrawal_assets: [AssetId; N_WITHDRAWALS],
-    pub withdrawal_recipients: [Address; N_WITHDRAWALS],
+    pub inclusion_proofs: [SkewMmrProofVar<MMR_MAX_DEPTH>; N_INPUTS],
+    pub bound_params_hash: FrVar,
 }
 
 #[derive(Clone, Debug)]
@@ -115,19 +112,10 @@ pub struct JoinSplitResultVar<
     const N_WITHDRAWALS: usize,
     const MMR_MAX_DEPTH: usize,
 > {
-    // Circuit inputs.
-    pub hist_state: skew_mmr::constraints::state::StateVar<MMR_MAX_DEPTH, Fr>,
+    pub hist_state: SkewMmrStateVar<MMR_MAX_DEPTH>,
     pub frontier: [FrVar; MMR_MAX_DEPTH],
+    pub operation: OperationVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
     pub bound_params_hash: FrVar,
-
-    // Circuit outputs.
-    pub operation_hash: FrVar,
-    pub nullifiers: [FrVar; N_INPUTS],
-    pub spendability_addresses: [FrVar; N_INPUTS],
-    pub output_commitment_hashes: [FrVar; N_OUTPUTS],
-    pub withdrawal_amounts: [FrVar; N_WITHDRAWALS],
-    pub withdrawal_assets: [FrVar; N_WITHDRAWALS],
-    pub withdrawal_recipients: [FrVar; N_WITHDRAWALS],
 }
 
 impl<
@@ -138,18 +126,18 @@ impl<
 > JoinSplit<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>
 {
     pub fn new(
-        hist_state: skew_mmr::state::State<MMR_MAX_DEPTH>,
+        hist_state: SkewMmrState<MMR_MAX_DEPTH>,
         frontier: [Option<Fr>; MMR_MAX_DEPTH],
         bound_params_hash: Fr,
-        inclusion_proofs: [skew_mmr::proof::Proof<MMR_MAX_DEPTH, Fr, Poseidon2Hasher>; N_INPUTS],
+        inclusion_proofs: [SkewMmrProof<MMR_MAX_DEPTH>; N_INPUTS],
         operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
     ) -> Self {
         Self {
             hist_state,
             frontier,
-            bound_params_hash,
-            inclusion_proofs,
             operation,
+            inclusion_proofs,
+            bound_params_hash,
         }
     }
 }
@@ -159,6 +147,7 @@ impl<
     const N_OUTPUTS: usize,
     const N_WITHDRAWALS: usize,
     const MMR_MAX_DEPTH: usize,
+    const N_PUB: usize,
 > CompressibleCircuit<Fr, N_PUB> for JoinSplit<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>
 {
     type Output = JoinSplitResultVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>;
@@ -175,31 +164,42 @@ impl<
     const N_OUTPUTS: usize,
     const N_WITHDRAWALS: usize,
     const MMR_MAX_DEPTH: usize,
+    const N_PUB: usize,
 > Flatten<Fr, N_PUB> for JoinSplitResultVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>
 {
     /// Flattens this result into the ordered statement vector.
     fn flatten(&self) -> Result<[FrVar; N_PUB], SynthesisError> {
+        const {
+            assert!(
+                N_PUB == n_pub(N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH),
+                "N_PUB does not match the JoinSplit's size",
+            );
+        }
+
         let mut stmt = vec![
             self.bound_params_hash.clone(),
-            self.operation_hash.clone(),
+            self.operation.hash()?,
             self.hist_state.packed_ranks().clone(),
             self.hist_state.depth().clone(),
             self.hist_state.count().clone(),
         ];
 
-        for i in 0..N_INPUTS {
-            stmt.push(self.nullifiers[i].clone());
-            stmt.push(self.spendability_addresses[i].clone());
+        let nullifiers = self.operation.nullifiers()?.into_iter();
+        let policy_addresses = self.operation.policy_addresses().into_iter();
+        for (nullifier, addr) in nullifiers.zip(policy_addresses) {
+            stmt.push(nullifier);
+            stmt.push(addr);
         }
 
-        for i in 0..N_OUTPUTS {
-            stmt.push(self.output_commitment_hashes[i].clone());
+        let output_commitment_hashes = self.operation.output_commitment_hashes()?.into_iter();
+        for output_commitment in output_commitment_hashes {
+            stmt.push(output_commitment);
         }
 
-        for i in 0..N_WITHDRAWALS {
-            stmt.push(self.withdrawal_amounts[i].clone());
-            stmt.push(self.withdrawal_assets[i].clone());
-            stmt.push(self.withdrawal_recipients[i].clone());
+        for withdrawal in &self.operation.withdrawals {
+            stmt.push(withdrawal.amount.to_fp()?);
+            stmt.push(withdrawal.asset.clone());
+            stmt.push(withdrawal.recipient.clone());
         }
 
         for i in 0..MMR_MAX_DEPTH {
@@ -223,23 +223,13 @@ impl<
         &self,
     ) -> Result<JoinSplitResultVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>, SynthesisError>
     {
-        // TODO: Refactor me:
-        // We should pass mmr_hist_state and mmr_frontier_roots as public inputs to the circuit. Then `proof.verify()`
-        // should accept (hist_state, frontier_roots, element) as public inputs and verify them for its proof.
-        // We should also produce the element as an output of operation.verify().  So code should look like:
-        //
-        // let input_commitment_hashes = self.operation.verify()?;
-        // for (proof, element) in self.inclusion_proofs.iter().zip(input_commitment_hashes.iter()) {
-        //   proof.verify(hist_state, frontier_roots, element)?;
-        // }
+        self.operation.verify()?;
 
-        // Verify that the inclusion proofs are valid and all use the same MMR state.
-        // Skipped for zero-valued elements (padding), which `OperationVar::verify` ties to
-        // the unused (zero-amount) input slots.
-        for proof in &self.inclusion_proofs {
+        let commitment_hashes = self.operation.input_commitment_hashes()?;
+        for (proof, commitment_hash) in self.inclusion_proofs.iter().zip(commitment_hashes.iter()) {
             let used = !proof.element.is_zero()?;
 
-            //? Verify the proof's public states are all equal
+            // Verify the proof's inputs match the expected values.
             proof
                 .state
                 .conditional_enforce_equal(&self.hist_state, &used)?;
@@ -247,25 +237,20 @@ impl<
                 .roots
                 .conditional_enforce_equal(&self.frontier, &used)?;
             proof
+                .element
+                .conditional_enforce_equal(commitment_hash, &used)?;
+
+            // Verify the proof is valid.
+            proof
                 .verify()?
                 .conditional_enforce_equal(&Boolean::TRUE, &used)?;
         }
 
-        // Verify that the operation is balanced and returns the resulting outputs.
-        let input_commitment_hashes = from_fn(|i| self.inclusion_proofs[i].element.clone());
-        let operation_result = self.operation.verify(&input_commitment_hashes)?;
-
         Ok(JoinSplitResultVar {
             hist_state: self.hist_state.clone(),
             frontier: self.frontier.clone(),
+            operation: self.operation.clone(),
             bound_params_hash: self.bound_params_hash.clone(),
-            operation_hash: operation_result.hash,
-            nullifiers: operation_result.nullifiers,
-            spendability_addresses: operation_result.spendability_addresses,
-            output_commitment_hashes: operation_result.output_commitment_hashes,
-            withdrawal_amounts: from_fn(|i| operation_result.withdrawals[i].amount.clone()),
-            withdrawal_assets: from_fn(|i| operation_result.withdrawals[i].asset.clone()),
-            withdrawal_recipients: from_fn(|i| operation_result.withdrawals[i].recipient.clone()),
         })
     }
 }
@@ -298,55 +283,9 @@ impl<
         Ok(Self {
             hist_state,
             frontier,
-            bound_params_hash,
-            inclusion_proofs,
             operation,
-        })
-    }
-}
-
-impl<
-    const N_INPUTS: usize,
-    const N_OUTPUTS: usize,
-    const N_WITHDRAWALS: usize,
-    const MMR_MAX_DEPTH: usize,
-> GR1CSVar<Fr> for JoinSplitResultVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>
-{
-    type Value = JoinSplitResult<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>;
-
-    fn cs(&self) -> ConstraintSystemRef<Fr> {
-        self.hist_state.cs()
-    }
-
-    fn value(&self) -> Result<Self::Value, SynthesisError> {
-        let hist_state = self.hist_state.value()?;
-        let frontier = self.frontier.value()?;
-        let bound_params_hash = self.bound_params_hash.value()?;
-
-        let operation_hash = self.operation_hash.value()?;
-        let nullifiers = self.nullifiers.value()?;
-        let spendability_addresses = self.spendability_addresses.value()?;
-        let output_commitment_hashes = self.output_commitment_hashes.value()?;
-        let withdrawal_amounts = self.withdrawal_amounts.value()?;
-        let withdrawal_assets = self.withdrawal_assets.value()?;
-        let withdrawal_recipients = self.withdrawal_recipients.value()?;
-
-        let spendability_addresses = from_fn(|i| fr_to_address(spendability_addresses[i]));
-        let withdrawal_amounts = from_fn(|i| fr_to_u128(&withdrawal_amounts[i]));
-        let withdrawal_assets = from_fn(|i| withdrawal_assets[i].into());
-        let withdrawal_recipients = from_fn(|i| fr_to_address(withdrawal_recipients[i]));
-
-        Ok(Self::Value {
-            hist_state,
-            frontier,
+            inclusion_proofs,
             bound_params_hash,
-            operation_hash,
-            nullifiers,
-            spendability_addresses,
-            output_commitment_hashes,
-            withdrawal_amounts,
-            withdrawal_assets,
-            withdrawal_recipients,
         })
     }
 }
@@ -360,11 +299,65 @@ impl<
 {
     fn default() -> Self {
         Self {
-            hist_state: State::default(),
+            hist_state: SkewMmrState::default(),
             frontier: from_fn(|_| None),
             bound_params_hash: Fp::default(),
-            inclusion_proofs: from_fn(|_| Proof::default()),
+            inclusion_proofs: from_fn(|_| SkewMmrProof::default()),
             operation: Operation::default(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::{Bytes, address};
+    use ark_relations::gr1cs::ConstraintSystem;
+
+    use super::*;
+    use crate::note::{asset::AssetId, commitment::Commitment, owned::OwnedNote};
+
+    const I: usize = 2;
+    const O: usize = 2;
+    const W: usize = 1;
+    const D: usize = 8;
+    const P: usize = n_pub(I, O, W, D);
+
+    /// Expect that a small, balanced `JoinSplit` spending one note from the MMR
+    /// is satisfied.
+    #[test]
+    fn small_join_split_satisfied() {
+        let asset = AssetId::from(address!("0x00000000000000000000000000000000deadbeef"));
+
+        let mut input = OwnedNote::default();
+        input.note.asset = asset;
+        input.note.amount = 10;
+        input.note.policy_hash = input.policy.hash();
+
+        let mut mmr = skew_mmr::SkewMmr::<D, Fr, Poseidon2Hasher>::new();
+        mmr.append(Fr::from(1u64));
+        mmr.append(input.commitment());
+        mmr.append(Fr::from(2u64));
+        let proof = mmr.prove_element(input.commitment()).unwrap();
+
+        let mut operation = Operation::<I, O, W>::default();
+        operation.inputs[0] = input.spendable(Bytes::new());
+        operation.outputs[0] = Commitment {
+            asset,
+            amount: 10,
+            ..Commitment::default()
+        };
+
+        let join_split = JoinSplit::new(
+            proof.state,
+            proof.roots,
+            Fr::from(3u64),
+            [proof, SkewMmrProof::default()],
+            operation,
+        );
+
+        let cs = ConstraintSystem::<Fr>::new_ref();
+        let result = CompressibleCircuit::<Fr, P>::verify(&join_split, &cs).unwrap();
+        let _: [FrVar; P] = result.flatten().unwrap();
+        assert!(cs.is_satisfied().unwrap());
     }
 }

@@ -28,8 +28,7 @@ fn operation_hash_matches_go() {
         policy,
     };
     op.inputs[0] = owned.spendable(Bytes::default());
-    op.output_withdrawals[0] =
-        Withdrawal::new(Address::new([1; 20]).into(), 100, Address::new([6; 20]));
+    op.withdrawals[0] = Withdrawal::new(Address::new([1; 20]).into(), 100, Address::new([6; 20]));
 
     let mut c_op = (&op).into();
     let mut out = Bytes32 { data: [0; 32] };

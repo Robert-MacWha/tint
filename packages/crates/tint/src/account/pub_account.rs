@@ -18,7 +18,7 @@ pub struct PubAccount {
     pub nullifier_pub_key: NullifierPubKey,
     pub encryption_pub_key: EncryptionPubKey,
     #[serde_as(as = "tint_groth16::serde::field::FieldAsBytes")]
-    pub spendability_hash: Fr,
+    pub policy_hash: Fr,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -32,12 +32,12 @@ impl PubAccount {
     pub fn new(
         nullifier_pub_key: NullifierPubKey,
         encryption_pub_key: EncryptionPubKey,
-        spendability_hash: Fr,
+        policy_hash: Fr,
     ) -> Self {
         Self {
             nullifier_pub_key,
             encryption_pub_key,
-            spendability_hash,
+            policy_hash,
         }
     }
 
@@ -53,18 +53,18 @@ impl PubAccount {
             .ok_or(PubAccountBytesError::InvalidLength)?
             .try_into()
             .map_err(|_| PubAccountBytesError::InvalidLength)?;
-        let spendability_hash_bytes = bytes
+        let policy_hash = bytes
             .get(64..96)
             .ok_or(PubAccountBytesError::InvalidLength)?;
 
         let nullifier_pub_key =
             NullifierPubKey(Fr::from_be_bytes_mod_order(nullifier_pub_key_bytes));
         let encryption_pub_key = EncryptionPubKey(PublicKey::from(encryption_pub_key_bytes));
-        let spendability_hash = Fr::from_be_bytes_mod_order(spendability_hash_bytes);
+        let policy_hash = Fr::from_be_bytes_mod_order(policy_hash);
         Ok(Self {
             nullifier_pub_key,
             encryption_pub_key,
-            spendability_hash,
+            policy_hash,
         })
     }
 
@@ -74,7 +74,7 @@ impl PubAccount {
         Commitment::new(
             asset,
             amount,
-            self.spendability_hash,
+            self.policy_hash,
             self.nullifier_pub_key,
             random,
         )
@@ -85,7 +85,7 @@ impl PubAccount {
         let mut buf = Vec::new();
         buf.extend_from_slice(&self.nullifier_pub_key.0.into_bigint().to_bytes_be());
         buf.extend_from_slice(self.encryption_pub_key.0.as_bytes());
-        buf.extend_from_slice(&self.spendability_hash.into_bigint().to_bytes_be());
+        buf.extend_from_slice(&self.policy_hash.into_bigint().to_bytes_be());
         buf
     }
 }

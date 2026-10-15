@@ -38,7 +38,7 @@ impl OwnedNote {
         if account.nullifier_key.pub_key() != note.nullifier_pub_key {
             return Err(OwnedNoteError::NullifierKeyMismatch);
         }
-        if account.policy.hash() != note.spendability_hash {
+        if account.policy.hash() != note.policy_hash {
             return Err(OwnedNoteError::PolicyMismatch);
         }
 
@@ -82,13 +82,15 @@ impl SpendableNote {
 impl Default for OwnedNote {
     fn default() -> Self {
         let nullifier_key = NullifierKey::default();
+        let policy = Policy::default();
         Self {
             note: Commitment {
                 nullifier_pub_key: nullifier_key.pub_key(),
+                policy_hash: policy.hash(),
                 ..Commitment::default()
             },
             nullifier_key,
-            policy: Policy::default(),
+            policy,
         }
     }
 }

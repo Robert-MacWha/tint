@@ -5,9 +5,10 @@ use ark_relations::gr1cs::{
 };
 use tint::{
     circuit::{
-        FrVar, input,
+        FrVar,
+        gadgets::operation::OperationVar,
+        input,
         join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
-        operation::OperationVar,
         variable, witness,
     },
     operation::Operation,
@@ -124,16 +125,12 @@ impl PasswordSpendabilityVar {
     }
 
     #[tracing::instrument(target = "gr1cs", skip_all)]
-    fn verify_spendability_witnesses(
-        &self,
-        spendability_address: &FrVar,
-    ) -> Result<(), SynthesisError> {
+    fn verify_spendability_witnesses(&self, policy_address: &FrVar) -> Result<(), SynthesisError> {
         for input in &self.operation.inputs {
-            let spendability_addresses_eq =
-                input.spendability_address.is_eq(spendability_address)?;
+            let spendability_addresses_eq = input.policy_address.is_eq(policy_address)?;
             let expected_witness = poseidon2_compress_gadget(core::array::from_ref(&self.secret))?;
             input
-                .spendability_witness
+                .policy_witness
                 .conditional_enforce_equal(&expected_witness, &spendability_addresses_eq)?;
         }
         Ok(())

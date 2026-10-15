@@ -9,8 +9,9 @@ use crate::{
     note::{asset::AssetId, commitment::BaseCommitment},
 };
 
-/// The public half of an [`Account`](crate::account::Account): everything needed
-/// to send it a note.
+/// The public part of an [`Account`](crate::account::Account).
+///
+/// Primarily used to send notes to another user's account.
 #[serde_with::serde_as]
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PubAccount {

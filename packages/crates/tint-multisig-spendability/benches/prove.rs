@@ -9,14 +9,12 @@ use k256::{
     elliptic_curve::Generate,
 };
 use tint::{
-    circuit::{
-        join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
-        poseidon2::poseidon2_compress,
-    },
+    circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
     fr::{address_to_fr, fr_to_b256},
     operation::Operation,
 };
 use tint_multisig_spendability::{N_SIGNERS, ffi, pubkey_hash};
+use tint_poseidon2::poseidon2_compress;
 
 fn main() {
     let contract_address = Address::new([9u8; 20]);

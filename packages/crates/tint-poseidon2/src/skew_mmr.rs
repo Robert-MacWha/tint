@@ -1,9 +1,6 @@
 use ark_bn254::Fr;
 
-use crate::circuit::{
-    FrVar,
-    poseidon2::{poseidon2_compress, poseidon2_compress_gadget},
-};
+use crate::{FrVar, poseidon2_compress, poseidon2_compress_gadget};
 
 /// [`skew_mmr::hasher::Hasher<Fr>`] impl for Poseidon2.
 #[derive(Debug, Clone)]

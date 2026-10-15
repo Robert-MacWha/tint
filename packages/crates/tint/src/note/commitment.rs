@@ -2,10 +2,10 @@ use alloy_primitives::B256;
 use ark_bn254::Fr;
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
+use tint_poseidon2::poseidon2_compress;
 
 use crate::{
     account::keys::{EncryptionKey, EncryptionPubKey, NullifierKey, NullifierPubKey},
-    circuit::poseidon2::poseidon2_compress,
     crypto::envelope::EncryptedEnvelope,
     fr::b256_to_fr,
     note::asset::AssetId,

@@ -13,18 +13,14 @@ use ark_r1cs_std::{
 };
 use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use skew_mmr::{proof::Proof, state::State};
+use tint_poseidon2::{
+    crh::{Poseidon2ChainCrh, constraints::Poseidon2ChainCrhGadget},
+    skew_mmr::Poseidon2Hasher,
+};
 
 use crate::{
     array::try_from_fn,
-    circuit::{
-        FrVar,
-        operation::OperationVar,
-        poseidon2::{
-            crh::{Poseidon2ChainCrh, constraints::Poseidon2ChainCrhGadget},
-            skew_mmr::Poseidon2Hasher,
-        },
-        variable, witness,
-    },
+    circuit::{FrVar, operation::OperationVar, variable, witness},
     fr::{fr_to_address, fr_to_u128},
     note::asset::AssetId,
     operation::Operation,

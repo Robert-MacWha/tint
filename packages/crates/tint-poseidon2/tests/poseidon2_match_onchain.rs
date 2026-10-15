@@ -2,8 +2,6 @@
 //! locally match what `Tint.computePublicSignals` computes on-chain for the same
 //! inputs.
 
-mod common;
-
 use alloy_node_bindings::Anvil;
 use alloy_primitives::U256;
 use alloy_provider::{Provider, ProviderBuilder};
@@ -11,7 +9,7 @@ use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_macro::sol;
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
-use tint::circuit::poseidon2::poseidon2_compress;
+use tint_poseidon2::poseidon2_compress;
 use tracing::info;
 
 sol!(

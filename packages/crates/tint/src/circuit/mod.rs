@@ -4,7 +4,6 @@ use ark_r1cs_std::{GR1CSVar, alloc::AllocVar};
 pub mod commitment;
 pub mod join_split;
 pub mod operation;
-pub mod poseidon2;
 
 pub type FrVar = ark_r1cs_std::fields::fp::FpVar<ark_bn254::Fr>;
 

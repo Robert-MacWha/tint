@@ -1,8 +1,9 @@
 use alloy_primitives::Address;
 use ark_bn254::Fr;
 use ark_ff::AdditiveGroup;
+use tint_poseidon2::poseidon2_compress;
 
-use crate::{circuit::poseidon2::poseidon2_compress, fr::address_to_fr};
+use crate::fr::address_to_fr;
 
 /// A note's spending policy.
 ///

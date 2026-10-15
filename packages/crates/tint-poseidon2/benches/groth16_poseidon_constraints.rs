@@ -2,9 +2,10 @@
 
 use ark_bn254::Fr;
 use ark_ff::UniformRand;
+use ark_r1cs_std::alloc::AllocVar;
 use ark_relations::gr1cs::ConstraintSystem;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
-use tint::circuit::{FrVar, poseidon2::poseidon2_compress_gadget, witness};
+use tint_poseidon2::{FrVar, poseidon2_compress_gadget};
 
 fn main() {
     let mut rng = StdRng::seed_from_u64(42);
@@ -28,7 +29,7 @@ fn constraints<const T: usize>(rng: &mut StdRng) -> usize {
 
     let input: [FrVar; T] = std::array::from_fn(|_| {
         let value = Fr::rand(rng);
-        witness(cs.clone(), &value).unwrap()
+        FrVar::new_witness(cs.clone(), || Ok(value)).unwrap()
     });
     let before = cs.num_constraints();
 

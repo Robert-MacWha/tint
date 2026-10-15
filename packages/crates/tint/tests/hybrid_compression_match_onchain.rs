@@ -11,9 +11,10 @@ use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_macro::sol;
 use ark_bn254::Fr;
 use tint::{
-    circuit::{join_split::N_PUB, poseidon2::crh::Poseidon2ChainCrh},
+    circuit::join_split::N_PUB,
     fr::{fr_to_u256, u256_to_fr},
 };
+use tint_poseidon2::crh::Poseidon2ChainCrh;
 use tracing::info;
 
 sol!(

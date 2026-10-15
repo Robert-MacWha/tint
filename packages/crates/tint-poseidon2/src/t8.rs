@@ -2,7 +2,7 @@ use ark_bn254::Fr;
 use taceo_poseidon2::bn254::t8::POSEIDON2_BN254_T8_PARAMS;
 
 use super::common::{Width, matmul_m4};
-use crate::circuit::poseidon2::element::PoseidonElement;
+use crate::element::PoseidonElement;
 
 pub struct T8;
 
@@ -41,15 +41,11 @@ impl Width<8> for T8 {
 #[cfg(test)]
 mod tests {
     use ark_ff::UniformRand;
-    use ark_r1cs_std::GR1CSVar;
+    use ark_r1cs_std::{GR1CSVar, alloc::AllocVar};
     use ark_relations::gr1cs::ConstraintSystem;
 
     use super::*;
-    use crate::circuit::{
-        FrVar,
-        poseidon2::{poseidon2_compress, poseidon2_compress_gadget},
-        witness,
-    };
+    use crate::{FrVar, poseidon2_compress, poseidon2_compress_gadget};
 
     /// Test that our permutation matches taceo-poseidon2's own native
     /// permutation for `t=8`.
@@ -61,7 +57,7 @@ mod tests {
         for _ in 0..10 {
             let inputs: [Fr; 8] = core::array::from_fn(|_| Fr::rand(&mut rng));
             let inputs_var: [FrVar; 8] =
-                core::array::from_fn(|i| witness(cs.clone(), &inputs[i]).unwrap());
+                core::array::from_fn(|i| FrVar::new_witness(cs.clone(), || Ok(inputs[i])).unwrap());
 
             let reference = taceo_poseidon2::bn254::t8::permutation(&inputs)[0] + inputs[0];
             let native_hash = poseidon2_compress(&inputs);

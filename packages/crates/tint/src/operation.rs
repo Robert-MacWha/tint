@@ -12,16 +12,14 @@ use ark_snark::SNARK;
 use ark_std::rand::Rng;
 use rand_core::{CryptoRng, RngCore};
 use tint_groth16::{artifacts::Artifacts, prove::prove_with_matrices};
+use tint_poseidon2::poseidon2_compress;
 use tracing::info;
 
 use crate::{
     abis::tint::{IPrivacyPool, Tint},
     account::pub_account::PubAccount,
-    circuit::{
-        join_split::{
-            FRONTIER_OFFSET, JoinSplit, JoinSplitCircuit, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS,
-        },
-        poseidon2::poseidon2_compress,
+    circuit::join_split::{
+        FRONTIER_OFFSET, JoinSplit, JoinSplitCircuit, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS,
     },
     fr::{fr_to_b256, fr_to_u256},
     note::{

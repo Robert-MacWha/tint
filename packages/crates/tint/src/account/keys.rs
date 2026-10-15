@@ -2,9 +2,8 @@ use std::fmt::Debug;
 
 use ark_bn254::Fr;
 use serde::{Deserialize, Serialize};
+use tint_poseidon2::poseidon2_compress;
 use x25519_dalek::{PublicKey, StaticSecret};
-
-use crate::circuit::poseidon2::poseidon2_compress;
 
 #[derive(Copy, Clone, Default)]
 pub struct NullifierKey(pub Fr);

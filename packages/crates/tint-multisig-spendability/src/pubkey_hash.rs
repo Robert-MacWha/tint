@@ -1,7 +1,7 @@
 use ark_bn254::Fr;
 use ark_ff::PrimeField;
 use k256::ecdsa::VerifyingKey;
-use tint::circuit::poseidon2::poseidon2_compress;
+use tint_poseidon2::poseidon2_compress;
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
 #[error("invalid secp256k1 public key encoding")]

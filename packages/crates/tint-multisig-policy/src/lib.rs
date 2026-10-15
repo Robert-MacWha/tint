@@ -1,0 +1,8 @@
+pub mod ffi;
+pub mod policy;
+pub mod pubkey_hash;
+
+/// Number of signers committed to by a note's policy witness.
+pub const N_SIGNERS: usize = 3;
+/// Minimum number of valid signatures required to spend.
+pub const THRESHOLD: usize = 2;

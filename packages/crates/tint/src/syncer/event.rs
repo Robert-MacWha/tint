@@ -12,7 +12,7 @@ use crate::{
     fr::b256_to_fr,
     note::{
         asset::AssetId,
-        commitment::{BaseCommitment, PartialCommitment},
+        commitment::{Commitment, PartialCommitment},
         owned::OwnedNote,
     },
 };
@@ -112,7 +112,7 @@ impl Snapshot {
 
     /// Returns the notes decryptable by `key` within this snapshot.
     #[must_use]
-    pub fn notes(&self, key: &EncryptionKey) -> Vec<BaseCommitment> {
+    pub fn notes(&self, key: &EncryptionKey) -> Vec<Commitment> {
         self.events.iter().filter_map(|e| e.decrypt(key)).collect()
     }
 
@@ -230,13 +230,13 @@ impl SyncEvent {
 
     /// Decrypts the note carried by this event, if it's addressed to `key`.
     #[must_use]
-    pub fn decrypt(&self, key: &EncryptionKey) -> Option<BaseCommitment> {
+    pub fn decrypt(&self, key: &EncryptionKey) -> Option<Commitment> {
         match self {
             SyncEvent::Deposited(d) => {
                 let partial = PartialCommitment::from_encrypted(&d.encrypted_partial, key).ok()?;
-                Some(BaseCommitment::from_partial(d.asset, d.amount, partial))
+                Some(Commitment::from_partial(d.asset, d.amount, partial))
             }
-            SyncEvent::Committed(c) => BaseCommitment::from_encrypted(&c.encrypted_note, key).ok(),
+            SyncEvent::Committed(c) => Commitment::from_encrypted(&c.encrypted_note, key).ok(),
             SyncEvent::Nullified(_) | SyncEvent::Withdrawn(_) => None,
         }
     }

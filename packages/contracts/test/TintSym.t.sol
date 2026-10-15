@@ -6,7 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {Tint} from "../src/Tint.sol";
 import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
-import {ISpendability} from "../src/interfaces/ISpendability.sol";
+import {IPolicy} from "../src/interfaces/IPolicy.sol";
 import {MockVerifier} from "../src/mocks/MockVerifier.sol";
 import {ProofLib} from "../src/lib/ProofLib.sol";
 import {N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, FRONTIER_OFFSET} from "../src/lib/Constants.sol";
@@ -18,18 +18,18 @@ contract StubToken {
     }
 }
 
-/// @notice Spendability contract whose verdict is fixed per path.
-contract SymSpendability is ISpendability {
+/// @notice Policy contract whose verdict is fixed per path.
+contract SymPolicy is IPolicy {
     bool shouldPass;
 
-    error NotSpendable();
+    error NotAuthorized();
 
     function setPass(bool v) external {
         shouldPass = v;
     }
 
-    function requireSpendable(IPrivacyPool.Operation calldata) external view {
-        if (!shouldPass) revert NotSpendable();
+    function requireAuthorized(IPrivacyPool.Operation calldata) external view {
+        if (!shouldPass) revert NotAuthorized();
     }
 }
 
@@ -59,12 +59,12 @@ contract TintHarness is Tint {
 contract TintSymTest is Test, SymTest {
     using ProofLib for IPrivacyPool.Operation;
     TintHarness tint;
-    SymSpendability spendability;
+    SymPolicy policy;
     StubToken token;
 
     function setUp() public {
         token = new StubToken();
-        spendability = new SymSpendability();
+        policy = new SymPolicy();
         tint = new TintHarness(new MockVerifier());
     }
 
@@ -79,9 +79,9 @@ contract TintSymTest is Test, SymTest {
         vm.assume(spentNullifier != bytes32(0));
         tint.setSpent(spentNullifier);
 
-        // STATE: Model spendability checks passing and failing.
-        bool spendabilityPasses = svm.createBool("spendabilityPasses");
-        spendability.setPass(spendabilityPasses);
+        // STATE: Model policy checks passing and failing.
+        bool policyPasses = svm.createBool("policyPasses");
+        policy.setPass(policyPasses);
     }
 
     /// Binds the operation to the pool's live frontier.
@@ -110,7 +110,7 @@ contract TintSymTest is Test, SymTest {
     function _narrowOperation(IPrivacyPool.Operation calldata op) public pure {
         for (uint256 i = 2; i < N_INPUTS; ++i) {
             vm.assume(op.nullifier(i) == bytes32(uint256(0)));
-            vm.assume(op.spendabilityAddress(i) == address(0));
+            vm.assume(op.policyAddress(i) == address(0));
         }
 
         for (uint256 i = 2; i < N_OUTPUTS; ++i) {

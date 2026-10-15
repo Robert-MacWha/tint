@@ -48,9 +48,9 @@ All below gas costs are based on Ethereum Mainnet and include the cost of a mock
 
 ## Arbitrary Note Ownership Rules
 
-Tint allows for arbitrary note ownership rules. This means the conditions under which a note can be spent are decided by the note creator. Each note commits itself to some "spendability address". When a note is spent, the contract calls the `spendable` function on the spendability address, which determines whether the note can be spent.
+Tint allows for arbitrary note ownership rules. This means the conditions under which a note can be spent are decided by the note creator. Each note commits itself to some "policy address". When a note is spent, the contract calls the `requireAuthorized` function on the policy address, which determines whether the note can be spent.
 
-This allows for numerous spendability rules, including:
+This allows for numerous policy rules, including:
 - Multi-sigs
 - Hardware wallet compatibility via `eth_signTypedData_v4`
 - Timelocks
@@ -58,22 +58,22 @@ This allows for numerous spendability rules, including:
 
 By default users can use a nullifying key to spend notes (similar to railgun or privacy pools). Additional rules can increase security but will also increase gas (~300k per rule) and partially reduce privacy.
 
-For more information, see the [Spendability Docs](./docs/spendability.md).
+For more information, see the [Policy Docs](./docs/policy.md).
 
 ### Current Implementations
 
-**[tint-multisig-spendability](./packages/crates/tint-multisig-spendability/)**
+**[tint-multisig-policy](./packages/crates/tint-multisig-policy/)**
 
-The multisig spendability crate allows creating notes that can only be spent with a threshold number of ecdsa signatures from a set of public keys. This way multisigs can be implemented directly in-circuit, without revealing any information about the signers, threshold, or signatures to the outside world.
+The multisig policy crate allows creating notes that can only be spent with a threshold number of ecdsa signatures from a set of public keys. This way multisigs can be implemented directly in-circuit, without revealing any information about the signers, threshold, or signatures to the outside world.
 
 Current Limitations:
 - Only supports ECDSA secp256k1 signatures
 - Only supports 2-of-3 multisigs (can be extended via generic circuits)
 - Only supports blind signatures (can be extended to use either eth_signTypedData_v4 given a *very* expensive circuit, or a custom signature schema using a more circuit-friendly hash function like sha256).
 
-**[tint-password-spendability](./packages/crates/tint-password-spendability/)**
+**[tint-password-policy](./packages/crates/tint-password-policy/)**
 
-The password spendability crate allows creating notes that can only be spent given knowledge of a password. This is mostly a toy example, useful for testing and demonstrating the spendability interface. It does not offer any additional security since the default note spendability rule is already knowledge of a secret (the nullifying key).
+The password policy crate allows creating notes that can only be spent given knowledge of a password. This is mostly a toy example, useful for testing and demonstrating the policy interface. It does not offer any additional security since the default note policy rule is already knowledge of a secret (the nullifying key).
 
 ## Paymaster / Frame transaction compatibility
 
@@ -130,9 +130,9 @@ just run unshield alice 0x000000000000000000000000000000000000dead $TOKEN 400
 just run balance alice
 ```
 
-**Password Spendability**
+**Password Policy**
 ```bash
-just run create charlie --spendability password
+just run create charlie --policy password
 # > enter password when prompted
 
 just run shield charlie $TOKEN 1000
@@ -140,9 +140,9 @@ just run transfer charlie alice $TOKEN 500
 # > enter password when prompted
 ```
 
-**ECDSA Multisig Spendability**
+**ECDSA Multisig Policy**
 ```bash
-just run create dave --spendability multisig
+just run create dave --policy multisig
 # > Enter public keys for multisig as prompted
 
 just run shield dave $TOKEN 1000

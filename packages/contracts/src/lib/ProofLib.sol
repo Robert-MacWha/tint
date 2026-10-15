@@ -104,7 +104,7 @@ library ProofLib {
         return op.pub[N_CONST + 2 * i];
     }
 
-    function spendabilityAddress(IPrivacyPool.Operation calldata op, uint256 i) internal pure returns (address) {
+    function policyAddress(IPrivacyPool.Operation calldata op, uint256 i) internal pure returns (address) {
         return _toAddress(op.pub[N_CONST + 2 * i + 1]);
     }
 
@@ -127,8 +127,8 @@ library ProofLib {
         return _toAddress(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * i + 2]);
     }
 
-    /// @notice Returns the unique spendability addresses in an operation.
-    function spendabilityAddresses(IPrivacyPool.Operation calldata op)
+    /// @notice Returns the unique policy addresses in an operation.
+    function policyAddresses(IPrivacyPool.Operation calldata op)
         internal
         pure
         returns (address[N_INPUTS] memory output)
@@ -136,7 +136,7 @@ library ProofLib {
         uint256 count = 0;
 
         for (uint256 i = 0; i < N_INPUTS; i++) {
-            address addr = spendabilityAddress(op, i);
+            address addr = policyAddress(op, i);
             bool exists = false;
             for (uint256 j = 0; j < count; j++) {
                 if (output[j] == addr) {

@@ -3,8 +3,8 @@ members = [
     "cli",
     "tint",
     "tint-groth16",
-    "tint-multisig-spendability",
-    "tint-password-spendability",
+    "tint-multisig-policy",
+    "tint-password-policy",
     "tint-poseidon2",
 ]
 resolver = "3"
@@ -70,8 +70,8 @@ taceo-poseidon2 = { git = "https://github.com/Robert-MacWha/eddsa-babyjubjub" }
 thiserror = "2.0.18"
 tint = { path = "./tint", default-features = false }
 tint-groth16 = { path = "./tint-groth16" }
-tint-multisig-spendability = { path = "./tint-multisig-spendability" }
-tint-password-spendability = { path = "./tint-password-spendability" }
+tint-multisig-policy = { path = "./tint-multisig-policy" }
+tint-password-policy = { path = "./tint-password-policy" }
 tint-poseidon2 = { path = "./tint-poseidon2" }
 tokio = { version = "1" }
 tracing = "0.1.44"

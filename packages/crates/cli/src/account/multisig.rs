@@ -2,7 +2,7 @@ use std::io::{self, Write};
 
 use alloy::{hex, primitives::Address};
 use k256::ecdsa::{Signature, VerifyingKey, signature::hazmat::PrehashSigner};
-use tint_multisig_spendability::{
+use tint_multisig_policy::{
     N_SIGNERS, THRESHOLD,
     ffi::artifacts::load_artifacts as multisig_artifacts,
     policy::{MultisigPolicy, Signer},
@@ -10,11 +10,11 @@ use tint_multisig_spendability::{
 use tracing::info;
 
 use crate::{
-    account::{Authorizer, resolve_spendability_address},
-    config::SpendabilityState,
+    account::{Authorizer, resolve_policy_address},
+    config::PolicyState,
 };
 
-const SPENDABILITY_ADDRESS_ENV_VAR: &str = "MULTISIG_SPENDABILITY_ADDRESS";
+const POLICY_ADDRESS_ENV_VAR: &str = "MULTISIG_POLICY_ADDRESS";
 
 /// A multisig signer who prompts the user to sign the operation hash and return
 /// the resulting signature.
@@ -23,12 +23,12 @@ struct PromptSigner {
     verifying_key: VerifyingKey,
 }
 
-pub fn create_multisig_account(name: &str) -> anyhow::Result<(Authorizer, SpendabilityState)> {
-    let address = resolve_spendability_address(SPENDABILITY_ADDRESS_ENV_VAR, name)?;
+pub fn create_multisig_account(name: &str) -> anyhow::Result<(Authorizer, PolicyState)> {
+    let address = resolve_policy_address(POLICY_ADDRESS_ENV_VAR, name)?;
     let pub_keys = prompt_multisig_pub_keys(name)?;
     let authorizer = multisig_authorizer(address, &pub_keys)?;
     let signers = pub_keys.map(|pk| hex::encode_prefixed(pk.to_sec1_bytes()));
-    Ok((authorizer, SpendabilityState::Multisig { address, signers }))
+    Ok((authorizer, PolicyState::Multisig { address, signers }))
 }
 
 pub fn load_multisig_authorizer(

@@ -9,7 +9,7 @@ use crate::fr::address_to_fr;
 ///
 /// Notes commit to `poseidon2(address, witness)`. At spend time the circuit
 /// checks the witness against that hash, and the contract calls
-/// `address.requireSpendable(op)` with a per-operation policy input.
+/// `address.requireAuthorized(op)` with a per-operation policy input.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Policy {
     pub address: Address,
@@ -17,7 +17,7 @@ pub struct Policy {
 }
 
 impl Policy {
-    /// No policy. Spendability checks are skipped by the contract for address zero.
+    /// No policy. Policy checks are skipped by the contract for address zero.
     pub const NONE: Policy = Policy {
         address: Address::ZERO,
         witness: Fr::ZERO,

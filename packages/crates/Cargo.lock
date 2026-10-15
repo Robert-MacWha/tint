@@ -1814,8 +1814,8 @@ dependencies = [
  "signature 3.0.0",
  "tint",
  "tint-groth16",
- "tint-multisig-spendability",
- "tint-password-spendability",
+ "tint-multisig-policy",
+ "tint-password-policy",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -5215,7 +5215,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tint-multisig-spendability"
+name = "tint-multisig-policy"
 version = "0.1.0"
 dependencies = [
  "alloy-contract",
@@ -5248,7 +5248,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tint-password-spendability"
+name = "tint-password-policy"
 version = "0.1.0"
 dependencies = [
  "alloy-contract",

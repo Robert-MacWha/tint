@@ -21,7 +21,7 @@ pub struct EncryptionPubKey(pub PublicKey);
 impl NullifierKey {
     #[must_use]
     pub fn pub_key(&self) -> NullifierPubKey {
-        NullifierPubKey(poseidon2_compress(&[self.0, Fr::from(0)]))
+        NullifierPubKey(poseidon2_compress(&[self.0]))
     }
 }
 

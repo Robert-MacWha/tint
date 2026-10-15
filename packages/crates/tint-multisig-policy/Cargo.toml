@@ -1,0 +1,44 @@
+[package]
+name = "tint-multisig-policy"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+alloy-primitives = { workspace = true }
+ark-bn254 = { workspace = true, features = ["scalar_field"] }
+ark-ff = { workspace = true }
+k256 = { workspace = true }
+signature = { workspace = true }
+thiserror = { workspace = true }
+tint = { workspace = true }
+tint-poseidon2 = { workspace = true }
+tracing = { workspace = true }
+
+[build-dependencies]
+bindgen = { workspace = true }
+
+[dev-dependencies]
+alloy-contract = { workspace = true }
+alloy-node-bindings = { workspace = true }
+alloy-provider = { workspace = true }
+alloy-rpc-types-eth = { workspace = true }
+alloy-signer-local = { workspace = true }
+alloy-sol-macro = { workspace = true, features = ["json"] }
+alloy-sol-types = { workspace = true }
+anyhow = { workspace = true }
+ark-ec = { workspace = true }
+ark-r1cs-std = { workspace = true }
+ark-relations = { workspace = true, features = ["std"] }
+ark-secp256k1 = { workspace = true }
+ark-std = { workspace = true }
+taceo-poseidon2 = { workspace = true, features = ["t2", "t3", "t8"] }
+tint-groth16 = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
+[lints]
+workspace = true
+
+[[bench]]
+name = "prove"
+harness = false

@@ -24,7 +24,7 @@ use crate::{
     fr::{fr_to_b256, fr_to_u256},
     note::{
         asset::AssetId,
-        commitment::BaseCommitment,
+        commitment::Commitment,
         owned::{OwnedNote, SpendableNote},
         withdrawal::Withdrawal,
     },
@@ -46,18 +46,18 @@ pub struct UnauthorizedOperation {
 }
 
 /// An operation's inputs, outputs, and withdrawals, padded to the circuit's
-/// slot counts. `ciphertexts[i]` encrypts `output_commitments[i]` to its receiver.
+/// slot counts. `ciphertexts[i]` encrypts `commitments[i]` to its receiver.
 #[derive(Clone, Debug)]
 pub struct Operation<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize> {
     pub inputs: [SpendableNote; N_INPUTS],
-    pub output_commitments: [BaseCommitment; N_OUTPUTS],
-    pub output_withdrawals: [Withdrawal; N_WITHDRAWALS],
+    pub outputs: [Commitment; N_OUTPUTS],
+    pub withdrawals: [Withdrawal; N_WITHDRAWALS],
     pub ciphertexts: [Bytes; N_OUTPUTS],
 }
 
 /// A proven operation, ready to submit.
 pub struct ProvenOperation {
-    outputs: Vec<BaseCommitment>,
+    outputs: Vec<Commitment>,
     nullifiers: Vec<Fr>,
     public_signals: Vec<Fr>,
     operation: IPrivacyPool::Operation,
@@ -178,8 +178,8 @@ impl OperationBuilder {
         Ok(UnauthorizedOperation {
             operation: Operation {
                 inputs: pad(inputs),
-                output_commitments: pad(commitments),
-                output_withdrawals: pad(self.withdrawals),
+                outputs: pad(commitments),
+                withdrawals: pad(self.withdrawals),
                 ciphertexts: pad(ciphertexts),
             },
         })
@@ -287,7 +287,7 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
             };
             hash = poseidon2_compress(&[hash, c]);
         }
-        for output in &self.output_commitments {
+        for output in &self.outputs {
             let c = if output.amount == 0 {
                 Fr::from(0u64)
             } else {
@@ -295,7 +295,7 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
             };
             hash = poseidon2_compress(&[hash, c]);
         }
-        for withdrawal in &self.output_withdrawals {
+        for withdrawal in &self.withdrawals {
             let contribution = if withdrawal.amount == 0 {
                 Fr::from(0u64)
             } else {
@@ -410,11 +410,7 @@ impl Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
 
         Ok(ProvenOperation {
             nullifiers: self.live_inputs().map(|i| i.note.nullifier()).collect(),
-            outputs: self
-                .output_commitments
-                .into_iter()
-                .filter(|o| o.amount != 0)
-                .collect(),
+            outputs: self.outputs.into_iter().filter(|o| o.amount != 0).collect(),
             operation: IPrivacyPool::Operation {
                 r#pub: stmt[..live].iter().copied().map(fr_to_b256).collect(),
                 context,
@@ -428,7 +424,7 @@ impl Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
     /// The on-chain context.
     fn context(&self) -> IPrivacyPool::Context {
         IPrivacyPool::Context {
-            spendabilityInputs: self.inputs.clone().map(|i| i.policy_input),
+            policyInputs: self.inputs.clone().map(|i| i.policy_input),
             ciphertexts: self.ciphertexts.clone(),
         }
     }
@@ -438,8 +434,8 @@ impl<const I: usize, const O: usize, const W: usize> Default for Operation<I, O,
     fn default() -> Self {
         Operation {
             inputs: repeat(SpendableNote::default()),
-            output_commitments: repeat(BaseCommitment::default()),
-            output_withdrawals: repeat(Withdrawal::default()),
+            outputs: repeat(Commitment::default()),
+            withdrawals: repeat(Withdrawal::default()),
             ciphertexts: repeat(Bytes::new()),
         }
     }
@@ -448,7 +444,7 @@ impl<const I: usize, const O: usize, const W: usize> Default for Operation<I, O,
 impl ProvenOperation {
     /// The notes this operation creates.
     #[must_use]
-    pub fn outputs(&self) -> &[BaseCommitment] {
+    pub fn outputs(&self) -> &[Commitment] {
         &self.outputs
     }
 

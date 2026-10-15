@@ -42,7 +42,7 @@ library OperationLib {
         op.pub[N_CONST + 2 * i] = v;
     }
 
-    function setSpendabilityAddress(IPrivacyPool.Operation memory op, uint256 i, address v) internal pure {
+    function setPolicyAddress(IPrivacyPool.Operation memory op, uint256 i, address v) internal pure {
         op.pub[N_CONST + 2 * i + 1] = bytes32(uint256(uint160(v)));
     }
 

@@ -17,7 +17,7 @@ interface IPrivacyPool {
     }
 
     struct Context {
-        bytes[N_INPUTS] spendabilityInputs;
+        bytes[N_INPUTS] policyInputs;
         bytes[N_OUTPUTS] ciphertexts;
     }
 

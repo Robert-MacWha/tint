@@ -6,8 +6,8 @@ use std::io::{self, Write};
 use alloy::primitives::{Address, Bytes};
 use anyhow::Context;
 use tint::{operation::UnauthorizedOperation, policy::Policy};
-use tint_multisig_spendability::{N_SIGNERS, THRESHOLD, policy::MultisigPolicy};
-use tint_password_spendability::policy::PasswordPolicy;
+use tint_multisig_policy::{N_SIGNERS, THRESHOLD, policy::MultisigPolicy};
+use tint_password_policy::policy::PasswordPolicy;
 
 /// An account's spending policy, able to authorize its notes' spends.
 pub enum Authorizer {
@@ -35,18 +35,18 @@ impl Authorizer {
     }
 }
 
-/// Resolves the on-chain spendability contract address,
+/// Resolves the on-chain policy contract address,
 /// preferring `env_var` and falling back to user input.
-pub fn resolve_spendability_address(env_var: &str, name: &str) -> anyhow::Result<Address> {
+pub fn resolve_policy_address(env_var: &str, name: &str) -> anyhow::Result<Address> {
     if let Ok(value) = std::env::var(env_var) {
         return value
             .parse()
             .with_context(|| format!("invalid {env_var} env var"));
     }
 
-    print!("Spendability contract address for account \"{name}\": ");
+    print!("Policy contract address for account \"{name}\": ");
     io::stdout().flush()?;
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
-    input.trim().parse().context("invalid spendability address")
+    input.trim().parse().context("invalid policy address")
 }

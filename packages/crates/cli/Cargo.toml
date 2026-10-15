@@ -24,8 +24,8 @@ serde_json = { workspace = true }
 signature = { workspace = true }
 tint = { workspace = true }
 tint-groth16 = { workspace = true }
-tint-multisig-spendability = { workspace = true }
-tint-password-spendability = { workspace = true }
+tint-multisig-policy = { workspace = true }
+tint-password-policy = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }

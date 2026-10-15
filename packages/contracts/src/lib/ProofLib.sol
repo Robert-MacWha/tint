@@ -21,7 +21,6 @@ library ProofLib {
         uint256[8] proof;
     }
 
-    error DuplicateNullifier(bytes32 nullifier);
     error InvalidPublicSignals();
 
     /// @notice Expands `op.pub` into the full `N_PUB`-length Groth16
@@ -148,22 +147,6 @@ library ProofLib {
             if (!exists) {
                 output[count] = addr;
                 count++;
-            }
-        }
-    }
-
-    /// @notice Reverts if the nullifier array contains duplicates.
-    ///
-    /// @dev Ignores nullifiers with the magic value of 0.
-    function _requireUnique(IPrivacyPool.Operation calldata op) internal pure {
-        for (uint256 i = 0; i < N_INPUTS; i++) {
-            bytes32 hash = nullifier(op, i);
-            if (hash == bytes32(0)) continue;
-
-            for (uint256 j = i + 1; j < N_INPUTS; j++) {
-                if (hash == nullifier(op, j)) {
-                    revert DuplicateNullifier(hash);
-                }
             }
         }
     }

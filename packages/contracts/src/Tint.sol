@@ -124,9 +124,7 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
         (uint256 histRanks, uint256 histDepth, uint256 histCount, bytes32[] calldata histFrontier) = op.frontierState();
         if (!verifyFrontier(histRanks, histDepth, histCount, histFrontier)) revert InvalidFrontier();
 
-        // Verify nullifier uniqueness & unspentness
-        // TODO: Move me into the circuit. No need to waste gas on this.
-        op._requireUnique();
+        // Verify nullifier unspentness. Uniqueness is enforced in-circuit.
         for (uint256 i; i < N_INPUTS; ++i) {
             bytes32 hash = op.nullifier(i);
             _requireUnspent(hash);

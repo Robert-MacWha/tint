@@ -72,8 +72,10 @@ mod tests {
     fn hash() {
         let cs = ConstraintSystem::<Fr>::new_ref();
 
-        let mut withdrawal = Withdrawal::default();
-        withdrawal.amount = 100;
+        let withdrawal = Withdrawal {
+            amount: 100,
+            ..Withdrawal::default()
+        };
         let withdrawal_var: WithdrawalVar = witness(cs.clone(), &withdrawal).unwrap();
 
         let withdrawal_hash = withdrawal.hash();

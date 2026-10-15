@@ -1,5 +1,6 @@
 use alloy_primitives::Address;
 use ark_bn254::Fr;
+use ark_ff::AdditiveGroup;
 use tint_poseidon2::poseidon2_compress;
 
 use crate::{fr::address_to_fr, note::asset::AssetId};
@@ -38,6 +39,9 @@ impl Withdrawal {
 
     #[must_use]
     pub fn hash(&self) -> Fr {
+        if self.amount == 0 {
+            return Fr::ZERO;
+        }
         poseidon2_compress(&[self.asset_fr(), self.amount_fr(), self.recipient_fr()])
     }
 }

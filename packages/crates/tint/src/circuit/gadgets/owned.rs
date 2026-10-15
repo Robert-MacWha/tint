@@ -131,8 +131,8 @@ mod tests {
         let owned_note_nullifier = owned_note.nullifier();
         let owned_note_var_nullifier = owned_note_var.nullifier().unwrap().value().unwrap();
 
-        assert_ne!(owned_note_nullifier, Fr::ZERO);
         assert_eq!(owned_note_nullifier, owned_note_var_nullifier);
+        assert_ne!(owned_note_nullifier, Fr::ZERO);
     }
 
     #[test]
@@ -145,8 +145,8 @@ mod tests {
         let owned_note_nullifier = owned_note.nullifier();
         let owned_note_var_nullifier = owned_note_var.nullifier().unwrap().value().unwrap();
 
-        assert_eq!(owned_note_nullifier, Fr::ZERO);
         assert_eq!(owned_note_nullifier, owned_note_var_nullifier);
+        assert_eq!(owned_note_nullifier, Fr::ZERO);
     }
 
     #[test]

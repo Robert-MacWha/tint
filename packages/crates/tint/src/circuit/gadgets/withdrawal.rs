@@ -1,5 +1,7 @@
 use ark_bn254::Fr;
-use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128};
+use ark_r1cs_std::{
+    alloc::AllocVar, eq::EqGadget, fields::FieldVar, prelude::Boolean, uint128::UInt128,
+};
 use ark_relations::gr1cs::SynthesisError;
 use tint_poseidon2::poseidon2_compress_gadget;
 
@@ -19,11 +21,19 @@ pub struct WithdrawalVar {
 impl WithdrawalVar {
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn hash(&self) -> Result<FrVar, SynthesisError> {
-        poseidon2_compress_gadget(&[
-            self.asset.clone(),
-            self.amount.to_fp()?,
-            self.recipient.clone(),
-        ])
+        self.is_sentinel()?.select(
+            &FrVar::zero(),
+            &poseidon2_compress_gadget(&[
+                self.asset.clone(),
+                self.amount.to_fp()?,
+                self.recipient.clone(),
+            ])?,
+        )
+    }
+
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    pub fn is_sentinel(&self) -> Result<Boolean<Fr>, SynthesisError> {
+        self.amount.is_eq(&UInt128::constant(0u128))
     }
 }
 
@@ -51,6 +61,7 @@ impl AllocVar<Withdrawal, Fr> for WithdrawalVar {
 
 #[cfg(test)]
 mod tests {
+    use ark_ff::AdditiveGroup;
     use ark_r1cs_std::GR1CSVar;
     use ark_relations::gr1cs::ConstraintSystem;
 
@@ -61,6 +72,21 @@ mod tests {
     fn hash() {
         let cs = ConstraintSystem::<Fr>::new_ref();
 
+        let mut withdrawal = Withdrawal::default();
+        withdrawal.amount = 100;
+        let withdrawal_var: WithdrawalVar = witness(cs.clone(), &withdrawal).unwrap();
+
+        let withdrawal_hash = withdrawal.hash();
+        let withdrawal_var_hash = withdrawal_var.hash().unwrap().value().unwrap();
+
+        assert_eq!(withdrawal_hash, withdrawal_var_hash);
+        assert_ne!(withdrawal_hash, Fr::ZERO);
+    }
+
+    #[test]
+    fn hash_sentinel() {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+
         let withdrawal = Withdrawal::default();
         let withdrawal_var: WithdrawalVar = witness(cs.clone(), &withdrawal).unwrap();
 
@@ -68,5 +94,6 @@ mod tests {
         let withdrawal_var_hash = withdrawal_var.hash().unwrap().value().unwrap();
 
         assert_eq!(withdrawal_hash, withdrawal_var_hash);
+        assert_eq!(withdrawal_hash, Fr::ZERO);
     }
 }

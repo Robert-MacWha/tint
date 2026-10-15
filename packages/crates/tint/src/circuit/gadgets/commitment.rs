@@ -76,6 +76,7 @@ impl AllocVar<Commitment, Fr> for CommitmentVar {
 
 #[cfg(test)]
 mod tests {
+    use ark_ff::AdditiveGroup;
     use ark_r1cs_std::GR1CSVar;
     use ark_relations::gr1cs::ConstraintSystem;
 
@@ -86,6 +87,21 @@ mod tests {
     fn hash() {
         let cs = ConstraintSystem::<Fr>::new_ref();
 
+        let mut commitment = Commitment::default();
+        commitment.amount = 123;
+        let commitment_var: CommitmentVar = witness(cs.clone(), &commitment).unwrap();
+
+        let commitment_hash = commitment.hash();
+        let commitment_hash_var = commitment_var.hash().unwrap().value().unwrap();
+
+        assert_eq!(commitment_hash, commitment_hash_var);
+        assert_ne!(commitment_hash, Fr::ZERO);
+    }
+
+    #[test]
+    fn hash_sentinel() {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+
         let commitment = Commitment::default();
         let commitment_var: CommitmentVar = witness(cs.clone(), &commitment).unwrap();
 
@@ -93,6 +109,7 @@ mod tests {
         let commitment_hash_var = commitment_var.hash().unwrap().value().unwrap();
 
         assert_eq!(commitment_hash, commitment_hash_var);
+        assert_eq!(commitment_hash, Fr::ZERO);
     }
 
     #[test]

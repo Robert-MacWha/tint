@@ -3,14 +3,14 @@ use ark_bn254::Fr;
 
 use crate::{
     account::{Account, keys::NullifierKey},
-    note::commitment::BaseCommitment,
+    note::commitment::Commitment,
     policy::Policy,
 };
 
 /// An owned note that can be spent.
 #[derive(Clone, Debug)]
 pub struct OwnedNote {
-    pub note: BaseCommitment,
+    pub note: Commitment,
     pub nullifier_key: NullifierKey,
     pub policy: Policy,
 }
@@ -34,7 +34,7 @@ impl OwnedNote {
     /// # Errors
     ///
     /// Errors if `account` cannot spend `note`.
-    pub fn new(note: BaseCommitment, account: &Account) -> Result<Self, OwnedNoteError> {
+    pub fn new(note: Commitment, account: &Account) -> Result<Self, OwnedNoteError> {
         if account.nullifier_key.pub_key() != note.nullifier_pub_key {
             return Err(OwnedNoteError::NullifierKeyMismatch);
         }
@@ -83,9 +83,9 @@ impl Default for OwnedNote {
     fn default() -> Self {
         let nullifier_key = NullifierKey::default();
         Self {
-            note: BaseCommitment {
+            note: Commitment {
                 nullifier_pub_key: nullifier_key.pub_key(),
-                ..BaseCommitment::default()
+                ..Commitment::default()
             },
             nullifier_key,
             policy: Policy::default(),

@@ -6,7 +6,7 @@ use tint_poseidon2::poseidon2_compress_gadget;
 use crate::{
     circuit::{FrVar, variable},
     fr::address_to_fr,
-    note::{commitment::BaseCommitment, owned::SpendableNote},
+    note::{commitment::Commitment, owned::SpendableNote},
 };
 
 pub struct BaseCommitmentVar {
@@ -96,8 +96,8 @@ impl SpendableCommitmentVar {
     }
 }
 
-impl AllocVar<BaseCommitment, Fr> for BaseCommitmentVar {
-    fn new_variable<T: std::borrow::Borrow<BaseCommitment>>(
+impl AllocVar<Commitment, Fr> for BaseCommitmentVar {
+    fn new_variable<T: std::borrow::Borrow<Commitment>>(
         cs: impl Into<ark_relations::gr1cs::Namespace<Fr>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: ark_r1cs_std::prelude::AllocationMode,
@@ -162,14 +162,14 @@ mod tests {
     use super::*;
     use crate::{
         circuit::witness,
-        note::{commitment::BaseCommitment, owned::SpendableNote},
+        note::{commitment::Commitment, owned::SpendableNote},
     };
 
     #[test]
     fn commitment_hash() {
         let cs = ConstraintSystem::<Fr>::new_ref();
 
-        let commitment = BaseCommitment::default();
+        let commitment = Commitment::default();
         let commitment_var: BaseCommitmentVar = witness(cs.clone(), &commitment).unwrap();
 
         let commitment_hash = commitment.hash();
@@ -182,7 +182,7 @@ mod tests {
     fn partial_hash() {
         let cs = ConstraintSystem::<Fr>::new_ref();
 
-        let commitment = BaseCommitment::default();
+        let commitment = Commitment::default();
         let commitment_var: BaseCommitmentVar = witness(cs.clone(), &commitment).unwrap();
 
         let partial_commitment_hash = commitment.partial_hash();

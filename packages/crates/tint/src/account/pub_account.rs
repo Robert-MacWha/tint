@@ -6,7 +6,7 @@ use x25519_dalek::PublicKey;
 
 use crate::{
     account::keys::{EncryptionPubKey, NullifierPubKey},
-    note::{asset::AssetId, commitment::BaseCommitment},
+    note::{asset::AssetId, commitment::Commitment},
 };
 
 /// The public part of an [`Account`](crate::account::Account).
@@ -70,8 +70,8 @@ impl PubAccount {
 
     /// Creates a new [`BaseCommitment`] spendable by this account.
     #[must_use]
-    pub fn commitment(&self, asset: AssetId, amount: u128, random: B256) -> BaseCommitment {
-        BaseCommitment::new(
+    pub fn commitment(&self, asset: AssetId, amount: u128, random: B256) -> Commitment {
+        Commitment::new(
             asset,
             amount,
             self.spendability_hash,

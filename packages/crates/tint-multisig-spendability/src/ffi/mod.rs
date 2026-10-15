@@ -5,7 +5,7 @@ use k256::ecdsa::{Signature, VerifyingKey};
 use tint::{
     circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
     fr::address_to_fr,
-    note::{commitment::BaseCommitment, withdrawal::Withdrawal},
+    note::{commitment::Commitment, withdrawal::Withdrawal},
     operation::Operation,
 };
 
@@ -111,8 +111,8 @@ impl From<&Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>> for TintOperation {
     }
 }
 
-impl From<&BaseCommitment> for TintBaseCommitment {
-    fn from(c: &BaseCommitment) -> Self {
+impl From<&Commitment> for TintBaseCommitment {
+    fn from(c: &Commitment) -> Self {
         TintBaseCommitment {
             asset_fr: c.asset_fr().into(),
             amount_fr: c.amount_fr().into(),

@@ -24,7 +24,7 @@ use crate::{
     fr::{fr_to_b256, fr_to_u256},
     note::{
         asset::AssetId,
-        commitment::BaseCommitment,
+        commitment::Commitment,
         owned::{OwnedNote, SpendableNote},
         withdrawal::Withdrawal,
     },
@@ -50,14 +50,14 @@ pub struct UnauthorizedOperation {
 #[derive(Clone, Debug)]
 pub struct Operation<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize> {
     pub inputs: [SpendableNote; N_INPUTS],
-    pub output_commitments: [BaseCommitment; N_OUTPUTS],
+    pub output_commitments: [Commitment; N_OUTPUTS],
     pub output_withdrawals: [Withdrawal; N_WITHDRAWALS],
     pub ciphertexts: [Bytes; N_OUTPUTS],
 }
 
 /// A proven operation, ready to submit.
 pub struct ProvenOperation {
-    outputs: Vec<BaseCommitment>,
+    outputs: Vec<Commitment>,
     nullifiers: Vec<Fr>,
     public_signals: Vec<Fr>,
     operation: IPrivacyPool::Operation,
@@ -438,7 +438,7 @@ impl<const I: usize, const O: usize, const W: usize> Default for Operation<I, O,
     fn default() -> Self {
         Operation {
             inputs: repeat(SpendableNote::default()),
-            output_commitments: repeat(BaseCommitment::default()),
+            output_commitments: repeat(Commitment::default()),
             output_withdrawals: repeat(Withdrawal::default()),
             ciphertexts: repeat(Bytes::new()),
         }
@@ -448,7 +448,7 @@ impl<const I: usize, const O: usize, const W: usize> Default for Operation<I, O,
 impl ProvenOperation {
     /// The notes this operation creates.
     #[must_use]
-    pub fn outputs(&self) -> &[BaseCommitment] {
+    pub fn outputs(&self) -> &[Commitment] {
         &self.outputs
     }
 

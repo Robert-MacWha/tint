@@ -5,7 +5,7 @@ use ark_bn254::Fr;
 use tint::{
     account::keys::NullifierKey,
     circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
-    note::{commitment::BaseCommitment, owned::OwnedNote, withdrawal::Withdrawal},
+    note::{commitment::Commitment, owned::OwnedNote, withdrawal::Withdrawal},
     operation::Operation,
     policy::Policy,
 };
@@ -17,7 +17,7 @@ fn operation_hash_matches_go() {
     let mut op: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> = Operation::default();
     let policy = Policy::new(Address::new([2; 20]), Fr::from(3u64));
     let owned = OwnedNote {
-        note: BaseCommitment::new(
+        note: Commitment::new(
             Address::new([1; 20]).into(),
             100,
             policy.hash(),

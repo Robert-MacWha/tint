@@ -9,7 +9,7 @@ use crate::{
     abis::erc20::ERC20,
     account::pub_account::PubAccount,
     fr::fr_to_b256,
-    note::{asset::AssetId, commitment::BaseCommitment},
+    note::{asset::AssetId, commitment::Commitment},
 };
 
 /// A deposit into Tint.
@@ -46,7 +46,7 @@ impl Deposit {
 
     /// The note this deposit creates.
     #[must_use]
-    pub fn note(&self) -> BaseCommitment {
+    pub fn note(&self) -> Commitment {
         self.receiver
             .commitment(self.asset, self.amount, self.random)
     }

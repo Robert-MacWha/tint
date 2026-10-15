@@ -14,7 +14,7 @@ use crate::{
 /// A receivable commitment.
 #[serde_with::serde_as]
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BaseCommitment {
+pub struct Commitment {
     pub asset: AssetId,
     pub amount: u128,
     #[serde_as(as = "tint_groth16::serde::field::FieldAsBytes")]
@@ -40,7 +40,7 @@ pub enum CommitmentError {
     Serialization(#[from] postcard::Error),
 }
 
-impl BaseCommitment {
+impl Commitment {
     #[must_use]
     pub fn new(
         asset: AssetId,
@@ -49,7 +49,7 @@ impl BaseCommitment {
         nullifier_pub_key: NullifierPubKey,
         random: B256,
     ) -> Self {
-        BaseCommitment {
+        Commitment {
             asset,
             amount,
             spendability_hash,
@@ -69,7 +69,7 @@ impl BaseCommitment {
 
     #[must_use]
     pub fn from_partial(asset: AssetId, amount: u128, partial: PartialCommitment) -> Self {
-        BaseCommitment {
+        Commitment {
             asset,
             amount,
             spendability_hash: partial.spendability_hash,
@@ -186,13 +186,13 @@ mod tests {
         let encrypted = commitment
             .encrypt(&[keys.encryption_key.public_key()], &mut rng)
             .unwrap();
-        let decrypted = BaseCommitment::from_encrypted(&encrypted, &keys.encryption_key).unwrap();
+        let decrypted = Commitment::from_encrypted(&encrypted, &keys.encryption_key).unwrap();
 
         assert_eq!(decrypted, commitment);
     }
 
-    fn test_commitment() -> BaseCommitment {
-        BaseCommitment::new(
+    fn test_commitment() -> Commitment {
+        Commitment::new(
             AssetId::from(Address::new([1; 20])),
             100,
             Policy::new(Address::new([2; 20]), Fr::from(3)).hash(),

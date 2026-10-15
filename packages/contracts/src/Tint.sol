@@ -150,15 +150,15 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
     /// @notice Executes the state changes specified by the operation.
     /// @dev Assumes the operation has already been verified.
     function _executeOperation(IPrivacyPool.Operation calldata op) internal {
-        // Nullify the input notes
+        // Nullify the non-sentinel input notes
         for (uint256 i; i < N_INPUTS; ++i) {
             bytes32 hash = op.nullifier(i);
+            if (hash == bytes32(0)) continue;
             _spend(hash);
             emit Nullified(hash);
         }
 
-        // Append any output commitments. Zero is the padding value for an unused
-        // output slot; appending it would put a junk element into the set.
+        // Append the non-sentinel output notes
         for (uint256 i; i < N_OUTPUTS; ++i) {
             bytes32 commitment = op.commitmentOut(i);
             if (commitment == 0) continue;
@@ -167,7 +167,7 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
             emit Committed(commitment, leafIndex, op.context.ciphertexts[i]);
         }
 
-        // Execute any unshielding transfers
+        // Execute the non-sentinel withdrawals
         for (uint256 i; i < N_WITHDRAWALS; ++i) {
             address asset = op.unshieldAsset(i);
             uint128 amount = op.unshieldAmount(i);

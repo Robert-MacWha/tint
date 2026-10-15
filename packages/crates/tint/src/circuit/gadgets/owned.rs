@@ -25,11 +25,14 @@ pub struct OwnedNoteVar {
 impl OwnedNoteVar {
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn hash(&self) -> Result<FrVar, SynthesisError> {
-        poseidon2_compress_gadget(&[
-            self.asset.clone(),
-            self.amount.to_fp()?,
-            self.partial_hash()?,
-        ])
+        self.is_sentinel()?.select(
+            &FrVar::zero(),
+            &poseidon2_compress_gadget(&[
+                self.asset.clone(),
+                self.amount.to_fp()?,
+                self.partial_hash()?,
+            ])?,
+        )
     }
 
     #[tracing::instrument(target = "r1cs", skip_all)]

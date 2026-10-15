@@ -1,5 +1,7 @@
 use ark_bn254::Fr;
-use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128};
+use ark_r1cs_std::{
+    alloc::AllocVar, eq::EqGadget, fields::FieldVar, prelude::Boolean, uint128::UInt128,
+};
 use ark_relations::gr1cs::SynthesisError;
 use tint_poseidon2::poseidon2_compress_gadget;
 
@@ -21,11 +23,19 @@ pub struct CommitmentVar {
 impl CommitmentVar {
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn hash(&self) -> Result<FrVar, SynthesisError> {
-        poseidon2_compress_gadget(&[
-            self.asset.clone(),
-            self.amount.to_fp()?,
-            self.partial_hash()?,
-        ])
+        self.is_sentinel()?.select(
+            &FrVar::zero(),
+            &poseidon2_compress_gadget(&[
+                self.asset.clone(),
+                self.amount.to_fp()?,
+                self.partial_hash()?,
+            ])?,
+        )
+    }
+
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    pub fn is_sentinel(&self) -> Result<Boolean<Fr>, SynthesisError> {
+        self.amount.is_eq(&UInt128::constant(0u128))
     }
 
     #[tracing::instrument(target = "r1cs", skip_all)]

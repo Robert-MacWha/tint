@@ -90,6 +90,9 @@ impl Commitment {
 
     #[must_use]
     pub fn hash(&self) -> Fr {
+        if self.amount == 0 {
+            return Fr::ZERO;
+        }
         poseidon2_compress(&[self.asset_fr(), self.amount_fr(), self.partial_hash()])
     }
 
@@ -116,10 +119,9 @@ impl Commitment {
     #[must_use]
     pub fn nullifier(&self, nullifier_key: &NullifierKey) -> Fr {
         if self.amount == 0 {
-            Fr::ZERO
-        } else {
-            poseidon2_compress(&[nullifier_key.0, self.hash()])
+            return Fr::ZERO;
         }
+        poseidon2_compress(&[nullifier_key.0, self.hash()])
     }
 
     pub fn encrypt<R: RngCore + CryptoRng>(

@@ -16,7 +16,7 @@ use tint_groth16::{
         serialize_vk,
     },
 };
-use tint_multisig_spendability::N_SIGNERS;
+use tint_multisig_policy::N_SIGNERS;
 use tracing::info;
 
 use crate::account::{
@@ -26,7 +26,7 @@ use crate::account::{
 };
 
 #[derive(Clone, clap::ValueEnum)]
-pub enum AccountSpendability {
+pub enum AccountPolicy {
     Noop,
     Password,
     Multisig,
@@ -36,12 +36,12 @@ pub enum AccountSpendability {
 struct StoredAccount {
     seed: String,
     receiver: PubAccount,
-    spendability: SpendabilityState,
+    policy: PolicyState,
 }
 
-/// Spendability-specific persistent state.
+/// Policy-specific persistent state.
 #[derive(Serialize, Deserialize)]
-pub(crate) enum SpendabilityState {
+pub(crate) enum PolicyState {
     Noop,
     Password {
         address: Address,
@@ -78,7 +78,7 @@ pub fn list_accounts() -> anyhow::Result<Vec<String>> {
 }
 
 /// Creates a new named account, failing if one with this name already exists.
-pub fn create_account(name: &str, spendability: AccountSpendability) -> anyhow::Result<()> {
+pub fn create_account(name: &str, policy: AccountPolicy) -> anyhow::Result<()> {
     let dir = account_dir(name);
     if dir.exists() {
         anyhow::bail!("account \"{name}\" already exists at {}", dir.display());
@@ -88,17 +88,17 @@ pub fn create_account(name: &str, spendability: AccountSpendability) -> anyhow::
     let mut seed = [0u8; 32];
     rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut seed);
 
-    let (authorizer, state) = match spendability {
-        AccountSpendability::Noop => (Authorizer::Noop, SpendabilityState::Noop),
-        AccountSpendability::Password => create_password_account(name)?,
-        AccountSpendability::Multisig => create_multisig_account(name)?,
+    let (authorizer, state) = match policy {
+        AccountPolicy::Noop => (Authorizer::Noop, PolicyState::Noop),
+        AccountPolicy::Password => create_password_account(name)?,
+        AccountPolicy::Multisig => create_multisig_account(name)?,
     };
     let account = Account::from_seed(&seed, authorizer.policy());
 
     let stored = StoredAccount {
         seed: hex::encode_prefixed(seed),
         receiver: account.pub_account(),
-        spendability: state,
+        policy: state,
     };
     fs::write(account_file(name), serde_json::to_string_pretty(&stored)?)
         .with_context(|| format!("writing account file for \"{name}\""))?;
@@ -111,10 +111,10 @@ pub fn load_account(name: &str) -> anyhow::Result<(Account, Authorizer)> {
     let stored = read_stored_account(name)?;
     let seed = decode_seed(name, &stored.seed)?;
 
-    let authorizer = match stored.spendability {
-        SpendabilityState::Noop => Authorizer::Noop,
-        SpendabilityState::Password { address } => load_password_authorizer(address)?,
-        SpendabilityState::Multisig { address, signers } => {
+    let authorizer = match stored.policy {
+        PolicyState::Noop => Authorizer::Noop,
+        PolicyState::Password { address } => load_password_authorizer(address)?,
+        PolicyState::Multisig { address, signers } => {
             load_multisig_authorizer(address, &signers)?
         }
     };

@@ -3,23 +3,23 @@ use std::io::{self, Write};
 use alloy::primitives::{Address, keccak256};
 use ark_bn254::Fr;
 use ark_ff::PrimeField;
-use tint_password_spendability::{circuit::PasswordSpendability, policy::PasswordPolicy};
+use tint_password_policy::{circuit::PasswordPolicyCircuit, policy::PasswordPolicy};
 
 use crate::{
-    account::{Authorizer, resolve_spendability_address},
-    config::{SpendabilityState, load_circuit},
+    account::{Authorizer, resolve_policy_address},
+    config::{PolicyState, load_circuit},
 };
 
-const SPENDABILITY_ADDRESS_ENV_VAR: &str = "PASSWORD_SPENDABILITY_ADDRESS";
+const POLICY_ADDRESS_ENV_VAR: &str = "PASSWORD_POLICY_ADDRESS";
 
-pub fn create_password_account(name: &str) -> anyhow::Result<(Authorizer, SpendabilityState)> {
-    let address = resolve_spendability_address(SPENDABILITY_ADDRESS_ENV_VAR, name)?;
+pub fn create_password_account(name: &str) -> anyhow::Result<(Authorizer, PolicyState)> {
+    let address = resolve_policy_address(POLICY_ADDRESS_ENV_VAR, name)?;
     let authorizer = load_password_authorizer(address)?;
-    Ok((authorizer, SpendabilityState::Password { address }))
+    Ok((authorizer, PolicyState::Password { address }))
 }
 
 pub fn load_password_authorizer(contract_address: Address) -> anyhow::Result<Authorizer> {
-    let artifacts = load_circuit::<PasswordSpendability>("password")?;
+    let artifacts = load_circuit::<PasswordPolicyCircuit>("password")?;
 
     let password = prompt_password()?;
     let policy = PasswordPolicy::new(contract_address, password, artifacts);

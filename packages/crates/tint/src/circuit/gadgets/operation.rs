@@ -69,7 +69,7 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
         try_from_fn(|i| self.inputs[i].nullifier())
     }
 
-    /// Returns the spendability address for each input
+    /// Returns the policy address for each input
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn policy_addresses(&self) -> [FrVar; N_INPUTS] {
         std::array::from_fn(|i| self.inputs[i].policy_address.clone())

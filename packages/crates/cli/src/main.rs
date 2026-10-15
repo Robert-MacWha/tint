@@ -19,9 +19,9 @@ enum Command {
     /// Create a new named account
     Create {
         name: String,
-        /// The spendability rule for this account
+        /// The policy rule for this account
         #[arg(long, value_enum, default_value = "noop")]
-        spendability: config::AccountSpendability,
+        policy: config::AccountPolicy,
     },
     /// Print the shielded balance of a token for a local account
     Balance {
@@ -136,8 +136,8 @@ async fn main() -> anyhow::Result<()> {
                 tracing::info!("{}", account);
             }
         }
-        Command::Create { name, spendability } => {
-            config::create_account(&name, spendability)?;
+        Command::Create { name, policy } => {
+            config::create_account(&name, policy)?;
             tracing::info!("Created account \"{name}\"");
         }
         Command::Balance {

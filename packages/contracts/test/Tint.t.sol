@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC20, IERC20Errors} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {ISpendability} from "../src/interfaces/ISpendability.sol";
+import {IPolicy} from "../src/interfaces/IPolicy.sol";
 import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {Tint} from "../src/Tint.sol";
 import {NullifierRegistry} from "../src/NullifierRegistry.sol";
@@ -34,18 +34,18 @@ contract MockVerifier is IVerifier {
     }
 }
 
-contract MockSpendability is ISpendability {
+contract MockPolicy is IPolicy {
     bool shouldPass = true;
 
-    error NotSpendable();
+    error NotAuthorized();
 
     function setPass(bool v) external {
         shouldPass = v;
     }
 
-    function requireSpendable(IPrivacyPool.Operation calldata) external view {
+    function requireAuthorized(IPrivacyPool.Operation calldata) external view {
         if (!shouldPass) {
-            revert NotSpendable();
+            revert NotAuthorized();
         }
     }
 }
@@ -55,13 +55,13 @@ contract TintTests is Test {
 
     MockToken token;
     MockVerifier verifier;
-    MockSpendability spendability;
+    MockPolicy policy;
     Tint tint;
 
     function setUp() public {
         token = new MockToken();
         verifier = new MockVerifier();
-        spendability = new MockSpendability();
+        policy = new MockPolicy();
         tint = new Tint(verifier);
         token.mint(address(this), type(uint128).max);
         token.approve(address(tint), type(uint256).max);
@@ -111,9 +111,9 @@ contract TintTests is Test {
 
         IPrivacyPool.Operation memory op = _operation();
         op.setNullifier(0, bytes32(uint256(123)));
-        op.setSpendabilityAddress(1, address(spendability));
+        op.setPolicyAddress(1, address(policy));
         op.setNullifier(1, bytes32(uint256(456)));
-        op.setSpendabilityAddress(1, address(spendability));
+        op.setPolicyAddress(1, address(policy));
         op.setCommitmentOut(0, bytes32(uint256(42)));
         op.context.ciphertexts[0] = bytes("Hello");
         op.setCommitmentOut(1, bytes32(uint256(43)));
@@ -199,14 +199,14 @@ contract TintTests is Test {
         tint.operate(op);
     }
 
-    /// Should revert if any of the spendability contracts revert.
-    function test_operateSpendabilityReverts_reverts() public {
+    /// Should revert if any of the policy contracts revert.
+    function test_operatePolicyReverts_reverts() public {
         IPrivacyPool.Operation memory op = _operation();
         op.setNullifier(0, bytes32(uint256(123)));
-        op.setSpendabilityAddress(0, address(spendability));
-        spendability.setPass(false);
+        op.setPolicyAddress(0, address(policy));
+        policy.setPass(false);
 
-        vm.expectRevert(MockSpendability.NotSpendable.selector);
+        vm.expectRevert(MockPolicy.NotAuthorized.selector);
         tint.operate(op.seal());
     }
 

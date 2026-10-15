@@ -424,7 +424,7 @@ impl Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
     /// The on-chain context.
     fn context(&self) -> IPrivacyPool::Context {
         IPrivacyPool::Context {
-            spendabilityInputs: self.inputs.clone().map(|i| i.policy_input),
+            policyInputs: self.inputs.clone().map(|i| i.policy_input),
             ciphertexts: self.ciphertexts.clone(),
         }
     }

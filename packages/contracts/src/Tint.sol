@@ -5,7 +5,7 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 
 import {IVerifier} from "./interfaces/IVerifier.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
-import {ISpendability} from "./interfaces/ISpendability.sol";
+import {IPolicy} from "./interfaces/IPolicy.sol";
 import {
     MMR_MAX_DEPTH,
     MMR_HISTORY_SIZE,
@@ -137,11 +137,11 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
             revert InvalidProof();
         }
 
-        // Verify spendability
-        address[N_INPUTS] memory spendabilityAddresses = op.spendabilityAddresses();
+        // Verify policy
+        address[N_INPUTS] memory policyAddresses = op.policyAddresses();
         for (uint256 i; i < N_INPUTS; ++i) {
-            if (spendabilityAddresses[i] == address(0)) continue;
-            ISpendability(spendabilityAddresses[i]).requireSpendable(op);
+            if (policyAddresses[i] == address(0)) continue;
+            IPolicy(policyAddresses[i]).requireAuthorized(op);
         }
     }
 

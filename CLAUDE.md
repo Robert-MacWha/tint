@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Tint is an EVM-focused, UTXO-based privacy protocol proof-of-concept. Notes are shielded ERC20 deposits; transfers/unshields are proven with Groth16 zk-SNARKs (BN254) that verify note ownership and spendability without revealing amounts or parties. See `README.md` for the protocol pitch and gas-cost rationale, and `docs/note-lifecycle.md` / `docs/spendability.md` for the two core design ideas (a skew-MMR set commitment with one-hash appends, and pluggable per-note spendability rules).
+Tint is an EVM-focused, UTXO-based privacy protocol proof-of-concept. Notes are shielded ERC20 deposits; transfers/unshields are proven with Groth16 zk-SNARKs (BN254) that verify note ownership and policy without revealing amounts or parties. See `README.md` for the protocol pitch and gas-cost rationale, and `docs/note-lifecycle.md` / `docs/policy.md` for the two core design ideas (a skew-MMR set commitment with one-hash appends, and pluggable per-note policy rules).
 
 ## Repo layout
 
@@ -58,7 +58,7 @@ The public-signal vector is built by `ProofLib.toPublicSignals` and must match t
 | 2 | `histRanks` — packed tree ranks, 6 bits each |
 | 3 | `histDepth` — number of live trees |
 | 4 | `histCount` — number of elements appended |
-| 5 .. | `nullifier[i]`, `spendabilityAddress[i]` for `N_INPUTS` |
+| 5 .. | `nullifier[i]`, `policyAddress[i]` for `N_INPUTS` |
 | .. | `commitmentOut[i]` for `N_OUTPUTS` |
 | .. | `unshieldAmount[i]`, `unshieldAsset[i]`, `unshieldRecipient[i]` for `N_WITHDRAWALS` |
 | `FRONTIER_OFFSET` .. | frontier roots, zero-padded to `MMR_MAX_DEPTH = 42` |

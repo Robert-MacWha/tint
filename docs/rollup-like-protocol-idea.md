@@ -110,7 +110,7 @@ constraints:
         - Verify that the operation's spent nullifiers are computed correctly
         - Verify that the operation's output commitments are computed correctly
         - Verify that the operation has valid balance changes
-        - Recursively verify spendability for each input commitment
+        - Recursively verify policy for each input commitment
             - Whatever
         - Update the merkle tree & nullifier sparse merkle tree with the operation's outputs and nullifiers
 

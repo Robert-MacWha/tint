@@ -66,9 +66,12 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
             &withdrawal_hashes,
         )?;
 
+        let nullifiers = self.nullifiers(input_commitment_hashes)?;
+        enforce_unique(&nullifiers)?;
+
         Ok(OperationResultVar {
             hash,
-            nullifiers: self.nullifiers(input_commitment_hashes)?,
+            nullifiers,
             spendability_addresses: self.spendability_addresses(),
             output_commitment_hashes,
             withdrawals: self.withdrawals.clone(),
@@ -319,6 +322,18 @@ fn enforce_u128(v: &FrVar) -> Result<(), SynthesisError> {
     Ok(())
 }
 
+/// Enforces that no two nullifiers are equal, ignoring the magic value of 0.
+#[tracing::instrument(target = "r1cs", skip_all)]
+fn enforce_unique(nullifiers: &[FrVar]) -> Result<(), SynthesisError> {
+    for i in 0..nullifiers.len() {
+        let used = !nullifiers[i].is_zero()?;
+        for j in (i + 1)..nullifiers.len() {
+            nullifiers[i].conditional_enforce_not_equal(&nullifiers[j], &used)?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use alloy_primitives::{Address, address};
@@ -478,6 +493,28 @@ mod tests {
         assert_eq!(nullifiers[1].value().unwrap(), Fr::from(0));
         assert_eq!(nullifiers[2].value().unwrap(), Fr::from(0));
         assert!(cs.is_satisfied().unwrap());
+    }
+
+    /// Expect that distinct nullifiers, with any number of zeros, are unique.
+    #[test]
+    fn enforce_unique_distinct() {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+        let nullifiers: [FrVar; 4] = [1u64, 0, 2, 0]
+            .map(|n| FpVar::new_witness(cs.clone(), || Ok(Fr::from(n))).unwrap());
+
+        super::enforce_unique(&nullifiers).unwrap();
+        assert!(cs.is_satisfied().unwrap());
+    }
+
+    /// Expect that duplicate non-zero nullifiers are rejected.
+    #[test]
+    fn enforce_unique_duplicate_unsatisfied() {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+        let nullifiers: [FrVar; 3] = [1u64, 2, 1]
+            .map(|n| FpVar::new_witness(cs.clone(), || Ok(Fr::from(n))).unwrap());
+
+        super::enforce_unique(&nullifiers).unwrap();
+        assert!(!cs.is_satisfied().unwrap());
     }
 
     /// Expect that unused (zero-amount) output slots reveal a commitment hash

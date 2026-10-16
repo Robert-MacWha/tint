@@ -232,22 +232,11 @@ impl<
 
         let proofs = self.inclusion_proofs.iter();
         for (proof, commitment_hash) in proofs.zip(input_commitment_hashes.iter()) {
-            let used = !proof.element.is_zero()?;
+            // Sentinel inputs hash to zero and have nothing to prove.
+            let used = !commitment_hash.is_zero()?;
 
-            // Verify the proof's inputs match the expected values.
             proof
-                .state
-                .conditional_enforce_equal(&self.hist_state, &used)?;
-            proof
-                .roots
-                .conditional_enforce_equal(&self.frontier, &used)?;
-            proof
-                .element
-                .conditional_enforce_equal(commitment_hash, &used)?;
-
-            // Verify the proof is valid.
-            proof
-                .verify()?
+                .verify(commitment_hash, &self.hist_state, &self.frontier)?
                 .conditional_enforce_equal(&Boolean::TRUE, &used)?;
         }
 
@@ -371,5 +360,42 @@ mod tests {
         let result = CompressibleCircuit::<Fr, P>::verify(&join_split, &cs).unwrap();
         let _: [FrVar; P] = result.flatten().unwrap();
         assert!(cs.is_satisfied().unwrap());
+    }
+
+    /// Expect that spending a note absent from the MMR is rejected, even when its
+    /// inclusion proof claims the sentinel element `0`.
+    #[test]
+    fn unproven_input_rejected() {
+        let asset = AssetId::from(address!("0x00000000000000000000000000000000deadbeef"));
+
+        let mut input = OwnedNote::default();
+        input.note.asset = asset;
+        input.note.amount = 10;
+        input.note.policy_hash = input.policy.hash();
+
+        let mut mmr = skew_mmr::SkewMmr::<D, Fr, Poseidon2Hasher>::new();
+        mmr.append(Fr::from(1u64));
+        let state = mmr.prove(0);
+
+        let mut operation = Operation::<I, O, W>::default();
+        operation.inputs[0] = input.spendable(Bytes::new());
+        operation.outputs[0] = Commitment {
+            asset,
+            amount: 10,
+            ..Commitment::default()
+        };
+
+        let join_split = JoinSplit::new(
+            state.state,
+            state.roots,
+            Fr::from(3u64),
+            [SkewMmrProof::default(), SkewMmrProof::default()],
+            operation,
+        );
+
+        let cs = ConstraintSystem::<Fr>::new_ref();
+        let result = CompressibleCircuit::<Fr, P>::verify(&join_split, &cs).unwrap();
+        let _: [FrVar; P] = result.flatten().unwrap();
+        assert!(!cs.is_satisfied().unwrap());
     }
 }

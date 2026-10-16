@@ -35,11 +35,12 @@ impl OwnedNoteVar {
         )
     }
 
+    /// Computes the nullifier from this note's precomputed `hash`.
     #[tracing::instrument(target = "r1cs", skip_all)]
-    pub fn nullifier(&self) -> Result<FrVar, SynthesisError> {
+    pub fn nullifier(&self, hash: &FrVar) -> Result<FrVar, SynthesisError> {
         self.is_sentinel()?.select(
             &FrVar::zero(),
-            &poseidon2_compress_gadget(&[self.nullifier_key.clone(), self.hash()?])?,
+            &poseidon2_compress_gadget(&[self.nullifier_key.clone(), hash.clone()])?,
         )
     }
 
@@ -129,7 +130,11 @@ mod tests {
         let owned_note_var: OwnedNoteVar = witness(cs.clone(), &owned_note).unwrap();
 
         let owned_note_nullifier = owned_note.nullifier();
-        let owned_note_var_nullifier = owned_note_var.nullifier().unwrap().value().unwrap();
+        let owned_note_var_nullifier = owned_note_var
+            .nullifier(&owned_note_var.hash().unwrap())
+            .unwrap()
+            .value()
+            .unwrap();
 
         assert_eq!(owned_note_nullifier, owned_note_var_nullifier);
         assert_ne!(owned_note_nullifier, Fr::ZERO);
@@ -143,7 +148,11 @@ mod tests {
         let owned_note_var: OwnedNoteVar = witness(cs.clone(), &owned_note).unwrap();
 
         let owned_note_nullifier = owned_note.nullifier();
-        let owned_note_var_nullifier = owned_note_var.nullifier().unwrap().value().unwrap();
+        let owned_note_var_nullifier = owned_note_var
+            .nullifier(&owned_note_var.hash().unwrap())
+            .unwrap()
+            .value()
+            .unwrap();
 
         assert_eq!(owned_note_nullifier, owned_note_var_nullifier);
         assert_eq!(owned_note_nullifier, Fr::ZERO);

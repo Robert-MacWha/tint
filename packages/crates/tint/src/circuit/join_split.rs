@@ -115,6 +115,9 @@ pub struct JoinSplitResultVar<
     pub hist_state: SkewMmrStateVar<MMR_MAX_DEPTH>,
     pub frontier: [FrVar; MMR_MAX_DEPTH],
     pub operation: OperationVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+    pub operation_hash: FrVar,
+    pub nullifiers: [FrVar; N_INPUTS],
+    pub output_commitment_hashes: [FrVar; N_OUTPUTS],
     pub bound_params_hash: FrVar,
 }
 
@@ -178,22 +181,21 @@ impl<
 
         let mut stmt = vec![
             self.bound_params_hash.clone(),
-            self.operation.hash()?,
+            self.operation_hash.clone(),
             self.hist_state.packed_ranks().clone(),
             self.hist_state.depth().clone(),
             self.hist_state.count().clone(),
         ];
 
-        let nullifiers = self.operation.nullifiers()?.into_iter();
+        let nullifiers = self.nullifiers.iter().cloned();
         let policy_addresses = self.operation.policy_addresses().into_iter();
         for (nullifier, addr) in nullifiers.zip(policy_addresses) {
             stmt.push(nullifier);
             stmt.push(addr);
         }
 
-        let output_commitment_hashes = self.operation.output_commitment_hashes()?.into_iter();
-        for output_commitment in output_commitment_hashes {
-            stmt.push(output_commitment);
+        for output_commitment in &self.output_commitment_hashes {
+            stmt.push(output_commitment.clone());
         }
 
         for withdrawal in &self.operation.withdrawals {
@@ -223,10 +225,13 @@ impl<
         &self,
     ) -> Result<JoinSplitResultVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, MMR_MAX_DEPTH>, SynthesisError>
     {
-        self.operation.verify()?;
+        let input_commitment_hashes = self.operation.input_commitment_hashes()?;
+        let output_commitment_hashes = self.operation.output_commitment_hashes()?;
+        let nullifiers = self.operation.nullifiers(&input_commitment_hashes)?;
+        self.operation.verify(&nullifiers)?;
 
-        let commitment_hashes = self.operation.input_commitment_hashes()?;
-        for (proof, commitment_hash) in self.inclusion_proofs.iter().zip(commitment_hashes.iter()) {
+        let proofs = self.inclusion_proofs.iter();
+        for (proof, commitment_hash) in proofs.zip(input_commitment_hashes.iter()) {
             let used = !proof.element.is_zero()?;
 
             // Verify the proof's inputs match the expected values.
@@ -246,10 +251,17 @@ impl<
                 .conditional_enforce_equal(&Boolean::TRUE, &used)?;
         }
 
+        let operation_hash = self
+            .operation
+            .hash_from(&input_commitment_hashes, &output_commitment_hashes)?;
+
         Ok(JoinSplitResultVar {
             hist_state: self.hist_state.clone(),
             frontier: self.frontier.clone(),
             operation: self.operation.clone(),
+            operation_hash,
+            nullifiers,
+            output_commitment_hashes,
             bound_params_hash: self.bound_params_hash.clone(),
         })
     }

@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 
 use ark_bn254::Fr;
-use ark_r1cs_std::{alloc::AllocVar, eq::EqGadget, fields::FieldVar, uint128::UInt128};
+use ark_r1cs_std::{alloc::AllocVar, eq::EqGadget, fields::FieldVar};
 use ark_relations::gr1cs::{Namespace, SynthesisError};
 use tint_poseidon2::poseidon2_compress_gadget;
 
@@ -25,22 +25,36 @@ pub struct OperationVar<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_W
 impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     OperationVar<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>
 {
+    /// Verifies the operation is balanced and its precomputed `nullifiers` are unique.
     #[tracing::instrument(target = "r1cs", skip_all)]
-    pub fn verify(&self) -> Result<(), SynthesisError> {
+    pub fn verify(&self, nullifiers: &[FrVar; N_INPUTS]) -> Result<(), SynthesisError> {
         self.verify_balance()?;
-        verify_nullifier_uniqueness(&self.nullifiers()?)?;
+        verify_nullifier_uniqueness(nullifiers)?;
         Ok(())
     }
 
     /// Returns the operation hash, which commits to all inputs, outputs, and withdrawals.
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn hash(&self) -> Result<FrVar, SynthesisError> {
+        self.hash_from(
+            &self.input_commitment_hashes()?,
+            &self.output_commitment_hashes()?,
+        )
+    }
+
+    /// Returns the operation hash from precomputed input and output commitment hashes.
+    #[tracing::instrument(target = "r1cs", skip_all)]
+    pub fn hash_from(
+        &self,
+        input_commitment_hashes: &[FrVar; N_INPUTS],
+        output_commitment_hashes: &[FrVar; N_OUTPUTS],
+    ) -> Result<FrVar, SynthesisError> {
         let mut hash = FrVar::zero();
-        for i in self.input_commitment_hashes()? {
+        for i in input_commitment_hashes {
             hash = poseidon2_compress_gadget(&[hash.clone(), i.clone()])?;
         }
 
-        for commitment_hash in self.output_commitment_hashes()? {
+        for commitment_hash in output_commitment_hashes {
             hash = poseidon2_compress_gadget(&[hash.clone(), commitment_hash.clone()])?;
         }
 
@@ -63,10 +77,13 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
         try_from_fn(|i| self.outputs[i].hash())
     }
 
-    /// Computes the nullifier for each input.
+    /// Computes the nullifier for each input from its precomputed commitment hash.
     #[tracing::instrument(target = "r1cs", skip_all)]
-    pub fn nullifiers(&self) -> Result<[FrVar; N_INPUTS], SynthesisError> {
-        try_from_fn(|i| self.inputs[i].nullifier())
+    pub fn nullifiers(
+        &self,
+        input_commitment_hashes: &[FrVar; N_INPUTS],
+    ) -> Result<[FrVar; N_INPUTS], SynthesisError> {
+        try_from_fn(|i| self.inputs[i].nullifier(&input_commitment_hashes[i]))
     }
 
     /// Returns the policy address for each input
@@ -85,16 +102,30 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     ///
     /// An operation is balanced when, for each asset, the sum of all inputs equals
     /// the sum of all outputs and withdrawals.
+    ///
+    /// Sums are computed in the field. Every amount is a `UInt128`, so a sum of
+    /// `N_INPUTS + N_OUTPUTS + N_WITHDRAWALS` amounts cannot wrap the modulus.
     #[tracing::instrument(target = "r1cs", skip_all)]
     fn verify_balance(&self) -> Result<(), SynthesisError> {
-        let inputs = self.inputs.iter().map(|i| (&i.asset, &i.amount));
-        let commitments = self.outputs.iter().map(|o| (&o.asset, &o.amount));
-        let withdrawals = self.withdrawals.iter().map(|w| (&w.asset, &w.amount));
-        let outputs = commitments.chain(withdrawals);
+        let inputs = self
+            .inputs
+            .iter()
+            .map(|i| Ok((i.asset.clone(), i.amount.to_fp()?)))
+            .collect::<Result<Vec<_>, SynthesisError>>()?;
+        let commitments = self
+            .outputs
+            .iter()
+            .map(|o| Ok((o.asset.clone(), o.amount.to_fp()?)));
+        let withdrawals = self
+            .withdrawals
+            .iter()
+            .map(|w| Ok((w.asset.clone(), w.amount.to_fp()?)));
+        let outputs = commitments
+            .chain(withdrawals)
+            .collect::<Result<Vec<_>, SynthesisError>>()?;
 
-        for (asset, _) in inputs.clone().chain(outputs.clone()) {
-            sum_for_asset(asset, inputs.clone())?
-                .enforce_equal(&sum_for_asset(asset, outputs.clone())?)?;
+        for (asset, _) in inputs.iter().chain(&outputs) {
+            sum_for_asset(asset, &inputs)?.enforce_equal(&sum_for_asset(asset, &outputs)?)?;
         }
 
         Ok(())
@@ -103,14 +134,11 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
 
 /// Calculates the sum of `amounts` whose asset matches `asset`.
 #[tracing::instrument(target = "r1cs", skip_all)]
-fn sum_for_asset<'a>(
-    asset: &FrVar,
-    amounts: impl Iterator<Item = (&'a FrVar, &'a UInt128<Fr>)>,
-) -> Result<UInt128<Fr>, SynthesisError> {
-    let mut sum = UInt128::constant(0);
+fn sum_for_asset(asset: &FrVar, amounts: &[(FrVar, FrVar)]) -> Result<FrVar, SynthesisError> {
+    let mut sum = FrVar::zero();
     for (item_asset, amount) in amounts {
         let is_equal = asset.is_eq(item_asset)?;
-        sum.saturating_add_in_place(&is_equal.select(amount, &UInt128::constant(0))?);
+        sum += is_equal.select(amount, &FrVar::zero())?;
     }
     Ok(sum)
 }
@@ -182,7 +210,9 @@ mod tests {
         let op = Operation::<3, 3, 3>::default();
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
-        var.verify().unwrap();
+        let input_commitment_hashes = var.input_commitment_hashes().unwrap();
+        var.verify(&var.nullifiers(&input_commitment_hashes).unwrap())
+            .unwrap();
         assert!(cs.is_satisfied().unwrap());
     }
 
@@ -218,25 +248,25 @@ mod tests {
         let asset_a: FrVar = witness(cs.clone(), &Fr::from(1)).unwrap();
         let asset_b: FrVar = witness(cs.clone(), &Fr::from(2)).unwrap();
         let asset_c: FrVar = witness(cs.clone(), &Fr::from(3)).unwrap();
-        let amounts: [UInt128<Fr>; 3] = [
-            witness(cs.clone(), &10u128).unwrap(),
-            witness(cs.clone(), &15u128).unwrap(),
-            witness(cs.clone(), &20u128).unwrap(),
+        let amounts: [FrVar; 3] = [
+            witness(cs.clone(), &Fr::from(10)).unwrap(),
+            witness(cs.clone(), &Fr::from(15)).unwrap(),
+            witness(cs.clone(), &Fr::from(20)).unwrap(),
         ];
         let items = [
-            (&asset_a, &amounts[0]),
-            (&asset_b, &amounts[1]),
-            (&asset_a, &amounts[2]),
+            (asset_a.clone(), amounts[0].clone()),
+            (asset_b.clone(), amounts[1].clone()),
+            (asset_a.clone(), amounts[2].clone()),
         ];
 
-        let sum = super::sum_for_asset(&asset_a, items.into_iter()).unwrap();
-        assert_eq!(sum.value().unwrap(), 30);
+        let sum = super::sum_for_asset(&asset_a, &items).unwrap();
+        assert_eq!(sum.value().unwrap(), Fr::from(30));
 
-        let sum = super::sum_for_asset(&asset_b, items.into_iter()).unwrap();
-        assert_eq!(sum.value().unwrap(), 15);
+        let sum = super::sum_for_asset(&asset_b, &items).unwrap();
+        assert_eq!(sum.value().unwrap(), Fr::from(15));
 
-        let sum = super::sum_for_asset(&asset_c, items.into_iter()).unwrap();
-        assert_eq!(sum.value().unwrap(), 0);
+        let sum = super::sum_for_asset(&asset_c, &items).unwrap();
+        assert_eq!(sum.value().unwrap(), Fr::from(0));
 
         assert!(cs.is_satisfied().unwrap());
     }

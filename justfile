@@ -22,7 +22,7 @@ build:
     just build-artifacts
     just build-solidity
 
-    cd packages/contracts && forge build
+    cd packages/contracts && forge soldeer install && forge build
     cd packages/crates && cargo build --release
 
 build-artifacts:

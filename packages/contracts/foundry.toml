@@ -1,13 +1,27 @@
 [profile.default]
 src = "src"
 out = "out"
-libs = ["lib"]
+libs = ["dependencies"]
 optimizer = true
 optimizer_runs = 5000
 via_ir = true
 remappings = [
-    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
-    "@taceo/poseidon2/=lib/poseidon2-solidity/src/",
-    "@account-abstraction/contracts/=lib/account-abstraction/contracts/",
-    "@skew-mmr/contracts/=lib/efficient-inclusion-proofs/contracts/src/",
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+    "halmos-cheatcodes/=dependencies/halmos-cheatcodes-6da4e69/src/",
+    "@openzeppelin/contracts/=dependencies/openzeppelin-contracts-5.6.1/contracts/",
+    "@taceo/poseidon2/=dependencies/poseidon2-solidity-0.1.0/src/",
+    "@account-abstraction/contracts/=dependencies/account-abstraction-0.8.0/contracts/",
+    "@skew-mmr/contracts/=dependencies/efficient-inclusion-proofs-30883a0/contracts/src/",
 ]
+
+[soldeer]
+remappings_generate = false
+remappings_regenerate = false
+
+[dependencies]
+forge-std = { version = "1.16.2", git = "https://github.com/foundry-rs/forge-std.git", rev = "6e8c4a92c9a8b31c1b0f0c39296d1fa4695c7df8" }
+halmos-cheatcodes = { version = "6da4e69", git = "https://github.com/a16z/halmos-cheatcodes.git", rev = "6da4e692c357ba6d641a2e677a28298cac9f76ab" }
+openzeppelin-contracts = { version = "5.6.1", git = "https://github.com/OpenZeppelin/openzeppelin-contracts.git", rev = "5fd1781b1454fd1ef8e722282f86f9293cacf256" }
+poseidon2-solidity = { version = "0.1.0", git = "https://github.com/TaceoLabs/poseidon2-solidity.git", rev = "00acb649ef8fb7bf58a6ce33af6815024299b7be" }
+account-abstraction = { version = "0.8.0", git = "https://github.com/eth-infinitism/account-abstraction.git", rev = "4cbc06072cdc19fd60f285c5997f4f7f57a588de" }
+efficient-inclusion-proofs = { version = "30883a0", git = "https://github.com/Robert-MacWha/efficient-inclusion-proofs.git", rev = "30883a02185c77c27fcb3ea0f8d7d1c51acf62c0" }

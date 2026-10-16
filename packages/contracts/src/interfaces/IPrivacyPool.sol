@@ -19,6 +19,9 @@ interface IPrivacyPool {
     struct Context {
         bytes[N_INPUTS] policyInputs;
         bytes[N_OUTPUTS] ciphertexts;
+        /// @dev Opaque to Tint. Lets a wrapper bind the operation to how it's submitted
+        /// (see `TintFrame`). Zero when unused.
+        bytes32 binding;
     }
 
     function deposit(address asset, uint128 amount, bytes32 partialCommitment, bytes calldata encryptedNote) external;

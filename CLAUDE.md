@@ -15,6 +15,10 @@ Monorepo split into two independently-built packages:
   - `tint/` — the core protocol crate: circuits (`src/circuit/`, arkworks + Groth16/BN254), accounts and key derivation (`src/account/`), spending policies (`src/policy.rs`), notes/commitments (`src/note/`), note encryption (`src/crypto/`), event sync into serializable `Snapshot`s (`src/syncer/`), the skew-MMR (`src/skew_mmr.rs`), the `Deposit` builder (`src/deposit.rs`), the `OperationBuilder` → `UnsignedOperation` → `Operation` → `ProvenOperation` flow that assembles transfer/unshield calls + proofs; `Operation` is also the padded witness policy circuits consume (`src/operation.rs`), and `TintProviderExt` accessors for any alloy provider (`src/provider_ext.rs`). Note management is left to the caller. `src/codegen.rs` emits the Solidity verifier from a Groth16 `VerifyingKey`.
   - `cli/` — a minimal demo CLI (`tint-cli`) wrapping the `tint` crate; `src/chain.rs` handles RPC/tx flow, `src/config.rs` handles local account storage.
   - `tint-aml/` — separate circuit crate (AML-related), not part of the main protocol flow.
+  - `alloy-hegota/` — Tint-agnostic alloy extensions for EIP-8141 frame transactions on the hegota devnet (ethrex `hegota-testnet`): `TxFrame` encoding/signing/gas bounds (checked against minimal-shielded-pool's reference vectors), receipts, and `HegotaProviderExt`.
+  - `tint-frame/` — `SponsoredOperation`: Tint operations that pay their own gas from shielded WETH, sent as frame transactions whose sender is `TintFrame`.
+
+`TintFrame.sol` (`Tint` as an EIP-8141 frame sender) can't be deployed from forge's bytecode: solc can't emit APPROVE (`0xAA`), so `just build-frame` (in `packages/contracts`) patches it into the Yul IR and writes `out/frame/TintFrame.hex`; `just deploy-frame` deploys via `cast`. On hegota, code deposit costs ~1,545 gas/byte under a 2^24 per-tx cap, which is why Poseidon2 hashing goes through standalone contracts (`src/poseidon/Poseidon2T{2,3}.sol`, thin `compress`-only wrappers of the taceo library behind `IPoseidon2T{2,3}`) rather than being inlined. `Poseidon2T3` deploys at ~16.54M gas, just under the cap.
 
 
 ## Commands

@@ -5,9 +5,19 @@ libs = ["lib"]
 optimizer = true
 optimizer_runs = 5000
 via_ir = true
+# `just build-frame` patches TintFrame's IR.
+extra_output = ["ir"]
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "@taceo/poseidon2/=lib/poseidon2-solidity/src/",
     "@account-abstraction/contracts/=lib/account-abstraction/contracts/",
     "@skew-mmr/contracts/=lib/efficient-inclusion-proofs/contracts/src/",
 ]
+# DeployTintFrame reads the APPROVE-patched TintFrame bytecode (see `just build-frame`).
+fs_permissions = [{ access = "read", path = "./out" }]
+
+[lint]
+ignore = ["src/frame/FrameOpcodes.yul"]
+
+[fmt]
+ignore = ["src/frame/FrameOpcodes.yul"]

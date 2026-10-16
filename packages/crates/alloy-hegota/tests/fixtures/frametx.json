@@ -1,0 +1,1594 @@
+{
+  "transactions": [
+    {
+      "name": "G2: non-empty msg, a state limit, a blob",
+      "tx": {
+        "chainId": "1",
+        "nonceKeys": [
+          "0"
+        ],
+        "nonceSeq": "7",
+        "sender": "43981",
+        "frames": [
+          {
+            "mode": "1",
+            "flags": "3",
+            "target": null,
+            "gasLimit": "21000",
+            "stateLimit": "97920",
+            "value": "0",
+            "data": "0x1122"
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "1",
+            "signer": "43981",
+            "msg": "0x0101010101010101010101010101010101010101010101010101010101010101",
+            "signature": "0x0101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101"
+          }
+        ],
+        "maxPriorityFee": "1000000000",
+        "maxFee": "30000000000",
+        "maxBlobFee": "5",
+        "blobHashes": [
+          "0x0202020202020202020202020202020202020202020202020202020202020202"
+        ]
+      },
+      "out": {
+        "raw": "0x06f8d701c1800794000000000000000000000000000000000000abcdd0cf010380c782520883017e8080821122f87cf87a0194000000000000000000000000000000000000abcda00101010101010101010101010101010101010101010101010101010101010101b8410101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101cc843b9aca008506fc23ac0005e1a00202020202020202020202020202020202020202020202020202020202020202",
+        "sigHash": "0x3f8a959889402765838595c5fb5171a4474946898594e09d37a9738ddbd57a78",
+        "signatureVerificationCost": "2800",
+        "valueTransferCost": "0",
+        "mandatoryGas": "15275",
+        "stateGasLimit": "97920",
+        "standardGasLimit": "135931",
+        "calldataFloorGas": "23083",
+        "executionCapUsage": "38011",
+        "totalGasLimit": "135931",
+        "maxCost": "4077930000000000",
+        "blobBaseFee": "3",
+        "maxCostAtBlobBaseFee": "4077930000393216"
+      }
+    },
+    {
+      "name": "random 0",
+      "tx": {
+        "chainId": "0",
+        "nonceKeys": [
+          "37",
+          "128"
+        ],
+        "nonceSeq": "0",
+        "sender": "1461501637330902918203684832716283019655932542975",
+        "frames": [
+          {
+            "mode": "0",
+            "flags": "146",
+            "target": "0",
+            "gasLimit": "225000",
+            "stateLimit": "117506185731885",
+            "value": "256",
+            "data": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "mode": "2",
+            "flags": "3",
+            "target": "1461501637330902918203684832716283019655932542975",
+            "gasLimit": "8000",
+            "stateLimit": "97920",
+            "value": "1",
+            "data": "0x71"
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "1",
+            "signer": "1461501637330902918203684832716283019655932542975",
+            "msg": "0x",
+            "signature": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "scheme": "1",
+            "signer": "1461501637330902918203684832716283019655932542975",
+            "msg": "0x",
+            "signature": "0x"
+          }
+        ],
+        "maxPriorityFee": "169",
+        "maxFee": "159",
+        "maxBlobFee": "5",
+        "blobHashes": []
+      },
+      "out": {
+        "raw": "0x06f9012080c32581808094fffffffffffffffffffffffffffffffffffffffff885f861808192940000000000000000000000000000000000000000cb83036ee8866adf0a759f2d820100b8380000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e1020394ffffffffffffffffffffffffffffffffffffffffc7821f4083017e800171f875f85a0194ffffffffffffffffffffffffffffffffffffffff80b8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000d80194ffffffffffffffffffffffffffffffffffffffff8080c581a9819f05c0",
+        "sigHash": "0xe0ab1b0b87211349b02956540d4c8d4988b4de720654dd2bef29dae540567cfe",
+        "signatureVerificationCost": "5600",
+        "valueTransferCost": "6000",
+        "mandatoryGas": "24550",
+        "stateGasLimit": "117506185829805",
+        "standardGasLimit": "117506186088575",
+        "calldataFloorGas": "35238",
+        "executionCapUsage": "258770",
+        "totalGasLimit": "117506186088575",
+        "maxCost": "18683483588083425",
+        "blobBaseFee": "197456",
+        "maxCostAtBlobBaseFee": "18683483588083425"
+      }
+    },
+    {
+      "name": "random 1",
+      "tx": {
+        "chainId": "1",
+        "nonceKeys": [
+          "18446744073709551615",
+          "255"
+        ],
+        "nonceSeq": "128",
+        "sender": "1461501637330902918203684832716283019655932542975",
+        "frames": [],
+        "signatures": [
+          {
+            "scheme": "0",
+            "signer": "1060476678890185294116390706211038013166241435456",
+            "msg": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "signature": "0xf8008f00006900af0000850000008f5100fb0000020034b09b00009b00740000f8008f00006900af0000850000008f5100fb0000020034b09b00009b00740000f8008f00006900af0000850000008f5100fb0000020034b09b00009b00740000f8008f00"
+          },
+          {
+            "scheme": "0",
+            "signer": "1461501637330902918203684832716283019655932542975",
+            "msg": "0x",
+            "signature": "0x"
+          }
+        ],
+        "maxPriorityFee": "18446744073709551616",
+        "maxFee": "255",
+        "maxBlobFee": "0",
+        "blobHashes": [
+          "0xc63916e18de662239b91a53b8660bf2116dd8f3b1c5c78a2699494d3008a90cb",
+          "0x0000000000000000000000000000000000000000000000000000000000000000"
+        ]
+      },
+      "out": {
+        "raw": "0x06f9014801cb88ffffffffffffffff81ff818094ffffffffffffffffffffffffffffffffffffffffc0f8cff8b48094b9c16b3f09158382205cbbe43c45b604c947cf40b700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b864f8008f00006900af0000850000008f5100fb0000020034b09b00009b00740000f8008f00006900af0000850000008f5100fb0000020034b09b00009b00740000f8008f00006900af0000850000008f5100fb0000020034b09b00009b00740000f8008f00d88094ffffffffffffffffffffffffffffffffffffffff8080cd8901000000000000000081ff80f842a0c63916e18de662239b91a53b8660bf2116dd8f3b1c5c78a2699494d3008a90cba00000000000000000000000000000000000000000000000000000000000000000",
+        "sigHash": "0x4fec5bdcd0ad24409810e55fad0c0992042e46eb92152d1d4ac1db756e88383b",
+        "signatureVerificationCost": "200",
+        "valueTransferCost": "0",
+        "mandatoryGas": "12200",
+        "stateGasLimit": "0",
+        "standardGasLimit": "14212",
+        "calldataFloorGas": "25576",
+        "executionCapUsage": "25576",
+        "totalGasLimit": "25576",
+        "maxCost": "6521880",
+        "blobBaseFee": "0",
+        "maxCostAtBlobBaseFee": "6521880"
+      }
+    },
+    {
+      "name": "random 2",
+      "tx": {
+        "chainId": "8141",
+        "nonceKeys": [
+          "157",
+          "7"
+        ],
+        "nonceSeq": "0",
+        "sender": "1039105782844311679188500149958195018386088136052",
+        "frames": [
+          {
+            "mode": "0",
+            "flags": "2",
+            "target": "0",
+            "gasLimit": "8000",
+            "stateLimit": "1946",
+            "value": "0",
+            "data": {
+              "pattern": "0x830000",
+              "length": 1572
+            }
+          },
+          {
+            "mode": "110",
+            "flags": "3",
+            "target": "1461501637330902918203684832716283019655932542975",
+            "gasLimit": "225000",
+            "stateLimit": "550000",
+            "value": "0",
+            "data": {
+              "pattern": "0x1374bc5fe8000000e9004e3a1f00648f797478cae500003e00ac00000019b935",
+              "length": 1572
+            }
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "0",
+            "signer": "1461501637330902918203684832716283019655932542975",
+            "msg": "0x",
+            "signature": "0x"
+          }
+        ],
+        "maxPriorityFee": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+        "maxFee": "486717953190548738040892900453652451798058276680239832",
+        "maxBlobFee": "15023901433895230131452",
+        "blobHashes": []
+      },
+      "out": {
+        "rawLength": 3353,
+        "rawKeccak": "0xa3816d202e3ea20df2e55e1124ee960c79b5740d773775c0d5cca5bbc7097df9",
+        "sigHash": "0xa3816d202e3ea20df2e55e1124ee960c79b5740d773775c0d5cca5bbc7097df9",
+        "signatureVerificationCost": "100",
+        "valueTransferCost": "0",
+        "mandatoryGas": "13050",
+        "stateGasLimit": "551946",
+        "standardGasLimit": "829656",
+        "calldataFloorGas": "215866",
+        "executionCapUsage": "277710",
+        "totalGasLimit": "829656",
+        "maxCost": "403808470172257903808055040218775478548969837597421058057792",
+        "blobBaseFee": "3",
+        "maxCostAtBlobBaseFee": "403808470172257903808055040218775478548969837597421058057792"
+      }
+    },
+    {
+      "name": "random 3",
+      "tx": {
+        "chainId": "1",
+        "nonceKeys": [
+          "1051651282",
+          "26"
+        ],
+        "nonceSeq": "0",
+        "sender": "1456865431856892427039832539408542376344189941100",
+        "frames": [
+          {
+            "mode": "88",
+            "flags": "0",
+            "target": "42876",
+            "gasLimit": "8000",
+            "stateLimit": "550000",
+            "value": "1",
+            "data": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "2",
+            "signer": "694224494089128975795054080579733668694936661275",
+            "msg": "0x26b9320c58db2ff708d134bba48b69fa92100375f4349d9fcac075e8106d774e",
+            "signature": "0x43"
+          }
+        ],
+        "maxPriorityFee": "18446744073709551616",
+        "maxFee": "220",
+        "maxBlobFee": "7366185585337615296821003882899397947877437009288546238811643812058967845",
+        "blobHashes": [
+          "0x28003a00000e1e00dc00dc00c31a0007fa00004a06003d4d0067af000000c3545a",
+          "0xa5b56525a83404a15d8dcf0d368f7944cebaa98b972077fc3846052ae0ae0e12",
+          "0xf36225ff6a9b01fdfebfae87cb63e9c7bc885a97eaea667b977682c65ed6d869",
+          "0xdf2712bc6377d58127805a87fe6f8864383744f66f94b5a2878877b19c7dc457",
+          "0x94b735e11f6a8335ee0ead66734af486cb0175fc7a78a54f576934fdd13aac58",
+          "0x7d1128d28c375d222b1fbbf2f234b8554043f2ca2670bef3ff50a48c916c14b9"
+        ]
+      },
+      "out": {
+        "rawLength": 434,
+        "rawKeccak": "0x7d02cf43ddab4e02b5b680a20cf7205b11d67a3fef06f00a443c5c18eac643d8",
+        "sigHash": "0x7d02cf43ddab4e02b5b680a20cf7205b11d67a3fef06f00a443c5c18eac643d8",
+        "signatureVerificationCost": "6700",
+        "valueTransferCost": "6000",
+        "mandatoryGas": "25175",
+        "stateGasLimit": "550000",
+        "standardGasLimit": "584375",
+        "calldataFloorGas": "32663",
+        "executionCapUsage": "34375",
+        "totalGasLimit": "584375",
+        "maxCost": "128562500",
+        "blobBaseFee": "145021944",
+        "maxCostAtBlobBaseFee": "114050026026308"
+      }
+    },
+    {
+      "name": "random 4",
+      "tx": {
+        "chainId": "8141",
+        "nonceKeys": [
+          "42",
+          "633033106455446070365688858650531380498473416092705898827"
+        ],
+        "nonceSeq": "128",
+        "sender": "45472",
+        "frames": [
+          {
+            "mode": "88",
+            "flags": "3",
+            "target": "45333",
+            "gasLimit": "2000000",
+            "stateLimit": "0",
+            "value": "117184471708083936402984",
+            "data": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "mode": "136",
+            "flags": "59",
+            "target": "536770512955604243614410502051625987886331632781",
+            "gasLimit": "2000000",
+            "stateLimit": "97920",
+            "value": "18446744073709551616",
+            "data": {
+              "pattern": "0x014e000d00000008dd00bd991ba776fa00c452f545540000fc010000aecb007e",
+              "length": 1572
+            }
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "0",
+            "signer": "819749868006121507213439382382875622777170596992",
+            "msg": "0x",
+            "signature": "0x00"
+          },
+          {
+            "scheme": "2",
+            "signer": "430895504228404604888295216704503678700878011484",
+            "msg": "0x7e0299047dc2917e87f63daed7b488a1d28695fd070b77e8c8b5f72762604542e524551d4bb4b159a734996ce06e8feb171fbd6c018379",
+            "signature": "0x"
+          }
+        ],
+        "maxPriorityFee": "0",
+        "maxFee": "122",
+        "maxBlobFee": "0",
+        "blobHashes": [
+          "0x3e872a5df661e4db41074d3329e514c4e86c84b2a83d73054fd2349dc9d10c35"
+        ]
+      },
+      "out": {
+        "rawLength": 1925,
+        "rawKeccak": "0xd24793d662d4339884d7348a4595ca91a065c3ec904b8c8b777856243c6aa081",
+        "sigHash": "0x28b11cb8c3b41aca66a63e2d38e39550bc629b63b48545749f0d3269702d57a7",
+        "signatureVerificationCost": "6800",
+        "valueTransferCost": "12000",
+        "mandatoryGas": "31750",
+        "stateGasLimit": "97920",
+        "standardGasLimit": "4150550",
+        "calldataFloorGas": "143878",
+        "executionCapUsage": "4052630",
+        "totalGasLimit": "4150550",
+        "maxCost": "506367100",
+        "blobBaseFee": "1",
+        "maxCostAtBlobBaseFee": "506498172"
+      }
+    },
+    {
+      "name": "random 5",
+      "tx": {
+        "chainId": "8141",
+        "nonceKeys": [],
+        "nonceSeq": "1",
+        "sender": "1461501637330902918203684832716283019655932542975",
+        "frames": [
+          {
+            "mode": "1",
+            "flags": "2",
+            "target": "432911146987309441172209603579737580355470499374",
+            "gasLimit": "225000",
+            "stateLimit": "0",
+            "value": "0",
+            "data": {
+              "pattern": "0xc70000a9000000",
+              "length": 70000
+            }
+          },
+          {
+            "mode": "2",
+            "flags": "53",
+            "target": "0",
+            "gasLimit": "2000000",
+            "stateLimit": "255",
+            "value": "340282366920938463463374607431768211456",
+            "data": {
+              "pattern": "0x00c900c30061c30000000000010015a4000000e3000000000000000000a2005a",
+              "length": 1572
+            }
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "1",
+            "signer": "1461501637330902918203684832716283019655932542975",
+            "msg": "0x",
+            "signature": "0x74"
+          }
+        ],
+        "maxPriorityFee": "21119094928770175936936518387377",
+        "maxFee": "182306296947017",
+        "maxBlobFee": "0",
+        "blobHashes": []
+      },
+      "out": {
+        "rawLength": 71750,
+        "rawKeccak": "0xd88f8ebdda708a4bb245c7192ebd09f9683d97457fe660c96dcfd2f9e05fd260",
+        "sigHash": "0x90553ded67058bc7e956d2b706051c7fc60e882a064cc08e6a06c7bea9d9c0b9",
+        "signatureVerificationCost": "2800",
+        "valueTransferCost": "6000",
+        "mandatoryGas": "21750",
+        "stateGasLimit": "255",
+        "standardGasLimit": "2779565",
+        "calldataFloorGas": "4603830",
+        "executionCapUsage": "4603830",
+        "totalGasLimit": "4604085",
+        "maxCost": "839353687179306764445",
+        "blobBaseFee": "12072688",
+        "maxCostAtBlobBaseFee": "839353687179306764445"
+      }
+    },
+    {
+      "name": "random 6",
+      "tx": {
+        "chainId": "1",
+        "nonceKeys": [
+          "246",
+          "10678699002775187314740782727761018165324365471718210496723674373",
+          "180"
+        ],
+        "nonceSeq": "255",
+        "sender": "1461501637330902918203684832716283019655932542975",
+        "frames": [
+          {
+            "mode": "1",
+            "flags": "0",
+            "target": "0",
+            "gasLimit": "2000000",
+            "stateLimit": "0",
+            "value": "0",
+            "data": "0x"
+          },
+          {
+            "mode": "1",
+            "flags": "3",
+            "target": "0",
+            "gasLimit": "2000000",
+            "stateLimit": "0",
+            "value": "1",
+            "data": {
+              "pattern": "0x978a00eab300b9",
+              "length": 255
+            }
+          },
+          {
+            "mode": "1",
+            "flags": "1",
+            "target": "0",
+            "gasLimit": "127",
+            "stateLimit": "0",
+            "value": "92183828855655544792963254745277421124960783694924666967199142",
+            "data": "0xfa12713a66bc8fc3663606d7345b49119bea98fcb3f26fa59b7af2b80a0061b0de05e62cccacb95d2b40ce96277a4cd5a739625eaa443c9e"
+          },
+          {
+            "mode": "206",
+            "flags": "20",
+            "target": "1461501637330902918203684832716283019655932542975",
+            "gasLimit": "167444",
+            "stateLimit": "550000",
+            "value": "0",
+            "data": {
+              "pattern": "0x00f200008c000000000000c600dd00d063020025002acb0000e6000000668500",
+              "length": 256
+            }
+          }
+        ],
+        "signatures": [],
+        "maxPriorityFee": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+        "maxFee": "18446744073709551616",
+        "maxBlobFee": "0",
+        "blobHashes": [
+          "0x9d7b097eb36a91f61e4e1c21feab108d42177a8f7664f608028795c252632bd6",
+          "0x4700e1008cd000b0000032007b50a9a99569c6001637000000e0008300fa0049"
+        ]
+      },
+      "out": {
+        "rawLength": 909,
+        "rawKeccak": "0x13c7972fd937b13dbda7739ab052502e4bfc65c9cd0c228ca946bc485f0e2eab",
+        "sigHash": "0x13c7972fd937b13dbda7739ab052502e4bfc65c9cd0c228ca946bc485f0e2eab",
+        "signatureVerificationCost": "0",
+        "valueTransferCost": "12000",
+        "mandatoryGas": "25900",
+        "stateGasLimit": "550000",
+        "standardGasLimit": "4750391",
+        "calldataFloorGas": "64428",
+        "executionCapUsage": "4200391",
+        "totalGasLimit": "4750391",
+        "maxCost": "87629247027053190610681856",
+        "blobBaseFee": "3",
+        "maxCostAtBlobBaseFee": "87629247027053190611468288"
+      }
+    },
+    {
+      "name": "random 7",
+      "tx": {
+        "chainId": "31337",
+        "nonceKeys": [],
+        "nonceSeq": "127",
+        "sender": "1176881300146802315154121588077744546519869518112",
+        "frames": [
+          {
+            "mode": "2",
+            "flags": "3",
+            "target": "0",
+            "gasLimit": "225000",
+            "stateLimit": "97920",
+            "value": "1",
+            "data": "0x"
+          },
+          {
+            "mode": "8",
+            "flags": "2",
+            "target": "605604333119417286211439541487818372459949809332",
+            "gasLimit": "0",
+            "stateLimit": "1054",
+            "value": "0",
+            "data": {
+              "pattern": "0x0099f300250000a854110000006e00002f1a7c9a00bad600dc00096000483f00",
+              "length": 1572
+            }
+          },
+          {
+            "mode": "2",
+            "flags": "55",
+            "target": "0",
+            "gasLimit": "0",
+            "stateLimit": "0",
+            "value": "0",
+            "data": "0x35"
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "0",
+            "signer": "64945",
+            "msg": "0xb4af52f987669f8057d2a5e28bb327b144c36f03d5689b9592189674ef118d7b4eab7755b39c03fae70d710604e245c051b55f805ca8978c",
+            "signature": "0xb8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8"
+          }
+        ],
+        "maxPriorityFee": "12999621624451000549784011108928389485414494145300868495831417201025988260",
+        "maxFee": "66",
+        "maxBlobFee": "0",
+        "blobHashes": []
+      },
+      "out": {
+        "rawLength": 1926,
+        "rawKeccak": "0x2d9f2e0390ec167b463a3bf80e07b5fcdf226f3b71acfec1f9dd8b54ab63c6a7",
+        "sigHash": "0x2d9f2e0390ec167b463a3bf80e07b5fcdf226f3b71acfec1f9dd8b54ab63c6a7",
+        "signatureVerificationCost": "100",
+        "valueTransferCost": "6000",
+        "mandatoryGas": "19525",
+        "stateGasLimit": "98974",
+        "standardGasLimit": "363043",
+        "calldataFloorGas": "131589",
+        "executionCapUsage": "264069",
+        "totalGasLimit": "363043",
+        "maxCost": "23960838",
+        "blobBaseFee": "8855026510148338930",
+        "maxCostAtBlobBaseFee": "23960838"
+      }
+    },
+    {
+      "name": "random 8",
+      "tx": {
+        "chainId": "0",
+        "nonceKeys": [
+          "18446744073709551615",
+          "15"
+        ],
+        "nonceSeq": "15931215466361",
+        "sender": "151452151876988525235785693156341753189803030238",
+        "frames": [
+          {
+            "mode": "118",
+            "flags": "3",
+            "target": null,
+            "gasLimit": "69",
+            "stateLimit": "21",
+            "value": "0",
+            "data": {
+              "pattern": "0x000000f3d4000032000bb2001e4f00160000720000715e005400d80000670000",
+              "length": 255
+            }
+          },
+          {
+            "mode": "142",
+            "flags": "0",
+            "target": "0",
+            "gasLimit": "2000000",
+            "stateLimit": "0",
+            "value": "0",
+            "data": "0x006c5b6b0000000000b894f71e5b006f009b77003a00000000d70011f100a100aa00dd453100ed19000a0080e230059482be00008cd94100"
+          },
+          {
+            "mode": "1",
+            "flags": "227",
+            "target": null,
+            "gasLimit": "225000",
+            "stateLimit": "73",
+            "value": "0",
+            "data": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "mode": "240",
+            "flags": "2",
+            "target": null,
+            "gasLimit": "225000",
+            "stateLimit": "0",
+            "value": "289977953881751929914071463349453519855902638",
+            "data": {
+              "pattern": "0x470000",
+              "length": 256
+            }
+          },
+          {
+            "mode": "1",
+            "flags": "124",
+            "target": null,
+            "gasLimit": "0",
+            "stateLimit": "97920",
+            "value": "0",
+            "data": "0x8bbbe77d64bf2a45e040f196e254dc948340912fcba0de85f58373ac29a060859153f26f012320cd4d4d5a763408639aa43560cff43fa50f"
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "0",
+            "signer": "633399138643507381482418667140912833611496934978",
+            "msg": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "signature": "0xdc003cdc003cdc003cdc003cdc003cdc003cdc003cdc003cdc003cdc003cdc003cdc003cdc003cdc003cdc003cdc003cdc003cdc003cdc003cdc003cdc003cdc00"
+          },
+          {
+            "scheme": "2",
+            "signer": "586950302741711368673049186874351521343521262889",
+            "msg": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "signature": "0x007c0000b6ede3007c0000b6ede3007c0000b6ede3007c0000b6ede3007c0000b6ede3007c0000b6ede3007c0000b6ede3007c0000b6ede3007c0000b6ede3007c0000b6ede3007c0000b6ede3007c0000b6ede3007c0000b6ede3007c0000b6ede3007c"
+          }
+        ],
+        "maxPriorityFee": "199",
+        "maxFee": "1394496729022139686923084992470072180101060598384909663",
+        "maxBlobFee": "0",
+        "blobHashes": [
+          "0xcf92514fa4357f67466e4954cee861104c45bc2e1658aeb15f0c0b66c94a172a",
+          "0x000000068fc968000047000b00bec700009a00cdd78cf1623b3c000000b40000",
+          "0x600048990000331c001fbe82007300ea00e2d24a8e6c0000b700207e9deb6f00",
+          "0xeab8fd0003e3e987b0e1a1ef44bd0bda3cc2643ab9a485fb712159e1e2fc47a3",
+          "0x00498e54026a8911023ce12823db493296c8d9b2c3f9a5796995191799f48ad7",
+          "0x0cd509a6fa2ac9eab64d240e818d6350366ce1bc16f831ea2d39866f99f0b771"
+        ]
+      },
+      "out": {
+        "rawLength": 1373,
+        "rawKeccak": "0x3ad5787ac3f5ff0008fc722aa69c25a3f32101ba448cf3d0a557d9e7f51fca58",
+        "sigHash": "0x3ad5787ac3f5ff0008fc722aa69c25a3f32101ba448cf3d0a557d9e7f51fca58",
+        "signatureVerificationCost": "6800",
+        "valueTransferCost": "0",
+        "mandatoryGas": "21175",
+        "stateGasLimit": "98014",
+        "standardGasLimit": "2578550",
+        "calldataFloorGas": "84407",
+        "executionCapUsage": "2480536",
+        "totalGasLimit": "2578550",
+        "maxCost": "3595779540620038289715520807333704619999589805965408811528650",
+        "blobBaseFee": "0",
+        "maxCostAtBlobBaseFee": "3595779540620038289715520807333704619999589805965408811528650"
+      }
+    },
+    {
+      "name": "random 9",
+      "tx": {
+        "chainId": "157",
+        "nonceKeys": [
+          "1651096324104896098450433040997220670084251398153367"
+        ],
+        "nonceSeq": "1309093661490719",
+        "sender": "622001047994283478797985111960971681373421144524",
+        "frames": [
+          {
+            "mode": "75",
+            "flags": "2",
+            "target": "0",
+            "gasLimit": "225000",
+            "stateLimit": "550000",
+            "value": "0",
+            "data": {
+              "pattern": "0xc75600810ddd1e",
+              "length": 255
+            }
+          },
+          {
+            "mode": "1",
+            "flags": "0",
+            "target": "0",
+            "gasLimit": "254",
+            "stateLimit": "127",
+            "value": "1",
+            "data": "0x"
+          },
+          {
+            "mode": "1",
+            "flags": "248",
+            "target": null,
+            "gasLimit": "8000",
+            "stateLimit": "0",
+            "value": "0",
+            "data": {
+              "pattern": "0x7b94f20000017432e5d619af1f00001969f6e00000000000003cda003b00fadf",
+              "length": 1572
+            }
+          },
+          {
+            "mode": "0",
+            "flags": "3",
+            "target": "15123",
+            "gasLimit": "0",
+            "stateLimit": "97920",
+            "value": "0",
+            "data": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "mode": "2",
+            "flags": "3",
+            "target": "0",
+            "gasLimit": "0",
+            "stateLimit": "0",
+            "value": "127",
+            "data": "0x00"
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "0",
+            "signer": "90702511043801547777159370714020491588873012382",
+            "msg": "0x647b2e3ce4cf864d86918a1d66800a9041be91bcbe54f2b8ca4435ff1981b04cf7263997d68e5939517b6403c955cc2ba1aaa7bb865ee2",
+            "signature": "0x00"
+          }
+        ],
+        "maxPriorityFee": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+        "maxFee": "157798586670333166379271940852944577158980639269062547168437",
+        "maxBlobFee": "5",
+        "blobHashes": [
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0xdbbd001600000000df00d700226b006366000000005e00000000007c0037576a",
+          "0xf808672bc3fb22666d7a52cde12f195118c36eef2f2218b965cf810f341d90c0",
+          "0xd39ff14f54f8fd046df29086114b4f83f500f3430a39ccb9d5cbeba66877d5b9",
+          "0x04000000bc004800000000003200b100008500c6ba00db008300759efa55008b",
+          "0x0000000000000000000000000000000000000000000000000000000000000000"
+        ]
+      },
+      "out": {
+        "rawLength": 2437,
+        "rawKeccak": "0x4fa6e75ef2562fb9f3e3ded9766749a6d8f10fc75cfb139151131418dedca0d6",
+        "sigHash": "0x4fa6e75ef2562fb9f3e3ded9766749a6d8f10fc75cfb139151131418dedca0d6",
+        "signatureVerificationCost": "100",
+        "valueTransferCost": "12000",
+        "mandatoryGas": "26475",
+        "stateGasLimit": "648047",
+        "standardGasLimit": "931440",
+        "calldataFloorGas": "153963",
+        "executionCapUsage": "283393",
+        "totalGasLimit": "931440",
+        "maxCost": "146979915568215124492309056588066696948960926640775618934568959280",
+        "blobBaseFee": "0",
+        "maxCostAtBlobBaseFee": "146979915568215124492309056588066696948960926640775618934568959280"
+      }
+    },
+    {
+      "name": "random 10",
+      "tx": {
+        "chainId": "31337",
+        "nonceKeys": [
+          "3252415602282719213652661"
+        ],
+        "nonceSeq": "1",
+        "sender": "989590027300229050150320629288007106985728831783",
+        "frames": [
+          {
+            "mode": "2",
+            "flags": "0",
+            "target": null,
+            "gasLimit": "6445117629074",
+            "stateLimit": "97920",
+            "value": "0",
+            "data": {
+              "pattern": "0x400ab1d4ea0000",
+              "length": 256
+            }
+          },
+          {
+            "mode": "124",
+            "flags": "157",
+            "target": null,
+            "gasLimit": "0",
+            "stateLimit": "0",
+            "value": "0",
+            "data": "0x"
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "1",
+            "signer": "1059495539141579013194021284087585685048324139882",
+            "msg": "0x",
+            "signature": "0x00"
+          },
+          {
+            "scheme": "0",
+            "signer": "1461501637330902918203684832716283019655932542975",
+            "msg": "0x",
+            "signature": "0x1e000000db004b1e000000db004b1e000000db004b1e000000db004b1e000000db004b1e000000db004b1e000000db004b1e000000db004b1e000000db004b1e00"
+          },
+          {
+            "scheme": "0",
+            "signer": "1138971737757585266730715506920550550922240937007",
+            "msg": "0x",
+            "signature": "0xeb0800eb0800eb0800eb0800eb0800eb0800eb0800eb0800eb0800eb0800eb0800eb0800eb0800eb0800eb0800eb0800eb0800eb0800eb0800eb0800eb0800eb08"
+          }
+        ],
+        "maxPriorityFee": "1",
+        "maxFee": "13043539924796772323626992779322167953532662382820796",
+        "maxBlobFee": "0",
+        "blobHashes": [
+          "0x0f4c36b2206e71ef9483b4654616a2d4483761dc3d21627345023c3e50a83ce1",
+          "0x00a851000000003d0000250020000000b2418100b632bf0053000029000000d0"
+        ]
+      },
+      "out": {
+        "rawLength": 638,
+        "rawKeccak": "0x8720c22a97315a214674d8e1021f958005bcdda9cd2863484e096c965060df23",
+        "sigHash": "0x42413fb235ebb44174a7524bb1dbb0541c949b7e7a1a6df9f323fb57ebf75874",
+        "signatureVerificationCost": "3000",
+        "valueTransferCost": "0",
+        "mandatoryGas": "15950",
+        "stateGasLimit": "97920",
+        "standardGasLimit": "6445117748748",
+        "calldataFloorGas": "45454",
+        "executionCapUsage": "6445117650828",
+        "totalGasLimit": "6445117748748",
+        "maxCost": "84067150675810830459871516591950142686083183250452714065437363408",
+        "blobBaseFee": "3",
+        "maxCostAtBlobBaseFee": "84067150675810830459871516591950142686083183250452714065438149840"
+      }
+    },
+    {
+      "name": "random 11",
+      "tx": {
+        "chainId": "31337",
+        "nonceKeys": [
+          "11624989397601030599298396733022483485772958730567930996846799",
+          "2383441972317887445257108678048678558224676336759957339121289063750425564",
+          "8181885813614734041014168940640052"
+        ],
+        "nonceSeq": "0",
+        "sender": "0",
+        "frames": [
+          {
+            "mode": "1",
+            "flags": "2",
+            "target": "0",
+            "gasLimit": "228185770619183839",
+            "stateLimit": "214485097064690402",
+            "value": "1",
+            "data": "0x"
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "2",
+            "signer": "1303825620811646288578813232577725911902616923189",
+            "msg": "0x1fa82901512779abcd5180c61928df1e3bf93628cdbbb80d9f5a3815f0da11f636f1e4d552083fd5cf60ed22b6278cd5844e91ada05ac337",
+            "signature": "0x00d18e00bf006b0002c6006a00e4bea993e46900d20000c100f300008e008ff200d18e00bf006b0002c6006a00e4bea993e46900d20000c100f300008e008ff200d18e00bf006b0002c6006a00e4bea993e46900d20000c100f300008e008ff200d18e00"
+          },
+          {
+            "scheme": "1",
+            "signer": "1097088310535841277362901010350540048579886581966",
+            "msg": "0xafa67fad7980088b211b845b79f2c042f3a761ddee914c01e71e7580780a5fdcb837dbe485f1f101caa3ea319440d29fb321fee0d2f7dbf5",
+            "signature": "0x00"
+          },
+          {
+            "scheme": "2",
+            "signer": "17756",
+            "msg": "0x",
+            "signature": "0x"
+          }
+        ],
+        "maxPriorityFee": "137",
+        "maxFee": "7453935259755",
+        "maxBlobFee": "5",
+        "blobHashes": [
+          "0x9b46d5b600d1de6afacd83d5607f449209512fa9090c617983a9991c929cf5a4"
+        ]
+      },
+      "out": {
+        "rawLength": 492,
+        "rawKeccak": "0xa2199f8fe712045f9d8acc807001f4f19674b5f91daa4774f08b95593c507855",
+        "sigHash": "0xa2199f8fe712045f9d8acc807001f4f19674b5f91daa4774f08b95593c507855",
+        "signatureVerificationCost": "16200",
+        "valueTransferCost": "0",
+        "mandatoryGas": "28675",
+        "stateGasLimit": "214485097064690402",
+        "standardGasLimit": "442670867683907812",
+        "calldataFloorGas": "51139",
+        "executionCapUsage": "228185770619217410",
+        "totalGasLimit": "442670867683907812",
+        "maxCost": "3299639989095420611873693706060",
+        "blobBaseFee": "255",
+        "maxCostAtBlobBaseFee": "3299639989095420611873727129420"
+      }
+    },
+    {
+      "name": "random 12",
+      "tx": {
+        "chainId": "1",
+        "nonceKeys": [
+          "159",
+          "184"
+        ],
+        "nonceSeq": "0",
+        "sender": "1170",
+        "frames": [
+          {
+            "mode": "0",
+            "flags": "2",
+            "target": "1341900150158188278067819387867957686942684862033",
+            "gasLimit": "0",
+            "stateLimit": "0",
+            "value": "0",
+            "data": {
+              "pattern": "0x002000",
+              "length": 1572
+            }
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "1",
+            "signer": "0",
+            "msg": "0x00",
+            "signature": "0x"
+          },
+          {
+            "scheme": "2",
+            "signer": "0",
+            "msg": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "signature": "0x00b00069d000000004c79000b4ad7e00000000d8cdd92300fc0069000000000000b00069d000000004c79000b4ad7e00000000d8cdd92300fc0069000000000000"
+          }
+        ],
+        "maxPriorityFee": "62129744303743321978455663154103902549160480482529255",
+        "maxFee": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+        "maxBlobFee": "0",
+        "blobHashes": [
+          "0x34236275fbf292c185129dab7dcb5b15d0f2ddced0a16199e57a7e82349c80ea"
+        ]
+      },
+      "out": {
+        "rawLength": 1884,
+        "rawKeccak": "0x77024ec1cda082d3ab7eaab8f4a0de13bc59884f4a4779e319b288faac442104",
+        "sigHash": "0x77024ec1cda082d3ab7eaab8f4a0de13bc59884f4a4779e319b288faac442104",
+        "signatureVerificationCost": "9500",
+        "valueTransferCost": "0",
+        "mandatoryGas": "21975",
+        "stateGasLimit": "0",
+        "standardGasLimit": "35559",
+        "calldataFloorGas": "131799",
+        "executionCapUsage": "131799",
+        "totalGasLimit": "131799",
+        "maxCost": "15261281569389037240631232253160057567153130708946760699836470114658942573413793065",
+        "blobBaseFee": "128",
+        "maxCostAtBlobBaseFee": "15261281569389037240631232253160057567153130708946760699836470114658942573430570281"
+      }
+    },
+    {
+      "name": "random 13",
+      "tx": {
+        "chainId": "31337",
+        "nonceKeys": [
+          "6171560864100450695114064182238680255743068814014",
+          "1625932627031351096937191513025446854489083938487307730905400"
+        ],
+        "nonceSeq": "128",
+        "sender": "1390064717975713420837970989432763838285818963800",
+        "frames": [],
+        "signatures": [
+          {
+            "scheme": "0",
+            "signer": "19306",
+            "msg": "0x000000ecbc450050b9721311e1009f00f9000100005b003ff30000000000002f00004ba20000dc000000c78a0268000000ab8500000000c1",
+            "signature": "0xa8ee00d90000cca8ee00d90000cca8ee00d90000cca8ee00d90000cca8ee00d90000cca8ee00d90000cca8ee00d90000cca8ee00d90000cca8ee00d90000cca8ee"
+          }
+        ],
+        "maxPriorityFee": "170",
+        "maxFee": "118588774898392007783830830320793082608961828403972633634312914",
+        "maxBlobFee": "0",
+        "blobHashes": [
+          "0xff959ae6a1b662c3fb1015d8a29c2b3c7b101c356fbb46c5348da3fd2134a245",
+          "0x000000000000000000000000000000000000000000000000000000000000000000"
+        ]
+      },
+      "out": {
+        "raw": "0x06f90148827a69f1950439065c40c3d639b09ecb26a52f741dffb6c13abe9a010306a8b28452fb0da29abc8547b51be0e0f9bb359ef68f6938818094f37ca862250271a244ffa7c046e6d098d6f52758c0f895f89380940000000000000000000000000000000000004b6ab838000000ecbc450050b9721311e1009f00f9000100005b003ff30000000000002f00004ba20000dc000000c78a0268000000ab8500000000c1b841a8ee00d90000cca8ee00d90000cca8ee00d90000cca8ee00d90000cca8ee00d90000cca8ee00d90000cca8ee00d90000cca8ee00d90000cca8ee00d90000cca8eede81aa9a49cc4824517d46e2b27b75b805f01fee9252884ce7b35cd092d280f843a0ff959ae6a1b662c3fb1015d8a29c2b3c7b101c356fbb46c5348da3fd2134a245a1000000000000000000000000000000000000000000000000000000000000000000",
+        "sigHash": "0x3870989132b1337e121df5b27da5dbcb505e6a91bca027947a66e97b748ef5ba",
+        "signatureVerificationCost": "100",
+        "valueTransferCost": "0",
+        "mandatoryGas": "12100",
+        "stateGasLimit": "0",
+        "standardGasLimit": "14288",
+        "calldataFloorGas": "24452",
+        "executionCapUsage": "24452",
+        "totalGasLimit": "24452",
+        "maxCost": "2899732723815481374330231463004032455954334628133938837626219373128",
+        "blobBaseFee": "0",
+        "maxCostAtBlobBaseFee": "2899732723815481374330231463004032455954334628133938837626219373128"
+      }
+    },
+    {
+      "name": "random 14",
+      "tx": {
+        "chainId": "31337",
+        "nonceKeys": [
+          "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+          "127",
+          "18446744073709551615"
+        ],
+        "nonceSeq": "1",
+        "sender": "457621759386424278187959950376723826710029301907",
+        "frames": [
+          {
+            "mode": "41",
+            "flags": "3",
+            "target": "1461501637330902918203684832716283019655932542975",
+            "gasLimit": "0",
+            "stateLimit": "0",
+            "value": "0",
+            "data": {
+              "pattern": "0x0000cb0068006c",
+              "length": 255
+            }
+          },
+          {
+            "mode": "0",
+            "flags": "21",
+            "target": "1461501637330902918203684832716283019655932542975",
+            "gasLimit": "8000",
+            "stateLimit": "550000",
+            "value": "0",
+            "data": "0x3d5a4fca250c7b687f774c8cee648223c6c1b7c256cd192de5e49276c36b0374f27307a2fe6a78ec9e2b63361a4d2c3ac4af888e6eaf9a"
+          },
+          {
+            "mode": "0",
+            "flags": "0",
+            "target": "0",
+            "gasLimit": "18446744073709551615",
+            "stateLimit": "0",
+            "value": "0",
+            "data": "0x"
+          },
+          {
+            "mode": "1",
+            "flags": "1",
+            "target": null,
+            "gasLimit": "8000",
+            "stateLimit": "0",
+            "value": "0",
+            "data": "0x00"
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "2",
+            "signer": "61219",
+            "msg": "0x",
+            "signature": "0x001a81001a81001a81001a81001a81001a81001a81001a81001a81001a81001a81001a81001a81001a81001a81001a81001a81001a81001a81001a81001a81001a"
+          },
+          {
+            "scheme": "1",
+            "signer": "0",
+            "msg": "0x",
+            "signature": "0x008800f6002c00008800f6002c00008800f6002c00008800f6002c00008800f6002c00008800f6002c00008800f6002c00008800f6002c00008800f6002c000088"
+          },
+          {
+            "scheme": "0",
+            "signer": "16327",
+            "msg": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "signature": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "maxPriorityFee": "2121199895307219000570345556",
+        "maxFee": "25751",
+        "maxBlobFee": "0",
+        "blobHashes": []
+      },
+      "out": {
+        "rawLength": 889,
+        "rawKeccak": "0x6bd74ad7c1849f7fffa2aeae3d4e9be142da9778387ea54a7a241e42499d45b9",
+        "sigHash": "0xb91b6e092f8cb08f7e085021637bc60b1a5c459578ccc5ed8bc2e13d0857e59b",
+        "signatureVerificationCost": "9600",
+        "valueTransferCost": "0",
+        "mandatoryGas": "23500",
+        "stateGasLimit": "550000",
+        "standardGasLimit": "18446744073710147327",
+        "calldataFloorGas": "68364",
+        "executionCapUsage": "18446744073709597327",
+        "totalGasLimit": "18446744073710147327",
+        "maxCost": "475022106642110003817577",
+        "blobBaseFee": "1",
+        "maxCostAtBlobBaseFee": "475022106642110003817577"
+      }
+    },
+    {
+      "name": "random 15",
+      "tx": {
+        "chainId": "31337",
+        "nonceKeys": [
+          "35607428586944598646607944088735141369031318577735610220399221672018",
+          "127"
+        ],
+        "nonceSeq": "1",
+        "sender": "374976041564997341253656348692570774289942056463",
+        "frames": [
+          {
+            "mode": "2",
+            "flags": "1",
+            "target": "0",
+            "gasLimit": "0",
+            "stateLimit": "550000",
+            "value": "256",
+            "data": {
+              "pattern": "0x1b540d2800e000002210fd11022d790000000097001b30000000519b00008400",
+              "length": 255
+            }
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "0",
+            "signer": "10267",
+            "msg": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "signature": "0x0009000009000009000009000009000009000009000009000009000009000009000009000009000009000009000009000009000009000009000009000009000009"
+          },
+          {
+            "scheme": "2",
+            "signer": "0",
+            "msg": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "signature": "0x"
+          }
+        ],
+        "maxPriorityFee": "2035951509266082981311810939274062616994548",
+        "maxFee": "340282366920938463463374607431768211456",
+        "maxBlobFee": "0",
+        "blobHashes": [
+          "0x3d05189861b67d525df271bd623c411f178e3787367577d39a8251037533f08c"
+        ]
+      },
+      "out": {
+        "rawLength": 613,
+        "rawKeccak": "0x77a176a2c5c222b1616acf8a9d667658a5e2e918c3fead64081843490c08d214",
+        "sigHash": "0x77a176a2c5c222b1616acf8a9d667658a5e2e918c3fead64081843490c08d214",
+        "signatureVerificationCost": "6800",
+        "valueTransferCost": "6000",
+        "mandatoryGas": "25275",
+        "stateGasLimit": "550000",
+        "standardGasLimit": "579515",
+        "calldataFloorGas": "54523",
+        "executionCapUsage": "54523",
+        "totalGasLimit": "604523",
+        "maxCost": "205708517298146482748269607808474814494015488",
+        "blobBaseFee": "1",
+        "maxCostAtBlobBaseFee": "205708517298146482748269607808474814494146560"
+      }
+    }
+  ],
+  "selftest": [
+    {
+      "name": "base",
+      "tx": {
+        "chainId": "1",
+        "nonceKeys": [
+          "0"
+        ],
+        "nonceSeq": "7",
+        "sender": "43981",
+        "frames": [
+          {
+            "mode": "1",
+            "flags": "3",
+            "target": null,
+            "gasLimit": "21000",
+            "stateLimit": "0",
+            "value": "0",
+            "data": "0x1122"
+          },
+          {
+            "mode": "2",
+            "flags": "0",
+            "target": "4660",
+            "gasLimit": "40000",
+            "stateLimit": "0",
+            "value": "0",
+            "data": "0x"
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "1",
+            "signer": "43981",
+            "msg": "0x",
+            "signature": "0x0101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101"
+          }
+        ],
+        "maxPriorityFee": "1000000000",
+        "maxFee": "30000000000",
+        "maxBlobFee": "0",
+        "blobHashes": []
+      },
+      "out": {
+        "raw": "0x06f8b201c1800794000000000000000000000000000000000000abcdeccc010380c48252088080821122de0280940000000000000000000000000000000000001234c4829c40808080f85cf85a0194000000000000000000000000000000000000abcd80b8410101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101cc843b9aca008506fc23ac0080c0",
+        "sigHash": "0x73827d510b0029220c237a46b27f6b6b8e7a3fd3b52c42a55c6c6e343fc45951",
+        "signatureVerificationCost": "2800",
+        "valueTransferCost": "0",
+        "mandatoryGas": "15750",
+        "stateGasLimit": "0",
+        "standardGasLimit": "77974",
+        "calldataFloorGas": "21510",
+        "executionCapUsage": "77974",
+        "totalGasLimit": "77974",
+        "maxCost": "2339220000000000",
+        "blobBaseFee": "0",
+        "maxCostAtBlobBaseFee": "2339220000000000"
+      }
+    },
+    {
+      "name": "state_limit 97920 on frame 0",
+      "tx": {
+        "chainId": "1",
+        "nonceKeys": [
+          "0"
+        ],
+        "nonceSeq": "7",
+        "sender": "43981",
+        "frames": [
+          {
+            "mode": "1",
+            "flags": "3",
+            "target": null,
+            "gasLimit": "21000",
+            "stateLimit": "97920",
+            "value": "0",
+            "data": "0x1122"
+          },
+          {
+            "mode": "2",
+            "flags": "0",
+            "target": "4660",
+            "gasLimit": "40000",
+            "stateLimit": "0",
+            "value": "0",
+            "data": "0x"
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "1",
+            "signer": "43981",
+            "msg": "0x",
+            "signature": "0x0101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101"
+          }
+        ],
+        "maxPriorityFee": "1000000000",
+        "maxFee": "30000000000",
+        "maxBlobFee": "0",
+        "blobHashes": []
+      },
+      "out": {
+        "raw": "0x06f8b501c1800794000000000000000000000000000000000000abcdefcf010380c782520883017e8080821122de0280940000000000000000000000000000000000001234c4829c40808080f85cf85a0194000000000000000000000000000000000000abcd80b8410101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101cc843b9aca008506fc23ac0080c0",
+        "sigHash": "0x1cc58f7cffff92a6bc5ef6f5de7a30f75f337a5e0252d3fda1c987cbe9d94497",
+        "signatureVerificationCost": "2800",
+        "valueTransferCost": "0",
+        "mandatoryGas": "15750",
+        "stateGasLimit": "97920",
+        "standardGasLimit": "175894",
+        "calldataFloorGas": "21510",
+        "executionCapUsage": "77974",
+        "totalGasLimit": "175894",
+        "maxCost": "5276820000000000",
+        "blobBaseFee": "0",
+        "maxCostAtBlobBaseFee": "5276820000000000"
+      }
+    },
+    {
+      "name": "value 1 on frame 1, to another account",
+      "tx": {
+        "chainId": "1",
+        "nonceKeys": [
+          "0"
+        ],
+        "nonceSeq": "7",
+        "sender": "43981",
+        "frames": [
+          {
+            "mode": "1",
+            "flags": "3",
+            "target": null,
+            "gasLimit": "21000",
+            "stateLimit": "0",
+            "value": "0",
+            "data": "0x1122"
+          },
+          {
+            "mode": "2",
+            "flags": "0",
+            "target": "4660",
+            "gasLimit": "40000",
+            "stateLimit": "0",
+            "value": "1",
+            "data": "0x"
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "1",
+            "signer": "43981",
+            "msg": "0x",
+            "signature": "0x0101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101"
+          }
+        ],
+        "maxPriorityFee": "1000000000",
+        "maxFee": "30000000000",
+        "maxBlobFee": "0",
+        "blobHashes": []
+      },
+      "out": {
+        "raw": "0x06f8b201c1800794000000000000000000000000000000000000abcdeccc010380c48252088080821122de0280940000000000000000000000000000000000001234c4829c40800180f85cf85a0194000000000000000000000000000000000000abcd80b8410101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101cc843b9aca008506fc23ac0080c0",
+        "sigHash": "0xae75fa392c23c012f1a938b49f55a5a34e258afb536088f1b6d32d3f4668e6f5",
+        "signatureVerificationCost": "2800",
+        "valueTransferCost": "6000",
+        "mandatoryGas": "21750",
+        "stateGasLimit": "0",
+        "standardGasLimit": "83974",
+        "calldataFloorGas": "27510",
+        "executionCapUsage": "83974",
+        "totalGasLimit": "83974",
+        "maxCost": "2519220000000000",
+        "blobBaseFee": "0",
+        "maxCostAtBlobBaseFee": "2519220000000000"
+      }
+    },
+    {
+      "name": "value 1 on the targetless frame 0",
+      "tx": {
+        "chainId": "1",
+        "nonceKeys": [
+          "0"
+        ],
+        "nonceSeq": "7",
+        "sender": "43981",
+        "frames": [
+          {
+            "mode": "1",
+            "flags": "3",
+            "target": null,
+            "gasLimit": "21000",
+            "stateLimit": "0",
+            "value": "1",
+            "data": "0x1122"
+          },
+          {
+            "mode": "2",
+            "flags": "0",
+            "target": "4660",
+            "gasLimit": "40000",
+            "stateLimit": "0",
+            "value": "0",
+            "data": "0x"
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "1",
+            "signer": "43981",
+            "msg": "0x",
+            "signature": "0x0101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101"
+          }
+        ],
+        "maxPriorityFee": "1000000000",
+        "maxFee": "30000000000",
+        "maxBlobFee": "0",
+        "blobHashes": []
+      },
+      "out": {
+        "raw": "0x06f8b201c1800794000000000000000000000000000000000000abcdeccc010380c48252088001821122de0280940000000000000000000000000000000000001234c4829c40808080f85cf85a0194000000000000000000000000000000000000abcd80b8410101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101cc843b9aca008506fc23ac0080c0",
+        "sigHash": "0x6f166b78eac2954de27887b241def1fb1e8961b7bf870c99d622d5f4c4dfc844",
+        "signatureVerificationCost": "2800",
+        "valueTransferCost": "0",
+        "mandatoryGas": "15750",
+        "stateGasLimit": "0",
+        "standardGasLimit": "77974",
+        "calldataFloorGas": "21510",
+        "executionCapUsage": "77974",
+        "totalGasLimit": "77974",
+        "maxCost": "2339220000000000",
+        "blobBaseFee": "0",
+        "maxCostAtBlobBaseFee": "2339220000000000"
+      }
+    },
+    {
+      "name": "value 1 on frame 1 retargeted to the sender",
+      "tx": {
+        "chainId": "1",
+        "nonceKeys": [
+          "0"
+        ],
+        "nonceSeq": "7",
+        "sender": "43981",
+        "frames": [
+          {
+            "mode": "1",
+            "flags": "3",
+            "target": null,
+            "gasLimit": "21000",
+            "stateLimit": "0",
+            "value": "0",
+            "data": "0x1122"
+          },
+          {
+            "mode": "2",
+            "flags": "0",
+            "target": "43981",
+            "gasLimit": "40000",
+            "stateLimit": "0",
+            "value": "1",
+            "data": "0x"
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "1",
+            "signer": "43981",
+            "msg": "0x",
+            "signature": "0x0101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101"
+          }
+        ],
+        "maxPriorityFee": "1000000000",
+        "maxFee": "30000000000",
+        "maxBlobFee": "0",
+        "blobHashes": []
+      },
+      "out": {
+        "raw": "0x06f8b201c1800794000000000000000000000000000000000000abcdeccc010380c48252088080821122de028094000000000000000000000000000000000000abcdc4829c40800180f85cf85a0194000000000000000000000000000000000000abcd80b8410101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101cc843b9aca008506fc23ac0080c0",
+        "sigHash": "0x2ed1fab8af366f8da5c0d0ecc614f667f85b8bec6fb2b0ed68413e11920a42d3",
+        "signatureVerificationCost": "2800",
+        "valueTransferCost": "0",
+        "mandatoryGas": "15750",
+        "stateGasLimit": "0",
+        "standardGasLimit": "77974",
+        "calldataFloorGas": "21510",
+        "executionCapUsage": "77974",
+        "totalGasLimit": "77974",
+        "maxCost": "2339220000000000",
+        "blobBaseFee": "0",
+        "maxCostAtBlobBaseFee": "2339220000000000"
+      }
+    },
+    {
+      "name": "frame 0 data of 64 zero bytes",
+      "tx": {
+        "chainId": "1",
+        "nonceKeys": [
+          "0"
+        ],
+        "nonceSeq": "7",
+        "sender": "43981",
+        "frames": [
+          {
+            "mode": "1",
+            "flags": "3",
+            "target": null,
+            "gasLimit": "21000",
+            "stateLimit": "0",
+            "value": "0",
+            "data": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "mode": "2",
+            "flags": "0",
+            "target": "4660",
+            "gasLimit": "40000",
+            "stateLimit": "0",
+            "value": "0",
+            "data": "0x"
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "1",
+            "signer": "43981",
+            "msg": "0x",
+            "signature": "0x0101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101"
+          }
+        ],
+        "maxPriorityFee": "1000000000",
+        "maxFee": "30000000000",
+        "maxBlobFee": "0",
+        "blobHashes": []
+      },
+      "out": {
+        "raw": "0x06f8f301c1800794000000000000000000000000000000000000abcdf86cf84b010380c48252088080b84000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000de0280940000000000000000000000000000000000001234c4829c40808080f85cf85a0194000000000000000000000000000000000000abcd80b8410101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101cc843b9aca008506fc23ac0080c0",
+        "sigHash": "0xbce0e0176a7aae3345356dd7d4cbeb49f3bc1b6ed7f0a9aac92ce19a247be8ab",
+        "signatureVerificationCost": "2800",
+        "valueTransferCost": "0",
+        "mandatoryGas": "15750",
+        "stateGasLimit": "0",
+        "standardGasLimit": "78198",
+        "calldataFloorGas": "25478",
+        "executionCapUsage": "78198",
+        "totalGasLimit": "78198",
+        "maxCost": "2345940000000000",
+        "blobBaseFee": "0",
+        "maxCostAtBlobBaseFee": "2345940000000000"
+      }
+    },
+    {
+      "name": "frame 0 data of 64 0x01 bytes",
+      "tx": {
+        "chainId": "1",
+        "nonceKeys": [
+          "0"
+        ],
+        "nonceSeq": "7",
+        "sender": "43981",
+        "frames": [
+          {
+            "mode": "1",
+            "flags": "3",
+            "target": null,
+            "gasLimit": "21000",
+            "stateLimit": "0",
+            "value": "0",
+            "data": "0x01010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101"
+          },
+          {
+            "mode": "2",
+            "flags": "0",
+            "target": "4660",
+            "gasLimit": "40000",
+            "stateLimit": "0",
+            "value": "0",
+            "data": "0x"
+          }
+        ],
+        "signatures": [
+          {
+            "scheme": "1",
+            "signer": "43981",
+            "msg": "0x",
+            "signature": "0x0101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101"
+          }
+        ],
+        "maxPriorityFee": "1000000000",
+        "maxFee": "30000000000",
+        "maxBlobFee": "0",
+        "blobHashes": []
+      },
+      "out": {
+        "raw": "0x06f8f301c1800794000000000000000000000000000000000000abcdf86cf84b010380c48252088080b84001010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101de0280940000000000000000000000000000000000001234c4829c40808080f85cf85a0194000000000000000000000000000000000000abcd80b8410101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101cc843b9aca008506fc23ac0080c0",
+        "sigHash": "0xb53cc1b21e8a723dd29bb33f53cc83492539c7dc5bb2d7ae8d0036b7b6d6261f",
+        "signatureVerificationCost": "2800",
+        "valueTransferCost": "0",
+        "mandatoryGas": "15750",
+        "stateGasLimit": "0",
+        "standardGasLimit": "78966",
+        "calldataFloorGas": "25478",
+        "executionCapUsage": "78966",
+        "totalGasLimit": "78966",
+        "maxCost": "2368980000000000",
+        "blobBaseFee": "0",
+        "maxCostAtBlobBaseFee": "2368980000000000"
+      }
+    }
+  ]
+}

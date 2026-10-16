@@ -38,6 +38,7 @@ pub struct OperationBuilder {
     outputs: Vec<(PubAccount, AssetId, u128)>,
     withdrawals: Vec<Withdrawal>,
     change: Option<PubAccount>,
+    binding: B256,
 }
 
 /// An operation missing its policy authorization inputs.
@@ -53,6 +54,9 @@ pub struct Operation<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITH
     pub outputs: [Commitment; N_OUTPUTS],
     pub withdrawals: [Withdrawal; N_WITHDRAWALS],
     pub ciphertexts: [Bytes; N_OUTPUTS],
+    /// Opaque to Tint. Lets a wrapper bind the operation to how it's submitted.
+    /// Zero when unused.
+    pub binding: B256,
 }
 
 /// A proven operation, ready to submit.
@@ -125,6 +129,13 @@ impl OperationBuilder {
         self
     }
 
+    /// Sets the operation's `binding`, which the proof commits to.
+    #[must_use]
+    pub fn binding(mut self, binding: B256) -> Self {
+        self.binding = binding;
+        self
+    }
+
     /// Sends any remaining input value, per asset, to `receiver`.
     #[must_use]
     pub fn change_to(mut self, receiver: PubAccount) -> Self {
@@ -181,6 +192,7 @@ impl OperationBuilder {
                 outputs: pad(commitments),
                 withdrawals: pad(self.withdrawals),
                 ciphertexts: pad(ciphertexts),
+                binding: self.binding,
             },
         })
     }
@@ -426,6 +438,7 @@ impl Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
         IPrivacyPool::Context {
             policyInputs: self.inputs.clone().map(|i| i.policy_input),
             ciphertexts: self.ciphertexts.clone(),
+            binding: self.binding,
         }
     }
 }
@@ -437,6 +450,7 @@ impl<const I: usize, const O: usize, const W: usize> Default for Operation<I, O,
             outputs: repeat(Commitment::default()),
             withdrawals: repeat(Withdrawal::default()),
             ciphertexts: repeat(Bytes::new()),
+            binding: B256::ZERO,
         }
     }
 }

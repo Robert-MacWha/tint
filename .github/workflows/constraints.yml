@@ -1,0 +1,39 @@
+name: Constraints
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: cachix/install-nix-action@v31
+    - uses: nix-community/cache-nix-action@v7
+      with:
+        primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: "packages/crates"
+        key: ${{ hashFiles('**/*.nix', '**/flake.lock') }}
+
+    - name: Profile JoinSplit constraints
+      env:
+        PROFILE_FORMAT: tree
+      run: |
+        nix develop .#ci --command bash -c \
+          "cd packages/crates && cargo bench -p tint --bench groth16_constraints" \
+          | tee constraints.txt
+        {
+          echo '```'
+          cat constraints.txt
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"

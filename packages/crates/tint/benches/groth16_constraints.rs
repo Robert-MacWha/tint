@@ -14,7 +14,7 @@ use ark_std::rand::{SeedableRng, rngs::StdRng};
 use tint::circuit::join_split::JoinSplitCircuit;
 
 fn main() {
-    let format = output_format_from_args(std::env::args());
+    let format = output_format_from_env();
 
     let mut rng = StdRng::seed_from_u64(42);
     let circuit = JoinSplitCircuit::default();
@@ -52,10 +52,12 @@ fn main() {
     println!("groth16 prove: {:?}", start.elapsed());
 }
 
-fn output_format_from_args(mut args: impl Iterator<Item = String>) -> Style {
-    match args.nth(1).as_deref() {
-        Some("--tree") => Style::Tree,
-        Some("--folded") => Style::Folded,
+/// Reads the breakdown style from `PROFILE_FORMAT` (`tree`, `folded`, or `flat`),
+/// defaulting to `flat`.
+fn output_format_from_env() -> Style {
+    match std::env::var("PROFILE_FORMAT").as_deref() {
+        Ok("tree") => Style::Tree,
+        Ok("folded") => Style::Folded,
         _ => Style::Flat,
     }
 }

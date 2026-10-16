@@ -1,4 +1,4 @@
-test:
+test: build-frame
     forge test
 
 bench:
@@ -6,3 +6,57 @@ bench:
 
 flamechart *ARGS:
     forge test --flamechart --match-test {{ARGS}}
+
+# Solc can't emit APPROVE, so this rewrites `TintFrame._approve`'s marker into it in the Yul IR.
+# Writes out/frame/TintFrame.hex, the initcode to deploy, and out/frame/TintFrame.unpatched.hex,
+# which the IR round-trip test runs. Uses the solc forge compiled with (via svm) unless SOLC is set.
+# Assemble TintFrame with the APPROVE opcode patched in
+build-frame:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    forge build
+    version=$(jq -r '.metadata.compiler.version' out/TintFrame.sol/TintFrame.json | cut -d+ -f1)
+    solc=${SOLC:-$HOME/.local/share/svm/$version/solc-$version}
+    marker='sstore(0x7f40b94fdfe5e13e90a14e3049fcb105a7f986f289ec0e6751cc92850ad1121b, 3)'
+
+    mkdir -p out/frame
+    forge inspect TintFrame ir > out/frame/TintFrame.yul
+    count=$(grep -cF "$marker" out/frame/TintFrame.yul || true)
+    if [ "$count" != 1 ]; then
+        echo "expected exactly 1 APPROVE marker in TintFrame's IR, found $count" >&2
+        exit 1
+    fi
+    sed "s/$marker/verbatim_3i_0o(hex\"AA\", 0, 0, 3)/" out/frame/TintFrame.yul > out/frame/TintFrame.patched.yul
+
+    # runs=200 rather than foundry.toml's 5000 keeps the code under hegota's 2^24 deploy gas cap.
+    assemble() {
+        printf '0x%s' "$("$solc" --strict-assembly --optimize --optimize-runs 200 --bin "$1" | sed -n '/Binary representation/{n;p}')"
+    }
+    assemble out/frame/TintFrame.yul > out/frame/TintFrame.unpatched.hex
+    assemble out/frame/TintFrame.patched.yul > out/frame/TintFrame.hex
+    echo "TintFrame initcode: $(( ($(wc -c < out/frame/TintFrame.hex) - 2) / 2 )) bytes"
+
+# Uses `cast` rather than `forge script`, whose local gas simulation doesn't know hegota's
+# code deposit costs.
+# Deploy TintFrame, its dependencies and a MockWETH to RPC_URL, then seed its ETH float
+deploy-frame FLOAT="0.05ether": build-frame
+    #!/usr/bin/env bash
+    set -euo pipefail
+    create() {
+        cast send --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" --json --create "$1" | jq -er .contractAddress
+    }
+    code() { jq -r .bytecode.object "out/$1.json"; }
+    args() { cast abi-encode "f($1)" "${@:2}" | cut -c3-; }
+
+    opcodes=$(create "$(code FrameOpcodes.yul/FrameOpcodes)")
+    verifier=$(create "$(code TintVerifier.sol/TintVerifier)")
+    poseidon=$(create "$(code Poseidon2T3.sol/Poseidon2T3)")
+    weth=$(create "$(code MockWETH.sol/MockWETH)")
+    tint=$(create "$(cat out/frame/TintFrame.hex)$(args address,address,address,address "$verifier" "$poseidon" "$weth" "$opcodes")")
+    cast send --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" "$tint" --value "{{FLOAT}}" > /dev/null
+
+    echo "FRAME_OPCODES=$opcodes"
+    echo "TINT_VERIFIER=$verifier"
+    echo "POSEIDON=$poseidon"
+    echo "WETH=$weth"
+    echo "TINT_FRAME=$tint"

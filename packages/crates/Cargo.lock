@@ -279,6 +279,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloy-hegota"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rlp",
+ "alloy-rpc-types-eth",
+ "alloy-signer",
+ "alloy-signer-local",
+ "async-trait",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "alloy-json-abi"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5189,6 +5206,29 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "x25519-dalek",
+]
+
+[[package]]
+name = "tint-frame"
+version = "0.1.0"
+dependencies = [
+ "alloy-hegota",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-types-eth",
+ "alloy-signer-local",
+ "alloy-sol-macro",
+ "alloy-sol-types",
+ "anyhow",
+ "ark-std 0.6.0",
+ "rand_core 0.6.4",
+ "serde_json",
+ "thiserror",
+ "tint",
+ "tint-groth16",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

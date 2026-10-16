@@ -1,7 +1,9 @@
 [workspace]
 members = [
+    "alloy-hegota",
     "cli",
     "tint",
+    "tint-frame",
     "tint-groth16",
     "tint-multisig-policy",
     "tint-password-policy",
@@ -23,10 +25,13 @@ cast_possible_truncation = "allow"
 [workspace.dependencies]
 alloy = "1.6"
 alloy-contract = "1.6.0"
+alloy-hegota = { path = "./alloy-hegota" }
 alloy-node-bindings = "1.6.0"
 alloy-primitives = "1.6.0"
 alloy-provider = "1.6.0"
+alloy-rlp = "0.3"
 alloy-rpc-types-eth = "1.6.0"
+alloy-signer = "1.6.0"
 alloy-signer-local = "1.6.0"
 alloy-sol-macro = "1.6.0"
 alloy-sol-types = "1.6.0"
@@ -69,6 +74,7 @@ skew-mmr = { git = "https://github.com/Robert-MacWha/efficient-inclusion-proofs"
 taceo-poseidon2 = { git = "https://github.com/Robert-MacWha/eddsa-babyjubjub" }
 thiserror = "2.0.18"
 tint = { path = "./tint", default-features = false }
+tint-frame = { path = "./tint-frame" }
 tint-groth16 = { path = "./tint-groth16" }
 tint-multisig-policy = { path = "./tint-multisig-policy" }
 tint-password-policy = { path = "./tint-password-policy" }

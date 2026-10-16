@@ -30,6 +30,7 @@ sol!(
         struct Context {
             bytes[N_INPUTS] policyInputs;
             bytes[N_OUTPUTS] ciphertexts;
+            bytes32 binding;
         }
     }
 
@@ -48,6 +49,17 @@ sol!(
         function verifyFrontier(uint256 histRanks, uint256 histDepth, uint256 histCount, bytes32[] calldata frontier) external view returns (bool);
         function computePublicSignals(IPrivacyPool.Operation calldata op) public view returns (uint256[] memory);
         function verifyOperation(IPrivacyPool.Operation calldata op) public view;
+    }
+
+    /// Tint as an EIP-8141 frame-transaction sender (see `tint-frame`).
+    #[derive(Debug)]
+    contract TintFrame {
+        uint256 public constant MIN_EXECUTE_GAS = 1_000_000;
+        uint256 public constant MIN_EXECUTE_STATE_GAS = 2_500_000;
+
+        function validate() external;
+        function checkSponsored(IPrivacyPool.Operation calldata op) external view;
+        function executeSponsored(IPrivacyPool.Operation calldata op) external;
     }
 );
 

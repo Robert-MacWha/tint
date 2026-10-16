@@ -1,6 +1,5 @@
 //! Cross-checks that the poseidon2T2 and poseidon2T3 hash functions computed
-//! locally match what `Tint.computePublicSignals` computes on-chain for the same
-//! inputs.
+//! locally match the on-chain `Poseidon2T2` and `Poseidon2T3` contracts.
 
 use alloy_node_bindings::Anvil;
 use alloy_primitives::U256;
@@ -14,8 +13,14 @@ use tracing::info;
 
 sol!(
     #[sol(rpc)]
-    Poseidon2,
-    "../../contracts/out/Poseidon2.sol/Poseidon2.json"
+    Poseidon2T2,
+    "../../contracts/out/Poseidon2T2.sol/Poseidon2T2.json"
+);
+
+sol!(
+    #[sol(rpc)]
+    Poseidon2T3,
+    "../../contracts/out/Poseidon2T3.sol/Poseidon2T3.json"
 );
 
 #[tokio::test]
@@ -37,13 +42,16 @@ async fn poseidon2_match_onchain() -> Result<(), Box<dyn std::error::Error>> {
         .connect_http(rpc_url.parse()?)
         .erased();
 
-    let poseidon2 = Poseidon2::deploy(provider.clone()).await?;
+    let poseidon2_t2 = Poseidon2T2::deploy(provider.clone()).await?;
+    let poseidon2_t3 = Poseidon2T3::deploy(provider.clone()).await?;
 
     let t2_local_inputs = [Fr::from(1), Fr::from(2)];
-    let t2_sol_inputs = [U256::from(1), U256::from(2)];
 
     let t2_local_output = poseidon2_compress(&t2_local_inputs);
-    let t2_sol_output = poseidon2.poseidon2T2(t2_sol_inputs).call().await?;
+    let t2_sol_output = poseidon2_t2
+        .compress(U256::from(1), U256::from(2), U256::ZERO)
+        .call()
+        .await?;
 
     info!(
         t2_local_output = ?t2_local_output,
@@ -57,10 +65,12 @@ async fn poseidon2_match_onchain() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let t3_local_inputs = [Fr::from(1), Fr::from(2), Fr::from(3)];
-    let t3_sol_inputs = [U256::from(1), U256::from(2), U256::from(3)];
 
     let t3_local_output = poseidon2_compress(&t3_local_inputs);
-    let t3_sol_output = poseidon2.poseidon2T3(t3_sol_inputs).call().await?;
+    let t3_sol_output = poseidon2_t3
+        .compress(U256::from(1), U256::from(2), U256::from(3), U256::ZERO)
+        .call()
+        .await?;
 
     info!(
         t3_local_output = ?t3_local_output,

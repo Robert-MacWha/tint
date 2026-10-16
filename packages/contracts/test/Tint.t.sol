@@ -6,6 +6,7 @@ import {ERC20, IERC20Errors} from "@openzeppelin/contracts/token/ERC20/ERC20.sol
 import {IPolicy} from "../src/interfaces/IPolicy.sol";
 import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {Tint} from "../src/Tint.sol";
+import {Poseidon2T3} from "../src/poseidon/Poseidon2T3.sol";
 import {NullifierRegistry} from "../src/NullifierRegistry.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
 import {ProofLib} from "../src/lib/ProofLib.sol";
@@ -62,7 +63,7 @@ contract TintTests is Test {
         token = new MockToken();
         verifier = new MockVerifier();
         policy = new MockPolicy();
-        tint = new Tint(verifier);
+        tint = new Tint(verifier, new Poseidon2T3());
         token.mint(address(this), type(uint128).max);
         token.approve(address(tint), type(uint256).max);
 

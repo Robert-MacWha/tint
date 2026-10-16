@@ -6,6 +6,7 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 import {IVerifier} from "./interfaces/IVerifier.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
 import {IPolicy} from "./interfaces/IPolicy.sol";
+import {IPoseidon2T3} from "./interfaces/IPoseidon2T3.sol";
 import {
     MMR_MAX_DEPTH,
     MMR_HISTORY_SIZE,
@@ -15,7 +16,6 @@ import {
     N_COMPRESSED_PUB
 } from "./lib/Constants.sol";
 import {ProofLib} from "./lib/ProofLib.sol";
-import {LibPoseidon2T3_BN254} from "./lib/LibPoseidon2T3_BN254.sol";
 import {NullifierRegistry} from "./NullifierRegistry.sol";
 import {SkewMmrWithHistory} from "@skew-mmr/contracts/SkewMmrWithHistory.sol";
 
@@ -25,6 +25,7 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
     using SafeERC20 for IERC20;
 
     IVerifier public immutable VERIFIER;
+    IPoseidon2T3 public immutable POSEIDON;
 
     event Deposited(
         bytes32 commitment, uint64 leafIndex, address indexed asset, uint128 amount, bytes encryptedPartial
@@ -36,8 +37,9 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
     error InvalidFrontier();
     error InvalidProof();
 
-    constructor(IVerifier _verifier) SkewMmrWithHistory(MMR_MAX_DEPTH, MMR_HISTORY_SIZE) {
+    constructor(IVerifier _verifier, IPoseidon2T3 _poseidon) SkewMmrWithHistory(MMR_MAX_DEPTH, MMR_HISTORY_SIZE) {
         VERIFIER = _verifier;
+        POSEIDON = _poseidon;
     }
 
     // -------------------- EXTERNAL STATE-CHANGING --------------------
@@ -52,7 +54,8 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
     function deposit(address asset, uint128 amount, bytes32 partialCommitment, bytes calldata encryptedPartial)
         external
     {
-        bytes32 commitment = ProofLib.toCommitment(asset, amount, partialCommitment);
+        bytes32 commitment =
+            bytes32(POSEIDON.compress(uint256(uint160(asset)), uint256(amount), uint256(partialCommitment), 0));
         uint64 leafIndex = mmr.count;
         _append(commitment);
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
@@ -181,7 +184,7 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
     // -------------------- INTERNAL VIEW --------------------
 
     /// @dev Overridable in test harnesses to swap out the hash function.
-    function _hash(bytes32 a, bytes32 b, bytes32 c) internal pure virtual override returns (bytes32) {
-        return bytes32(LibPoseidon2T3_BN254.compress(uint256(a), uint256(b), uint256(c), 0));
+    function _hash(bytes32 a, bytes32 b, bytes32 c) internal view virtual override returns (bytes32) {
+        return bytes32(POSEIDON.compress(uint256(a), uint256(b), uint256(c), 0));
     }
 }

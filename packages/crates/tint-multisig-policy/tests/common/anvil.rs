@@ -27,6 +27,18 @@ sol!(
 
 sol!(
     #[sol(rpc)]
+    Poseidon2T2,
+    "../../contracts/out/Poseidon2T2.sol/Poseidon2T2.json"
+);
+
+sol!(
+    #[sol(rpc)]
+    Poseidon2T3,
+    "../../contracts/out/Poseidon2T3.sol/Poseidon2T3.json"
+);
+
+sol!(
+    #[sol(rpc)]
     Tint,
     "../../contracts/out/Tint.sol/Tint.json"
 );
@@ -66,13 +78,16 @@ pub async fn setup() -> anyhow::Result<Instance> {
         .erased();
 
     let verifier = TintVerifier::deploy(provider.clone()).await?;
-    let tint = Tint::deploy(provider.clone(), *verifier.address()).await?;
+    let poseidon = Poseidon2T3::deploy(provider.clone()).await?;
+    let tint = Tint::deploy(provider.clone(), *verifier.address(), *poseidon.address()).await?;
     let token = MockToken::deploy(provider.clone()).await?;
 
     let policy_verifier = policy::MultisigVerifier::deploy(provider.clone()).await?;
+    let poseidon_t2 = Poseidon2T2::deploy(provider.clone()).await?;
     let policy = policy::MultisigPolicy::deploy(
         provider.clone(),
         *policy_verifier.address(),
+        *poseidon_t2.address(),
     )
     .await?;
 

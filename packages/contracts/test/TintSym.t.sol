@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {SymTest} from "halmos-cheatcodes/SymTest.sol";
 import {Test} from "forge-std/Test.sol";
 import {Tint} from "../src/Tint.sol";
+import {IPoseidon2T3} from "../src/interfaces/IPoseidon2T3.sol";
 import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
 import {IPolicy} from "../src/interfaces/IPolicy.sol";
@@ -34,7 +35,7 @@ contract SymPolicy is IPolicy {
 }
 
 contract TintHarness is Tint {
-    constructor(IVerifier verifier) Tint(verifier) {}
+    constructor(IVerifier verifier) Tint(verifier, IPoseidon2T3(address(0))) {}
 
     /// @dev Appends without the ERC20 leg of `deposit`.
     function append(bytes32 commitment) public {

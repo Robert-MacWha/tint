@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {LibPoseidon2T2_BN254} from "./LibPoseidon2T2_BN254.sol";
-import {LibPoseidon2T3_BN254} from "./LibPoseidon2T3_BN254.sol";
+import {IPoseidon2T2} from "../interfaces/IPoseidon2T2.sol";
 import {LibHybridCompression} from "./LibHybridCompression.sol";
 import {IPrivacyPool} from "../interfaces/IPrivacyPool.sol";
 import {
@@ -69,22 +68,14 @@ library ProofLib {
     /// `poseidon2(operationHash, contextHash)`. Covers everything in the
     /// operation except the policy inputs themselves.
     /// @dev Mirrors `UnsignedOperation::signing_hash`.
-    function signingHash(IPrivacyPool.Operation calldata op) internal pure returns (uint256) {
-        return LibPoseidon2T2_BN254.compress(uint256(operationHash(op)), contextHash(op), 0);
+    function signingHash(IPrivacyPool.Operation calldata op, IPoseidon2T2 poseidon) internal view returns (uint256) {
+        return poseidon.compress(uint256(operationHash(op)), contextHash(op), 0);
     }
 
     /// @notice Hashes the context fields the operation hash omits.
     /// @dev Mirrors `UnsignedOperation::context_hash`.
     function contextHash(IPrivacyPool.Operation calldata op) internal pure returns (uint256) {
         return uint256(keccak256(abi.encode(op.context.ciphertexts))) % BN254_FR_MODULUS;
-    }
-
-    /// @notice Computes the commitment for a deposit.
-    function toCommitment(address asset, uint128 amount, bytes32 partialCommitment) internal pure returns (bytes32) {
-        return
-            bytes32(
-                LibPoseidon2T3_BN254.compress(uint256(uint160(asset)), uint256(amount), uint256(partialCommitment), 0)
-            );
     }
 
     function frontierState(IPrivacyPool.Operation calldata op)

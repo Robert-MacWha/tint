@@ -9,6 +9,7 @@ import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/Pac
 
 import {Tint} from "./Tint.sol";
 import {IVerifier} from "./interfaces/IVerifier.sol";
+import {IPoseidon2T3} from "./interfaces/IPoseidon2T3.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
 import {ProofLib} from "./lib/ProofLib.sol";
 import {N_WITHDRAWALS} from "./lib/Constants.sol";
@@ -42,7 +43,10 @@ contract TintPaymaster is Tint, BasePaymaster {
     uint128 public constant POST_OP_GAS_COST = 100_000;
     uint128 public constant MIN_REFUND = 10_000 gwei;
 
-    constructor(IEntryPoint _entryPoint, IVerifier _verifier, IERC20 _weth) BasePaymaster(_entryPoint) Tint(_verifier) {
+    constructor(IEntryPoint _entryPoint, IVerifier _verifier, IPoseidon2T3 _poseidon, IERC20 _weth)
+        BasePaymaster(_entryPoint)
+        Tint(_verifier, _poseidon)
+    {
         WETH = _weth;
         WETH.forceApprove(address(this), type(uint256).max);
     }

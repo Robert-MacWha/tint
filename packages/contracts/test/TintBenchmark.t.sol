@@ -4,6 +4,8 @@ pragma solidity ^0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Tint} from "../src/Tint.sol";
+import {IPoseidon2T3} from "../src/interfaces/IPoseidon2T3.sol";
+import {Poseidon2T3} from "../src/poseidon/Poseidon2T3.sol";
 import {TintVerifier} from "../src/TintVerifier.sol";
 import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
@@ -36,7 +38,7 @@ contract AlwaysTrueVerifier is IVerifier {
 
 contract TintHarness is Tint {
     using ProofLib for IPrivacyPool.Operation;
-    constructor(IVerifier _verifier) Tint(_verifier) {}
+    constructor(IVerifier _verifier, IPoseidon2T3 _poseidon) Tint(_verifier, _poseidon) {}
 
     function toPublicSignals(IPrivacyPool.Operation calldata op) external pure returns (uint256[] memory) {
         return op.toPublicSignals();
@@ -66,7 +68,7 @@ contract TintGasReportTest is Test {
         token = new MockToken();
         TintVerifier groth16Verifier = new TintVerifier();
         AlwaysTrueVerifier verifier = new AlwaysTrueVerifier(groth16Verifier);
-        tint = new TintHarness(verifier);
+        tint = new TintHarness(verifier, new Poseidon2T3());
         token.approve(address(tint), type(uint256).max);
 
         // Seed the MMR so benchmarks measure a steady-state frontier, not an empty one.

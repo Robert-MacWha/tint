@@ -1,19 +1,14 @@
 mod common;
 
-use alloy_node_bindings::Anvil;
-use alloy_primitives::{B256, U256, hex};
-use alloy_provider::{Provider, ProviderBuilder};
-use alloy_signer_local::PrivateKeySigner;
-use alloy_sol_types::SolError;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
 use k256::{ecdsa::SigningKey, elliptic_curve::Generate};
 use tint::{
     account::Account,
     circuit::join_split::JoinSplitCircuit,
     deposit::Deposit,
-    note::{asset::AssetId, owned::OwnedNote},
+    note::asset::AssetId,
     operation::OperationBuilder,
-    policy::{Authorizer, Policy},
+    policy::Policy,
     skew_mmr::{SkewMmr, SkewMmrExt},
     syncer::{Syncer, rpc::RpcSyncer},
 };
@@ -26,7 +21,7 @@ use tracing::info;
 
 use crate::common::{
     anvil::{self, send},
-    policy::{MultisigPolicy as MultisigPolicyContract, MultisigVerifier, deploy_policy},
+    policy::deploy_policy,
 };
 
 /// Test that we can spend a note using the `MultisigPolicyCircuit`,

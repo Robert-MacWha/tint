@@ -97,20 +97,18 @@ async fn events() -> Result<(), Box<dyn std::error::Error>> {
             block_number,
         })
     });
+
     // The two deposits occupy leaves 0 and 1.
-    let committed = proven
-        .outputs()
-        .iter()
-        .zip(ciphertexts)
-        .zip(2u64..)
-        .map(|((output, ciphertext), leaf_index)| {
+    let committed = proven.outputs().iter().zip(ciphertexts).zip(2u64..).map(
+        |((output, ciphertext), leaf_index)| {
             SyncEvent::Committed(Committed {
                 commitment: output.hash(),
                 leaf_index,
                 encrypted_note: ciphertext.clone(),
                 block_number,
             })
-        });
+        },
+    );
     let withdrawn = SyncEvent::Withdrawn(Withdrawn {
         asset,
         amount: 2 * amount - 800,

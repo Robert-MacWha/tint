@@ -4,9 +4,7 @@ use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_types::SolCall;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
 use kohaku_fork_kit::{
-    alto::{AltoBuilder, AltoInstance},
-    entry_point::deploy_entry_point,
-    simple_account::deploy_simple_account,
+    alto::AltoBuilder, entry_point::deploy_entry_point, simple_account::deploy_simple_account,
 };
 use kohaku_userop_kit::{
     builder::UserOperationBuilder,
@@ -22,14 +20,14 @@ use tint::{
     policy::Policy,
     provider_ext::TintProviderExt,
     skew_mmr::{SkewMmr, SkewMmrExt},
-    syncer::{Snapshot, Syncer, rpc::RpcSyncer},
+    syncer::{Syncer, rpc::RpcSyncer},
 };
 use tint_groth16::artifacts::Artifacts;
 use tint_paymaster::{Refund, TintPaymaster, UserOperationPaymasterExt};
 use tracing::info;
 
 use crate::common::{
-    anvil::{self, Instance, MockToken, send},
+    anvil::{self, MockToken, send},
     paymaster::deploy_paymaster,
 };
 
@@ -49,69 +47,12 @@ const MAX_FEE: u128 = NOTE_AMOUNT / 10;
 #[ignore = "run with `cargo test --release -- --ignored`"]
 async fn tint_paymaster_transfer_refund() -> anyhow::Result<()> {
     let mut rng = StdRng::seed_from_u64(1);
-    let refund = Refund::transfer(REFUND_RECIPIENT);
-    let sponsored = sponsor(refund, &mut rng).await?;
-
-    let token = MockToken::new(
-        sponsored.paymaster.weth,
-        sponsored.instance.provider.clone(),
-    );
-    let kept = token.balanceOf(sponsored.paymaster.address).call().await?;
-    let refunded = token.balanceOf(REFUND_RECIPIENT).call().await?;
-    assert!(refunded > U256::ZERO, "recipient should be refunded");
-    assert_eq!(
-        kept + refunded,
-        U256::from(MAX_FEE),
-        "paymaster should keep only the fee it didn't refund"
-    );
-
-    Ok(())
-}
-
-/// A userop paid for by a Tint note, refunding the unspent fee as a new note.
-#[tokio::test]
-#[ignore = "run with `cargo test --release -- --ignored`"]
-async fn tint_paymaster_deposit_refund() -> anyhow::Result<()> {
-    let mut rng = StdRng::seed_from_u64(1);
-    let refund = Refund::deposit(&account().pub_account(), &mut rng)?;
-    let sponsored = sponsor(refund, &mut rng).await?;
-
-    let token = MockToken::new(
-        sponsored.paymaster.weth,
-        sponsored.instance.provider.clone(),
-    );
-    let kept = token.balanceOf(sponsored.paymaster.address).call().await?;
-    let refunded = MAX_FEE - u128::try_from(kept)?;
-    assert!(refunded > 0, "account should be refunded");
-
-    let snapshot = sync(&sponsored.instance).await?;
-    let notes = snapshot.unspent(&account());
-    assert!(
-        notes
-            .iter()
-            .any(|n| n.note.asset == AssetId::from(sponsored.paymaster.weth)
-                && n.note.amount == refunded),
-        "account should own the refunded note"
-    );
-
-    Ok(())
-}
-
-struct Sponsored {
-    instance: Instance,
-    paymaster: TintPaymaster,
-    _alto: AltoInstance,
-}
-
-/// Deposits a note for [`account`] and spends it in a userop sponsored by a
-/// fresh `TintPaymaster`, refunding to `refund`.
-async fn sponsor(refund: Refund, rng: &mut StdRng) -> anyhow::Result<Sponsored> {
     let instance = anvil::setup().await?;
     let provider = instance.provider.clone();
     let chain_id = provider.get_chain_id().await?;
     let tint = *instance.tint.address();
-    //? `TintPaymaster` only treats WETH as an ERC20, so the mock token stands in.
     let weth = *instance.token.address();
+    let token = MockToken::new(weth, provider.clone());
 
     let entrypoint = deploy_entry_point(&provider).await?;
     deploy_simple_account(&provider).await?;
@@ -137,14 +78,17 @@ async fn sponsor(refund: Refund, rng: &mut StdRng) -> anyhow::Result<Sponsored> 
 
     // Deposit a note
     info!("Depositing into Tint");
-    let account = account();
+    let account = Account::from_seed(&[11u8; 32], Policy::NONE);
     let asset = AssetId::from(weth);
-    let deposit = Deposit::new(tint, account.pub_account(), asset, NOTE_AMOUNT, rng);
+    let deposit = Deposit::new(tint, account.pub_account(), asset, NOTE_AMOUNT, &mut rng);
     send(&provider, deposit.approval()).await?;
-    send(&provider, deposit.transaction(rng)?).await?;
+    send(&provider, deposit.transaction(&mut rng)?).await?;
 
     // Sync a skew-MMR against the provider
-    let snapshot = sync(&instance).await?;
+    let snapshot = RpcSyncer::new(provider.clone())
+        .sync(tint, ..)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
     let mut mmr = SkewMmr::new();
     mmr.append_events(&snapshot.events)?;
     let notes = snapshot.unspent(&account);
@@ -164,14 +108,14 @@ async fn sponsor(refund: Refund, rng: &mut StdRng) -> anyhow::Result<Sponsored> 
                 .into(),
         }]);
 
+    let refund = Refund::transfer(REFUND_RECIPIENT);
     let operation = OperationBuilder::new()
         .spend(notes[0].clone())
         .withdraw(owner.address(), asset, UNSHIELD_AMOUNT)
         .change_to(account.pub_account());
     let operation =
-        builder.tint_paymaster_operation(&paymaster, operation, MAX_FEE, &refund, rng)?;
-    // The note is under `Policy::NONE`, so there's nothing to authorize.
-    let operation = operation.prove_with_mmr(&mmr, &artifacts, rng)?;
+        builder.tint_paymaster_operation(&paymaster, operation, MAX_FEE, &refund, &mut rng)?;
+    let operation = operation.prove_with_mmr(&mmr, &artifacts, &mut rng)?;
     let builder = builder
         .with_tint_paymaster(&paymaster, &operation, &refund, &*alto)
         .await?;
@@ -189,27 +133,137 @@ async fn sponsor(refund: Refund, rng: &mut StdRng) -> anyhow::Result<Sponsored> 
             .map_err(|e| anyhow::anyhow!(e))?,
         "note should be spent"
     );
-    let token = MockToken::new(weth, provider.clone());
     assert_eq!(
         token.balanceOf(SINK).call().await?,
         U256::from(UNSHIELD_AMOUNT),
         "userop's call should spend the unshielded WETH"
     );
 
-    Ok(Sponsored {
-        instance,
-        paymaster,
-        _alto: alto,
-    })
+    let kept = token.balanceOf(paymaster.address).call().await?;
+    let refunded = token.balanceOf(REFUND_RECIPIENT).call().await?;
+    assert!(refunded > U256::ZERO, "recipient should be refunded");
+    assert_eq!(
+        kept + refunded,
+        U256::from(MAX_FEE),
+        "paymaster should keep only the fee it didn't refund"
+    );
+
+    Ok(())
 }
 
-fn account() -> Account {
-    Account::from_seed(&[11u8; 32], Policy::NONE)
-}
+/// A userop paid for by a Tint note, refunding the unspent fee as a new note.
+#[tokio::test]
+#[ignore = "run with `cargo test --release -- --ignored`"]
+async fn tint_paymaster_deposit_refund() -> anyhow::Result<()> {
+    let mut rng = StdRng::seed_from_u64(1);
+    let instance = anvil::setup().await?;
+    let provider = instance.provider.clone();
+    let chain_id = provider.get_chain_id().await?;
+    let tint = *instance.tint.address();
+    let weth = *instance.token.address();
+    let token = MockToken::new(weth, provider.clone());
 
-async fn sync(instance: &Instance) -> anyhow::Result<Snapshot> {
-    RpcSyncer::new(instance.provider.clone())
-        .sync(*instance.tint.address(), ..)
+    let entrypoint = deploy_entry_point(&provider).await?;
+    deploy_simple_account(&provider).await?;
+    let paymaster = TintPaymaster {
+        address: deploy_paymaster(&provider, tint, weth).await?,
+        weth,
+    };
+
+    info!("Starting local alto bundler");
+    let alto = AltoBuilder::new(
+        instance.anvil.endpoint(),
+        entrypoint,
+        ALTO_EXECUTOR_PK,
+        ALTO_UTILITY_PK,
+    )
+    .prefund(&provider)
+    .await?
+    .spawn()
+    .await?;
+
+    info!("Setting up circuits...");
+    let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>()?;
+
+    // Deposit a note
+    info!("Depositing into Tint");
+    let account = Account::from_seed(&[11u8; 32], Policy::NONE);
+    let asset = AssetId::from(weth);
+    let deposit = Deposit::new(tint, account.pub_account(), asset, NOTE_AMOUNT, &mut rng);
+    send(&provider, deposit.approval()).await?;
+    send(&provider, deposit.transaction(&mut rng)?).await?;
+
+    // Sync a skew-MMR against the provider
+    let syncer = RpcSyncer::new(provider.clone());
+    let snapshot = syncer
+        .sync(tint, ..)
         .await
-        .map_err(|e| anyhow::anyhow!(e))
+        .map_err(|e| anyhow::anyhow!(e))?;
+    let mut mmr = SkewMmr::new();
+    mmr.append_events(&snapshot.events)?;
+    let notes = snapshot.unspent(&account);
+
+    // Sponsor a UserOp with the note
+    info!("Unshielding from Tint with the tint paymaster");
+    let owner = PrivateKeySigner::random();
+    let smart_account = Simple7702SmartAccount::new(provider.clone(), owner.address(), chain_id);
+
+    let builder = UserOperationBuilder::new_with_smart_account(&smart_account)
+        .await?
+        .with_call(&vec![Call {
+            target: weth,
+            value: U256::ZERO,
+            data: MockToken::transferCall::new((SINK, U256::from(UNSHIELD_AMOUNT)))
+                .abi_encode()
+                .into(),
+        }]);
+
+    let refund = Refund::deposit(&account.pub_account(), &mut rng)?;
+    let operation = OperationBuilder::new()
+        .spend(notes[0].clone())
+        .withdraw(owner.address(), asset, UNSHIELD_AMOUNT)
+        .change_to(account.pub_account());
+    let operation =
+        builder.tint_paymaster_operation(&paymaster, operation, MAX_FEE, &refund, &mut rng)?;
+    let operation = operation.prove_with_mmr(&mmr, &artifacts, &mut rng)?;
+    let builder = builder
+        .with_tint_paymaster(&paymaster, &operation, &refund, &*alto)
+        .await?;
+
+    let userop = builder.build().sign(&owner).await?;
+    let userop_hash = alto.send_user_operation(&userop).await?;
+    let userop_receipt = alto.wait_for_receipt(userop_hash).await?;
+    info!("Userop receipt: {userop_receipt:?}");
+
+    assert!(userop_receipt.success, "userop should succeed");
+    assert!(
+        provider
+            .tint_is_spent(tint, notes[0].nullifier())
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?,
+        "note should be spent"
+    );
+    assert_eq!(
+        token.balanceOf(SINK).call().await?,
+        U256::from(UNSHIELD_AMOUNT),
+        "userop's call should spend the unshielded WETH"
+    );
+
+    let kept = token.balanceOf(paymaster.address).call().await?;
+    let refunded = MAX_FEE - u128::try_from(kept)?;
+    assert!(refunded > 0, "account should be refunded");
+
+    let snapshot = syncer
+        .sync(tint, ..)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
+    let notes = snapshot.unspent(&account);
+    assert!(
+        notes
+            .iter()
+            .any(|n| n.note.asset == asset && n.note.amount == refunded),
+        "account should own the refunded note"
+    );
+
+    Ok(())
 }

@@ -8,13 +8,10 @@ use rand_core::OsRng;
 use tint::{
     abis::tint::ProofLib,
     fr::address_to_fr,
-    operation::UnauthorizedOperation,
-    policy::{Authorizer, Policy},
+    operation::{Operation, OperationError},
+    policy::Policy,
 };
-use tint_groth16::{
-    artifacts::Artifacts,
-    prove::{placeholder, prove_with_matrices},
-};
+use tint_groth16::{artifacts::Artifacts, prove::prove_with_matrices};
 use tint_poseidon2::poseidon2_compress;
 use tracing::info;
 
@@ -30,6 +27,8 @@ pub struct PasswordPolicy {
 
 #[derive(Debug, thiserror::Error)]
 pub enum PasswordPolicyError {
+    #[error("operation error: {0}")]
+    Operation(#[from] OperationError),
     #[error("proving error: {0}")]
     Synthesis(#[from] SynthesisError),
     #[error("generated proof is invalid")]
@@ -52,19 +51,30 @@ impl PasswordPolicy {
         Policy::new(self.contract_address, poseidon2_compress(&[self.secret]))
     }
 
+    /// Authorizes every input of `op` bound to this policy.
+    ///
+    /// # Errors
+    ///
+    /// Errors if proving fails, or no input of `op` is bound to this policy.
+    pub fn authorize(&self, op: &mut Operation) -> Result<(), PasswordPolicyError> {
+        let input = self.prove(op)?;
+        op.authorize(self.policy(), input)?;
+        Ok(())
+    }
+
     /// Proves knowledge of the password over `op`'s signing hash. The returned
     /// policy input authorizes every input of `op` bound to this policy.
     ///
     /// # Errors
     ///
     /// Errors if proving fails.
-    pub fn prove(&self, op: &UnauthorizedOperation) -> Result<Bytes, PasswordPolicyError> {
-        let operation = op.operation();
+    pub fn prove(&self, op: &Operation) -> Result<Bytes, PasswordPolicyError> {
+        let witness = op.witness();
         let circuit = PasswordPolicyCircuit::new(
             address_to_fr(self.contract_address),
-            operation.signing_hash(),
-            operation.clone(),
-            operation.context_hash(),
+            witness.signing_hash(),
+            witness.clone(),
+            witness.context_hash(),
             self.secret,
         );
 
@@ -86,25 +96,11 @@ impl PasswordPolicy {
     }
 }
 
-impl Authorizer for PasswordPolicy {
-    type Error = PasswordPolicyError;
-
-    fn placeholder(&self, op: &UnauthorizedOperation) -> Vec<Bytes> {
-        let input = ProofLib::Proof::from(placeholder::<Bn254>())
-            .abi_encode()
-            .into();
-        op.policy_inputs(self.contract_address, &input)
-    }
-
-    fn authorize(&self, op: &UnauthorizedOperation) -> Result<Vec<Bytes>, Self::Error> {
-        Ok(op.policy_inputs(self.contract_address, &self.prove(op)?))
-    }
-}
-
 impl std::fmt::Debug for PasswordPolicy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PasswordPolicy")
             .field("contract_address", &self.contract_address)
+            .field("secret", &"[REDACTED]")
             .finish_non_exhaustive()
     }
 }

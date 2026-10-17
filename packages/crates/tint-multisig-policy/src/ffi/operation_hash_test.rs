@@ -6,7 +6,7 @@ use tint::{
     account::keys::NullifierKey,
     circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
     note::{commitment::Commitment, owned::OwnedNote, withdrawal::Withdrawal},
-    operation::Operation,
+    operation::OperationWitness,
     policy::Policy,
 };
 
@@ -14,7 +14,7 @@ use crate::ffi::bindings::{Bytes32, OperationHash};
 
 #[test]
 fn operation_hash_matches_go() {
-    let mut op: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> = Operation::default();
+    let mut op: OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> = OperationWitness::default();
     let policy = Policy::new(Address::new([2; 20]), Fr::from(3u64));
     let owned = OwnedNote {
         note: Commitment::new(

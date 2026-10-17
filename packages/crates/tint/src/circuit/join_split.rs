@@ -18,7 +18,7 @@ use tint_poseidon2::{
 use crate::{
     array::try_from_fn,
     circuit::{FrVar, gadgets::operation::OperationVar, variable, witness},
-    operation::Operation,
+    operation::OperationWitness,
 };
 
 type SkewMmrProof<const MMR_MAX_DEPTH: usize> =
@@ -87,7 +87,7 @@ pub struct JoinSplit<
 > {
     pub hist_state: SkewMmrState<MMR_MAX_DEPTH>,
     pub frontier: [Option<Fr>; MMR_MAX_DEPTH],
-    pub operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+    pub operation: OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
     pub inclusion_proofs: [SkewMmrProof<MMR_MAX_DEPTH>; N_INPUTS],
     pub bound_params_hash: Fr,
 }
@@ -133,7 +133,7 @@ impl<
         frontier: [Option<Fr>; MMR_MAX_DEPTH],
         bound_params_hash: Fr,
         inclusion_proofs: [SkewMmrProof<MMR_MAX_DEPTH>; N_INPUTS],
-        operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+        operation: OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
     ) -> Self {
         Self {
             hist_state,
@@ -304,7 +304,7 @@ impl<
             frontier: from_fn(|_| None),
             bound_params_hash: Fp::default(),
             inclusion_proofs: from_fn(|_| SkewMmrProof::default()),
-            operation: Operation::default(),
+            operation: OperationWitness::default(),
         }
     }
 }
@@ -340,7 +340,7 @@ mod tests {
         mmr.append(Fr::from(2u64));
         let proof = mmr.prove_element(input.commitment()).unwrap();
 
-        let mut operation = Operation::<I, O, W>::default();
+        let mut operation = OperationWitness::<I, O, W>::default();
         operation.inputs[0] = input.spendable(Bytes::new());
         operation.outputs[0] = Commitment {
             asset,
@@ -377,7 +377,7 @@ mod tests {
         mmr.append(Fr::from(1u64));
         let state = mmr.prove(0);
 
-        let mut operation = Operation::<I, O, W>::default();
+        let mut operation = OperationWitness::<I, O, W>::default();
         operation.inputs[0] = input.spendable(Bytes::new());
         operation.outputs[0] = Commitment {
             asset,

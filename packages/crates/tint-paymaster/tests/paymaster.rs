@@ -17,7 +17,7 @@ use tint::{
     deposit::Deposit,
     note::asset::AssetId,
     operation::OperationBuilder,
-    policy::{NoPolicy, Policy},
+    policy::Policy,
     provider_ext::TintProviderExt,
     skew_mmr::{SkewMmr, SkewMmrExt},
     syncer::{Syncer, rpc::RpcSyncer},
@@ -60,7 +60,6 @@ async fn test_tint_paymaster() -> anyhow::Result<()> {
     deploy_simple_account(&provider).await?;
     let paymaster = TintPaymaster {
         address: deploy_paymaster(&provider, tint, weth).await?,
-        tint,
         weth,
     };
 
@@ -116,10 +115,11 @@ async fn test_tint_paymaster() -> anyhow::Result<()> {
         .spend(notes[0].clone())
         .withdraw(owner.address(), asset, UNSHIELD_AMOUNT)
         .change_to(account.pub_account());
+    let operation = builder.tint_paymaster_operation(&paymaster, operation, MAX_FEE, &mut rng)?;
+    // The note is under `Policy::NONE`, so there's nothing to authorize.
+    let operation = operation.prove_with_mmr(&mmr, &artifacts, &mut rng)?;
     let builder = builder
-        .with_tint_paymaster(
-            &paymaster, operation, &NoPolicy, &mmr, &artifacts, MAX_FEE, &*alto, &mut rng,
-        )
+        .with_tint_paymaster(&paymaster, &operation, &*alto)
         .await?;
 
     let userop = builder.build().sign(&owner).await?;
@@ -137,9 +137,9 @@ async fn test_tint_paymaster() -> anyhow::Result<()> {
     );
 
     let token = MockToken::new(weth, provider.clone());
-    let fee = token.balanceOf(paymaster.address).call().await?;
-    assert!(
-        fee > U256::ZERO && fee <= U256::from(MAX_FEE),
+    assert_eq!(
+        token.balanceOf(paymaster.address).call().await?,
+        U256::from(MAX_FEE),
         "paymaster should collect the fee"
     );
     assert_eq!(

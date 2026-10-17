@@ -5790,7 +5790,6 @@ dependencies = [
  "alloy-sol-macro",
  "alloy-sol-types",
  "anyhow",
- "ark-bn254",
  "ark-std 0.6.0",
  "kohaku-fork-kit",
  "kohaku-userop-kit",

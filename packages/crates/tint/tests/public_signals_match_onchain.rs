@@ -2,7 +2,7 @@
 //! `ProofLib.toPublicSignals` computes on-chain for the same operation.
 
 use alloy_node_bindings::Anvil;
-use alloy_primitives::{Address, B256, Bytes, U256};
+use alloy_primitives::{Address, B256, U256};
 use alloy_provider::{Provider, ProviderBuilder};
 use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_macro::sol;
@@ -53,7 +53,6 @@ async fn public_signals_match_onchain() -> Result<(), Box<dyn std::error::Error>
         .output(account.pub_account(), asset, 900)
         .withdraw(Address::repeat_byte(2), asset, 100)
         .build(&mut rng)?
-        .authorize(vec![Bytes::new()])?
         .simulate_with_mmr(&mmr)?;
 
     //? The harness's `sol!` binding has its own `Operation` type, so convert

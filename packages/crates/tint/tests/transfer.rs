@@ -1,4 +1,4 @@
-use alloy_primitives::{Bytes, U256};
+use alloy_primitives::U256;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{
@@ -69,7 +69,6 @@ async fn transfer() -> Result<(), Box<dyn std::error::Error>> {
         .output(account_1.pub_account(), asset, 100)
         .output(account_2.pub_account(), asset, amount - 100)
         .build(&mut rng)?
-        .authorize(vec![Bytes::default()])?
         .prove_with_mmr(&mmr, &artifacts, &mut rng)?;
     let transfer_receipt = send(&provider, proven.transaction(tint)).await?;
     info!("Transferred for {} gas", transfer_receipt.gas_used);

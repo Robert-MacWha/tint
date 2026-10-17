@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, B256, Bytes};
+use alloy_primitives::{Address, B256};
 use alloy_provider::Provider;
 use ark_std::rand::{Rng, rngs::StdRng};
 use rand_core::SeedableRng;
@@ -81,7 +81,6 @@ async fn events() -> Result<(), Box<dyn std::error::Error>> {
         .output(account_2.pub_account(), asset, 500)
         .withdraw(unshield_address, asset, 2 * amount - 800)
         .build(&mut rng)?
-        .authorize(vec![Bytes::default(); 2])?
         .simulate_with_mmr(&mmr)?;
     let receipt = send(&provider, simulated.transaction(tint)).await?;
 

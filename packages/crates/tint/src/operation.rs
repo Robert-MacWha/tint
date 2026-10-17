@@ -1,4 +1,4 @@
-use std::array::repeat;
+use std::{array::repeat, iter::repeat_n};
 
 use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_provider::network::TransactionBuilder;
@@ -31,6 +31,7 @@ use crate::{
         owned::{OwnedNote, SpendableNote},
         withdrawal::Withdrawal,
     },
+    policy::Policy,
     skew_mmr::{SkewMmr, SkewMmrProof},
 };
 
@@ -45,15 +46,21 @@ pub struct OperationBuilder {
     binding: B256,
 }
 
-/// An operation missing its policy authorization inputs.
-pub struct UnauthorizedOperation {
-    operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+/// A built operation, ready for its policies to authorize and then prove.
+pub struct Operation {
+    witness: OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+    /// Which input slots [`Self::authorize`] has filled.
+    authorized: [bool; N_INPUTS],
 }
 
 /// An operation's inputs, outputs, and withdrawals, padded to the circuit's
 /// slot counts.
 #[derive(Clone, Debug)]
-pub struct Operation<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize> {
+pub struct OperationWitness<
+    const N_INPUTS: usize,
+    const N_OUTPUTS: usize,
+    const N_WITHDRAWALS: usize,
+> {
     pub inputs: [SpendableNote; N_INPUTS],
     pub outputs: [Commitment; N_OUTPUTS],
     pub withdrawals: [Withdrawal; N_WITHDRAWALS],
@@ -82,8 +89,10 @@ pub enum OperationError {
     InsufficientFunds(AssetId),
     #[error("inputs exceed outputs and withdrawals for asset {0:?}, and no change receiver is set")]
     Unbalanced(AssetId),
-    #[error("expected {expected} policy inputs, got {got}")]
-    PolicyInputCount { expected: usize, got: usize },
+    #[error("no input is bound to policy {0:?}")]
+    UnusedPolicy(Policy),
+    #[error("an input bound to policy {0:?} is unauthorized")]
+    Unauthorized(Policy),
     #[error("an operation needs at least one input")]
     NoInputs,
     #[error("input {0} is not in the skew-MMR")]
@@ -159,10 +168,7 @@ impl OperationBuilder {
     /// # Errors
     ///
     /// Errors if the operation exceeds the circuit's slot counts or doesn't balance.
-    pub fn build<R: RngCore + CryptoRng>(
-        self,
-        rng: &mut R,
-    ) -> Result<UnauthorizedOperation, OperationError> {
+    pub fn build<R: RngCore + CryptoRng>(self, rng: &mut R) -> Result<Operation, OperationError> {
         if self.inputs.is_empty() {
             return Err(OperationError::NoInputs);
         }
@@ -196,8 +202,8 @@ impl OperationBuilder {
             .inputs
             .into_iter()
             .map(|note| note.spendable(Bytes::new()));
-        Ok(UnauthorizedOperation {
-            operation: Operation {
+        Ok(Operation {
+            witness: OperationWitness {
                 inputs: pad(inputs),
                 outputs: pad(commitments),
                 withdrawals: pad(self.withdrawals),
@@ -205,6 +211,7 @@ impl OperationBuilder {
                 caller: self.caller,
                 binding: self.binding,
             },
+            authorized: [false; N_INPUTS],
         })
     }
 
@@ -262,58 +269,82 @@ impl OperationBuilder {
     }
 }
 
-impl UnauthorizedOperation {
+impl Operation {
     /// The padded operation, as spending policies witness it. Policy inputs
-    /// are empty; they don't affect [`Operation::signing_hash`].
+    /// don't affect [`OperationWitness::signing_hash`], so authorizing doesn't change it.
     #[must_use]
-    pub fn operation(&self) -> &Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
-        &self.operation
+    pub fn witness(&self) -> &OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
+        &self.witness
     }
 
-    /// One policy input per live input, as [`Self::authorize`] takes: `input`
-    /// for those bound to the policy at `policy`, and empty for the rest.
-    #[must_use]
-    pub fn policy_inputs(&self, policy: Address, input: &Bytes) -> Vec<Bytes> {
-        self.operation
-            .live_inputs()
-            .map(|i| {
-                if i.note.policy.address == policy {
-                    input.clone()
-                } else {
-                    Bytes::new()
-                }
-            })
-            .collect()
-    }
-
-    /// Attaches one policy input per input note, in input order. Inputs under
-    /// [`Policy::NONE`](crate::policy::Policy::NONE) take an empty input.
+    /// Authorizes every live input bound to `policy` with `input`. Policies
+    /// call this from their own `authorize`; inputs under [`Policy::NONE`]
+    /// need no authorization.
     ///
     /// # Errors
     ///
-    /// Errors if `policy_inputs` doesn't have one entry per input.
-    pub fn authorize(
-        mut self,
-        policy_inputs: Vec<Bytes>,
-    ) -> Result<Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>, OperationError> {
-        let expected = self.operation.live_inputs().count();
-        if policy_inputs.len() != expected {
-            return Err(OperationError::PolicyInputCount {
-                expected,
-                got: policy_inputs.len(),
-            });
+    /// Errors if no live input is bound to `policy`.
+    pub fn authorize(&mut self, policy: Policy, input: Bytes) -> Result<(), OperationError> {
+        let inputs = &self.witness.inputs;
+        let slots: Vec<usize> = (0..N_INPUTS)
+            .filter(|&slot| inputs[slot].is_live() && inputs[slot].note.policy == policy)
+            .collect();
+        if slots.is_empty() {
+            return Err(OperationError::UnusedPolicy(policy));
         }
 
-        let inputs = self.operation.inputs.iter_mut().filter(|i| i.is_live());
-        for (input, policy_input) in inputs.zip(policy_inputs) {
-            input.policy_input = policy_input;
+        for (&slot, input) in slots.iter().zip(repeat_n(input, slots.len())) {
+            self.witness.inputs[slot].policy_input = input;
+            self.authorized[slot] = true;
         }
-        Ok(self.operation)
+        Ok(())
+    }
+
+    /// Proves the operation against `mmr`'s current frontier.
+    ///
+    /// See [`Self::prove`].
+    ///
+    /// # Errors
+    ///
+    /// Errors if an input is unauthorized or isn't in `mmr`, or proving fails.
+    pub fn prove_with_mmr<R: RngCore + CryptoRng>(
+        self,
+        mmr: &SkewMmr,
+        artifacts: &Artifacts<Bn254>,
+        rng: &mut R,
+    ) -> Result<ProvenOperation, OperationError> {
+        self.into_authorized()?.prove_with_mmr(mmr, artifacts, rng)
+    }
+
+    /// Assembles an operation for simulation.
+    ///
+    /// The resulting [`ProvenOperation`] has placeholder proofs. It can be used for simulation, but
+    /// will revert if submitted normally. Use [`Self::prove_with_mmr`] to generate a valid proof
+    /// for submission.
+    ///
+    /// # Errors
+    ///
+    /// Errors if an input is unauthorized or isn't in `mmr`, or witnessing fails.
+    pub fn simulate_with_mmr(self, mmr: &SkewMmr) -> Result<ProvenOperation, OperationError> {
+        self.into_authorized()?.simulate_with_mmr(mmr)
+    }
+
+    /// The operation, once every live input under a policy is authorized.
+    fn into_authorized(
+        self,
+    ) -> Result<OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>, OperationError> {
+        for (slot, note) in self.witness.inputs.iter().enumerate() {
+            let policy = note.note.policy;
+            if note.is_live() && policy != Policy::NONE && !self.authorized[slot] {
+                return Err(OperationError::Unauthorized(policy));
+            }
+        }
+        Ok(self.witness)
     }
 }
 
 impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
-    Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>
+    OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>
 {
     /// This operation's binding hash, mirroring [`crate::circuit::operation::OperationVar::hash`].
     pub fn hash(&self) -> Fr {
@@ -335,12 +366,12 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
             hash = poseidon2_compress(&[hash, c]);
         }
         for withdrawal in &self.withdrawals {
-            let contribution = if withdrawal.amount == 0 {
+            let c = if withdrawal.amount == 0 {
                 Fr::from(0u64)
             } else {
                 withdrawal.hash()
             };
-            hash = poseidon2_compress(&[hash, contribution]);
+            hash = poseidon2_compress(&[hash, c]);
         }
         hash
     }
@@ -372,9 +403,9 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     }
 }
 
-impl Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
+impl OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
     /// Proves the operation against `mmr`'s current frontier.
-    pub fn prove_with_mmr<R: RngCore + CryptoRng>(
+    fn prove_with_mmr<R: RngCore + CryptoRng>(
         self,
         mmr: &SkewMmr,
         artifacts: &Artifacts<Bn254>,
@@ -384,12 +415,12 @@ impl Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
         self.prove(proofs, artifacts, rng)
     }
 
-    /// Assembles an operation for simulation.  
+    /// Assembles an operation for simulation.
     ///
-    /// The resulting [`ProvenOperation`] has placeholder proofs. It can be used for simulation, but 
-    /// will revert if submitted normally. Use [`Self::prove_with_mmr`] to generate a valid proof 
+    /// The resulting [`ProvenOperation`] has placeholder proofs. It can be used for simulation, but
+    /// will revert if submitted normally. Use [`Self::prove_with_mmr`] to generate a valid proof
     /// for submission.
-    pub fn simulate_with_mmr(self, mmr: &SkewMmr) -> Result<ProvenOperation, OperationError> {
+    fn simulate_with_mmr(self, mmr: &SkewMmr) -> Result<ProvenOperation, OperationError> {
         let proofs = self.inclusion_proofs(mmr)?;
         self.assemble(proofs, |_| Ok(placeholder()))
     }
@@ -485,9 +516,9 @@ impl Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
     }
 }
 
-impl<const I: usize, const O: usize, const W: usize> Default for Operation<I, O, W> {
+impl<const I: usize, const O: usize, const W: usize> Default for OperationWitness<I, O, W> {
     fn default() -> Self {
-        Operation {
+        OperationWitness {
             inputs: repeat(SpendableNote::default()),
             outputs: repeat(Commitment::default()),
             withdrawals: repeat(Withdrawal::default()),
@@ -575,4 +606,77 @@ fn pad<T: Default, const N: usize>(items: impl IntoIterator<Item = T>) -> [T; N]
 /// Mirrors `ProofLib.toBoundParamsHash`
 fn bound_params_hash(context: &IPrivacyPool::Context) -> Fr {
     Fr::from_be_bytes_mod_order(keccak256(context.abi_encode()).as_slice())
+}
+
+#[cfg(test)]
+mod tests {
+    use ark_std::rand::{SeedableRng, rngs::StdRng};
+
+    use super::*;
+    use crate::account::Account;
+
+    /// Should authorize a policy's inputs, after which the operation assembles.
+    #[test]
+    fn test_authorize() {
+        let (mut op, mmr) = operation(policy());
+
+        op.authorize(policy(), Bytes::from_static(b"input"))
+            .unwrap();
+
+        let simulated = op.simulate_with_mmr(&mmr).unwrap();
+        assert_eq!(
+            simulated.operation().context.policyInputs[0],
+            Bytes::from_static(b"input")
+        );
+    }
+
+    /// Should refuse to authorize a policy no input is bound to.
+    #[test]
+    fn test_authorize_unused_policy() {
+        let (mut op, _) = operation(policy());
+        let other = Policy::new(policy().address, Fr::from(8));
+
+        let err = op.authorize(other, Bytes::new()).unwrap_err();
+        assert!(matches!(err, OperationError::UnusedPolicy(p) if p == other));
+    }
+
+    /// Should refuse to assemble while an input under a policy is unauthorized.
+    #[test]
+    fn test_unauthorized() {
+        let (op, mmr) = operation(policy());
+
+        let err = op.simulate_with_mmr(&mmr).err().unwrap();
+        assert!(matches!(err, OperationError::Unauthorized(p) if p == policy()));
+    }
+
+    /// Should need no authorization for inputs under `Policy::NONE`.
+    #[test]
+    fn test_no_policy() {
+        let (op, mmr) = operation(Policy::NONE);
+
+        op.simulate_with_mmr(&mmr).unwrap();
+    }
+
+    fn policy() -> Policy {
+        Policy::new(Address::repeat_byte(1), Fr::from(7))
+    }
+
+    /// An operation spending one note under `policy`, and an MMR holding it.
+    fn operation(policy: Policy) -> (Operation, SkewMmr) {
+        let account = Account::from_seed(&[11u8; 32], policy);
+        let note = account
+            .pub_account()
+            .commitment(AssetId::default(), 100, B256::ZERO);
+        let note = OwnedNote::new(note, &account).unwrap();
+
+        let mut mmr = SkewMmr::new();
+        mmr.append(note.commitment());
+
+        let op = OperationBuilder::new()
+            .spend(note)
+            .change_to(account.pub_account())
+            .build(&mut StdRng::seed_from_u64(1))
+            .unwrap();
+        (op, mmr)
+    }
 }

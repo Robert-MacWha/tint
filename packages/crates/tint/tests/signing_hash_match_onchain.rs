@@ -3,7 +3,7 @@
 //! operation.
 
 use alloy_node_bindings::Anvil;
-use alloy_primitives::{Address, B256, Bytes};
+use alloy_primitives::{Address, B256};
 use alloy_provider::{Provider, ProviderBuilder};
 use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_macro::sol;
@@ -59,10 +59,10 @@ async fn signing_hash_match_onchain() -> Result<(), Box<dyn std::error::Error>> 
         .caller(Address::repeat_byte(3))
         .binding(B256::repeat_byte(4))
         .build(&mut rng)?;
-    let local = op.operation().signing_hash();
+    let local = op.witness().signing_hash();
 
     //? The signing hash doesn't depend on the proof, so simulating computes it without proving.
-    let simulated = op.authorize(vec![Bytes::new()])?.simulate_with_mmr(&mmr)?;
+    let simulated = op.simulate_with_mmr(&mmr)?;
 
     //? The harness's `sol!` binding has its own `Operation` type, so convert
     //? tint's through its ABI encoding.

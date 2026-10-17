@@ -3,9 +3,9 @@ pub mod password;
 
 use std::io::{self, Write};
 
-use alloy::primitives::{Address, Bytes};
+use alloy::primitives::Address;
 use anyhow::Context;
-use tint::{operation::UnauthorizedOperation, policy::Policy};
+use tint::{operation::Operation, policy::Policy};
 use tint_multisig_policy::{N_SIGNERS, THRESHOLD, policy::MultisigPolicy};
 use tint_password_policy::policy::PasswordPolicy;
 
@@ -25,13 +25,14 @@ impl Authorizer {
         }
     }
 
-    /// Produces the policy input authorizing `op`'s inputs under this policy.
-    pub fn authorize(&self, op: &UnauthorizedOperation) -> anyhow::Result<Bytes> {
+    /// Authorizes `op`'s inputs under this policy.
+    pub fn authorize(&self, op: &mut Operation) -> anyhow::Result<()> {
         match self {
-            Authorizer::Noop => Ok(Bytes::new()),
-            Authorizer::Password(password) => Ok(password.prove(op)?),
-            Authorizer::Multisig(multisig) => Ok(multisig.prove(op)?),
+            Authorizer::Noop => {}
+            Authorizer::Password(password) => password.authorize(op)?,
+            Authorizer::Multisig(multisig) => multisig.authorize(op)?,
         }
+        Ok(())
     }
 }
 

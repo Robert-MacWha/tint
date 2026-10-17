@@ -14,7 +14,7 @@ use tint::{
     circuit::join_split::JoinSplitCircuit,
     deposit::Deposit,
     note::{asset::AssetId, owned::OwnedNote},
-    operation::{OperationBuilder, UnauthorizedOperation},
+    operation::{Operation, OperationBuilder},
     provider_ext::TintProviderExt,
     skew_mmr::{SkewMmr, SkewMmrExt},
     syncer::{Snapshot, Syncer, rpc::RpcSyncer},
@@ -182,13 +182,9 @@ pub fn print_balance(session: &Session) {
 }
 
 /// Authorizes, proves, and submits `op`, then re-syncs.
-async fn operate(session: &mut Session, op: UnauthorizedOperation) -> anyhow::Result<()> {
-    let policy_input = session.authorizer.authorize(&op)?;
-    let proven = op.authorize(vec![policy_input])?.prove_with_mmr(
-        &session.mmr,
-        &session.artifacts,
-        &mut OsRng,
-    )?;
+async fn operate(session: &mut Session, mut op: Operation) -> anyhow::Result<()> {
+    session.authorizer.authorize(&mut op)?;
+    let proven = op.prove_with_mmr(&session.mmr, &session.artifacts, &mut OsRng)?;
 
     send(session, proven.transaction(session.tint_address)).await?;
     sync(session).await?;

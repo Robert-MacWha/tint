@@ -81,15 +81,13 @@ async fn multisig() -> Result<(), Box<dyn std::error::Error>> {
 
     // Spend the note, which is only spendable using the `MultisigPolicy` contract / circuit.
     info!("Spending note");
-    let op = OperationBuilder::new()
+    let mut op = OperationBuilder::new()
         .spend(notes[0].clone())
         .output(account_1.pub_account(), asset, amount - 100)
         .output(account_2.pub_account(), asset, 100)
         .build(&mut rng)?;
-    let policy_input = multisig.prove(&op)?;
-    let proven = op
-        .authorize(vec![policy_input])?
-        .prove_with_mmr(&mmr, &artifacts, &mut rng)?;
+    multisig.authorize(&mut op)?;
+    let proven = op.prove_with_mmr(&mmr, &artifacts, &mut rng)?;
     send(&provider, proven.transaction(tint)).await?;
 
     info!("Syncing");

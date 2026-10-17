@@ -6,7 +6,7 @@ use tint::{
     circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
     fr::address_to_fr,
     note::{commitment::Commitment, withdrawal::Withdrawal},
-    operation::Operation,
+    operation::OperationWitness,
 };
 
 use crate::{N_SIGNERS, ffi::artifacts::Artifacts};
@@ -51,7 +51,7 @@ pub enum FfiError {
 pub fn prove_via_go(
     artifacts: &Artifacts,
     policy_address: Fr,
-    operation: &Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+    operation: &OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
     context_hash: Fr,
     pub_keys: &[VerifyingKey; N_SIGNERS],
     signatures: &[Option<Signature>; N_SIGNERS],
@@ -90,8 +90,8 @@ pub fn prove_via_go(
     Ok(proof)
 }
 
-impl From<&Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>> for TintOperation {
-    fn from(op: &Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>) -> Self {
+impl From<&OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>> for TintOperation {
+    fn from(op: &OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>) -> Self {
         let inputs = std::array::from_fn(|i| {
             let input = &op.inputs[i].note;
             TintSpendableCommitment {

@@ -1,3 +1,4 @@
+use alloy_primitives::{B256, b256};
 use alloy_sol_macro::sol;
 use ark_bn254::Bn254;
 use ark_groth16::Proof;
@@ -28,6 +29,8 @@ sol!(
         }
 
         struct Context {
+            address caller;
+            bytes32 binding;
             bytes[N_INPUTS] policyInputs;
             bytes[N_OUTPUTS] ciphertexts;
         }
@@ -46,10 +49,13 @@ sol!(
         function executePreVerified(bytes32 slot, IPrivacyPool.Operation calldata operation) public;
         function isSpent(bytes32 nullifierHash) external view returns (bool);
         function verifyFrontier(uint256 histRanks, uint256 histDepth, uint256 histCount, bytes32[] calldata frontier) external view returns (bool);
-        function computePublicSignals(IPrivacyPool.Operation calldata op) public view returns (uint256[] memory);
         function verifyOperation(IPrivacyPool.Operation calldata op) public view;
     }
 );
+
+/// `Simulatable.sol`'s flag slot, at `erc7201:tint.simulation`.
+pub const SIMULATION_SLOT: B256 =
+    b256!("0xb4a234b71e30e41b0c32030fc0a6277a036950341675d2266bc10f1fc28e5200");
 
 impl From<Proof<Bn254>> for ProofLib::Proof {
     fn from(p: Proof<Bn254>) -> Self {

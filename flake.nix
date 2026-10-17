@@ -20,7 +20,7 @@
         overlays = [ rust-overlay.overlays.default ];
       };
 
-      rustToolchain = pkgs.rust-bin.stable."1.93.0".default.override {
+      rustToolchain = pkgs.rust-bin.stable."1.98.0".default.override {
         extensions = [
           "rust-src"
           "llvm-tools"
@@ -37,6 +37,7 @@
       yices = pkgs.callPackage ./nix/yices/package.nix { };
       halmos = pkgs.callPackage ./nix/halmos/package.nix { };
       picus = pkgs.callPackage ./nix/picus/package.nix { };
+      alto = pkgs.callPackage ./nix/alto/package.nix { };
     in
     {
       devShells.${system} = {
@@ -47,6 +48,7 @@
             yices
             halmos
             picus
+            alto
 
             rustfmtNightly
             rustToolchain
@@ -70,6 +72,7 @@
           buildInputs = [
             pkgs.just
             pkgs.foundry
+            alto
             rustToolchain
             pkgs.rustPlatform.bindgenHook
             pkgs.go

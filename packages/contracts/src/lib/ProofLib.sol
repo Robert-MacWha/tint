@@ -67,15 +67,17 @@ library ProofLib {
     /// @notice Computes the message spending policies authorize:
     /// `poseidon2(operationHash, contextHash)`. Covers everything in the
     /// operation except the policy inputs themselves.
-    /// @dev Mirrors `UnsignedOperation::signing_hash`.
+    /// @dev Mirrors `OperationWitness::signing_hash`.
     function signingHash(IPrivacyPool.Operation calldata op, IPoseidon2T2 poseidon) internal view returns (uint256) {
         return poseidon.compress(uint256(operationHash(op)), contextHash(op), 0);
     }
 
-    /// @notice Hashes the context fields the operation hash omits.
-    /// @dev Mirrors `UnsignedOperation::context_hash`.
+    /// @notice Hashes the context fields the operation hash omits, except
+    /// policy inputs.
+    /// @dev Mirrors `OperationWitness::context_hash`.
     function contextHash(IPrivacyPool.Operation calldata op) internal pure returns (uint256) {
-        return uint256(keccak256(abi.encode(op.context.ciphertexts))) % BN254_FR_MODULUS;
+        return uint256(keccak256(abi.encode(op.context.caller, op.context.binding, op.context.ciphertexts)))
+            % BN254_FR_MODULUS;
     }
 
     function frontierState(IPrivacyPool.Operation calldata op)

@@ -2,7 +2,11 @@ use alloy_primitives::{Address, Bytes};
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 use k256::ecdsa::{Signature, VerifyingKey};
-use tint::{fr::address_to_fr, operation::UnauthorizedOperation, policy::Policy};
+use tint::{
+    fr::address_to_fr,
+    operation::{Operation, OperationError},
+    policy::Policy,
+};
 
 use crate::{
     N_SIGNERS, THRESHOLD,
@@ -50,6 +54,8 @@ pub struct MultisigPolicy<const N_SIGNERS: usize, const THRESHOLD: usize> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum MultisigPolicyError {
+    #[error("operation error: {0}")]
+    Operation(#[from] OperationError),
     #[error("signing error: {0}")]
     Signature(#[from] signature::Error),
     #[error("proving error: {0}")]
@@ -100,6 +106,17 @@ impl MultisigPolicy<N_SIGNERS, THRESHOLD> {
         Policy::new(self.contract_address, self.witness)
     }
 
+    /// Authorizes every input of `op` bound to this policy.
+    ///
+    /// # Errors
+    ///
+    /// Errors if proving fails, or no input of `op` is bound to this policy.
+    pub fn authorize(&self, op: &mut Operation) -> Result<(), MultisigPolicyError> {
+        let input = self.prove(op)?;
+        op.authorize(self.policy(), input)?;
+        Ok(())
+    }
+
     /// Proves that at least `THRESHOLD` of this multisig's `N_SIGNERS`
     /// signers validly signed `op`'s signing hash. The returned policy input
     /// authorizes every input of `op` bound to this policy.
@@ -107,9 +124,9 @@ impl MultisigPolicy<N_SIGNERS, THRESHOLD> {
     /// # Errors
     ///
     /// Errors if a signer fails or proving fails.
-    pub fn authorize(&self, op: &UnauthorizedOperation) -> Result<Bytes, MultisigPolicyError> {
-        let operation = op.operation();
-        let msg = fr_to_be_bytes(operation.signing_hash());
+    pub fn prove(&self, op: &Operation) -> Result<Bytes, MultisigPolicyError> {
+        let witness = op.witness();
+        let msg = fr_to_be_bytes(witness.signing_hash());
 
         let pub_keys = self.pub_keys();
         let signatures: [Option<Signature>; N_SIGNERS] =
@@ -118,8 +135,8 @@ impl MultisigPolicy<N_SIGNERS, THRESHOLD> {
         let solidity_proof = ffi::prove_via_go(
             &self.artifacts,
             address_to_fr(self.contract_address),
-            operation,
-            operation.context_hash(),
+            witness,
+            witness.context_hash(),
             &pub_keys,
             &signatures,
         )?;
@@ -175,6 +192,6 @@ mod tests {
             .build(&mut StdRng::seed_from_u64(1))
             .unwrap();
 
-        multisig.authorize(&op).unwrap();
+        multisig.prove(&op).unwrap();
     }
 }

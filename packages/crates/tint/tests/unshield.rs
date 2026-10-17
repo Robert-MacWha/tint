@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, Bytes, U256};
+use alloy_primitives::{Address, U256};
 use ark_std::rand::{Rng, rngs::StdRng};
 use rand_core::SeedableRng;
 use tint::{
@@ -69,7 +69,6 @@ async fn unshield() -> Result<(), Box<dyn std::error::Error>> {
         .output(account_1.pub_account(), asset, 100)
         .withdraw(unshield_address, asset, amount - 100)
         .build(&mut rng)?
-        .authorize(vec![Bytes::default()])?
         .prove_with_mmr(&mmr, &artifacts, &mut rng)?;
     let unshield_receipt = send(&provider, proven.transaction(tint)).await?;
     info!("Unshielded for {} gas", unshield_receipt.gas_used);

@@ -1,7 +1,5 @@
 mod common;
 
-use alloy_provider::Provider;
-use alloy_rpc_types_eth::TransactionRequest;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
 use k256::{ecdsa::SigningKey, elliptic_curve::Generate};
 use tint::{
@@ -21,7 +19,10 @@ use tint_multisig_policy::{
 };
 use tracing::info;
 
-use crate::common::anvil;
+use crate::common::{
+    anvil::{self, send},
+    policy::deploy_policy,
+};
 
 /// Test that we can spend a note using the `MultisigPolicyCircuit`,
 /// including on-chain verification via the generated (uncompressed) Solidity
@@ -38,11 +39,11 @@ async fn multisig() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut rng = StdRng::seed_from_u64(1);
     let instance = anvil::setup().await?;
+    let policy = deploy_policy(&instance.provider).await?;
 
     let provider = instance.provider;
     let tint = *instance.tint.address();
     let token = instance.token;
-    let policy = instance.policy;
 
     // Setup circuits
     info!("Setting up circuits...");
@@ -54,7 +55,7 @@ async fn multisig() -> Result<(), Box<dyn std::error::Error>> {
     let signers: [Box<dyn Signer + Send + Sync>; N_SIGNERS] =
         std::array::from_fn(|_| Box::new(SigningKey::generate()) as Box<dyn Signer + Send + Sync>);
     let multisig = MultisigPolicy::<N_SIGNERS, THRESHOLD>::new(
-        *policy.address(),
+        policy,
         signers,
         ffi::artifacts::load_artifacts()?,
     )?;
@@ -80,15 +81,13 @@ async fn multisig() -> Result<(), Box<dyn std::error::Error>> {
 
     // Spend the note, which is only spendable using the `MultisigPolicy` contract / circuit.
     info!("Spending note");
-    let op = OperationBuilder::new()
+    let mut op = OperationBuilder::new()
         .spend(notes[0].clone())
         .output(account_1.pub_account(), asset, amount - 100)
         .output(account_2.pub_account(), asset, 100)
         .build(&mut rng)?;
-    let policy_input = multisig.authorize(&op)?;
-    let proven = op
-        .authorize(vec![policy_input])?
-        .prove_with_mmr(&mmr, &artifacts, &mut rng)?;
+    multisig.authorize(&mut op)?;
+    let proven = op.prove_with_mmr(&mmr, &artifacts, &mut rng)?;
     send(&provider, proven.transaction(tint)).await?;
 
     info!("Syncing");
@@ -105,13 +104,6 @@ async fn multisig() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(notes_2.len(), 1);
     assert_eq!(notes_2[0].note.amount, 100);
     assert_eq!(notes_2[0].note.asset, asset);
-
-    Ok(())
-}
-
-async fn send(provider: &impl Provider, tx: TransactionRequest) -> anyhow::Result<()> {
-    let receipt = provider.send_transaction(tx).await?.get_receipt().await?;
-    assert!(receipt.status());
 
     Ok(())
 }

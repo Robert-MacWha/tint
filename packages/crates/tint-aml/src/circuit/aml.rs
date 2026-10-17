@@ -6,7 +6,7 @@ use tint::circuit::join_split::{K, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS, TREE_DEPT
 use tint::circuit::merkle_tree::InclusionProofVar;
 use tint::circuit::operation::OperationVar;
 use tint::indexer::merkle_tree::InclusionProof;
-use tint::operation::Operation;
+use tint::operation::OperationWitness;
 
 pub struct AML {
     // Public inputs
@@ -15,7 +15,7 @@ pub struct AML {
 
     // Witnessed values
     pub commitment_inclusion_proofs: [InclusionProof<TREE_DEPTH, K>; N_INPUTS],
-    pub operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+    pub operation: OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
 }
 
 pub struct AMLVar {
@@ -42,7 +42,7 @@ impl AML {
         new_root: Fr,
         expected_operation_hash: Fr,
         commitment_inclusion_proofs: [InclusionProof<TREE_DEPTH, K>; N_INPUTS],
-        operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+        operation: OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
     ) -> Self {
         Self {
             new_root,

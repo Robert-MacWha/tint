@@ -1,10 +1,20 @@
-use ark_ec::pairing::Pairing;
+use ark_ec::{AffineRepr, pairing::Pairing};
 use ark_ff::UniformRand;
 use ark_groth16::{Proof, ProvingKey};
 use ark_relations::gr1cs::{ConstraintSynthesizer, ConstraintSystem, SynthesisError};
 use rand_core::{CryptoRng, RngCore};
 
 use crate::matrices::Matrices;
+
+/// A well-formed but invalid proof, made of the curve generators.
+#[must_use]
+pub fn placeholder<E: Pairing>() -> Proof<E> {
+    Proof {
+        a: E::G1Affine::generator(),
+        b: E::G2Affine::generator(),
+        c: E::G1Affine::generator(),
+    }
+}
 
 /// Proves a circuit using pre-computed constraint matrices.
 ///

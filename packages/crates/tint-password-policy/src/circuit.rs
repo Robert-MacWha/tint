@@ -11,7 +11,7 @@ use tint::{
         join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
         variable, witness,
     },
-    operation::Operation,
+    operation::OperationWitness,
 };
 use tint_poseidon2::poseidon2_compress_gadget;
 
@@ -24,7 +24,7 @@ pub struct PasswordPolicyCircuit {
     pub signing_hash: Fr,
 
     // Witnessed values
-    pub operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+    pub operation: OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
     pub context_hash: Fr,
     pub password: Fr,
 }
@@ -39,7 +39,7 @@ impl PasswordPolicyCircuit {
     pub fn new(
         policy_address: Fr,
         signing_hash: Fr,
-        operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+        operation: OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
         context_hash: Fr,
         secret: Fr,
     ) -> Self {
@@ -162,7 +162,7 @@ mod tests {
         let secret = Fr::from(12345);
         let witness = poseidon2_compress(&[secret]);
 
-        let mut operation = Operation::default();
+        let mut operation = OperationWitness::default();
         operation.inputs[0].note.policy.address = policy_address;
         operation.inputs[0].note.policy.witness = witness;
 
@@ -179,7 +179,7 @@ mod tests {
         let secret = Fr::from(12345);
         let witness = poseidon2_compress(&[secret]);
 
-        let mut operation = Operation::default();
+        let mut operation = OperationWitness::default();
         operation.inputs[0].note.policy.address = policy_address;
         operation.inputs[0].note.policy.witness = witness;
         operation.inputs[1].note.policy.address = policy_address;
@@ -200,7 +200,7 @@ mod tests {
         let witness = poseidon2_compress(&[secret]);
         let invalid_secret = Fr::from(54321);
 
-        let mut operation = Operation::default();
+        let mut operation = OperationWitness::default();
         operation.inputs[0].note.policy.address = policy_address;
         operation.inputs[0].note.policy.witness = witness;
 
@@ -227,7 +227,7 @@ mod tests {
         let witness = poseidon2_compress(&[secret]);
         let other_witness = poseidon2_compress(&[Fr::from(54321)]);
 
-        let mut operation = Operation::default();
+        let mut operation = OperationWitness::default();
         operation.inputs[0].note.policy.address = policy_address;
         operation.inputs[0].note.policy.witness = witness;
         operation.inputs[1].note.policy.address = policy_address;
@@ -255,7 +255,7 @@ mod tests {
         let secret = Fr::from(12345);
         let witness = poseidon2_compress(&[secret]);
 
-        let mut operation = Operation::default();
+        let mut operation = OperationWitness::default();
         operation.inputs[0].note.policy.address = policy_address;
         operation.inputs[0].note.policy.witness = witness;
 
@@ -277,7 +277,7 @@ mod tests {
     /// arbitrary context hash.
     fn signed_circuit(
         policy_address: Address,
-        operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+        operation: OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
         secret: Fr,
     ) -> PasswordPolicyCircuit {
         let context_hash = Fr::from(7);

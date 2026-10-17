@@ -30,7 +30,7 @@ macro_rules! rayon_join5 {
 
 /// A Groth16 proof protocol.
 ///
-/// This struct should never be initialized, it only provides associated functions [`Groth16::prove`] and [`Groth16::verify`].
+/// This struct should never be initialized, it only provides the associated function [`Groth16::prove`].
 pub struct Groth16<P: Pairing> {
     phantom_data: PhantomData<P>,
 }

@@ -68,7 +68,7 @@ impl PubAccount {
         })
     }
 
-    /// Creates a new [`BaseCommitment`] spendable by this account.
+    /// Creates a new [`Commitment`] spendable by this account.
     #[must_use]
     pub fn commitment(&self, asset: AssetId, amount: u128, random: B256) -> Commitment {
         Commitment::new(

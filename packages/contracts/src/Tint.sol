@@ -17,10 +17,11 @@ import {
 } from "./lib/Constants.sol";
 import {ProofLib} from "./lib/ProofLib.sol";
 import {NullifierRegistry} from "./NullifierRegistry.sol";
+import {Simulatable} from "./Simulatable.sol";
 import {SkewMmrWithHistory} from "@skew-mmr/contracts/SkewMmrWithHistory.sol";
 
 /// @notice Privacy-preserving token pool
-contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
+contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory, Simulatable {
     using ProofLib for IPrivacyPool.Operation;
     using SafeERC20 for IERC20;
 
@@ -36,6 +37,7 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
 
     error InvalidFrontier();
     error InvalidProof();
+    error InvalidCaller();
 
     constructor(IVerifier _verifier, IPoseidon2T3 _poseidon) SkewMmrWithHistory(MMR_MAX_DEPTH, MMR_HISTORY_SIZE) {
         VERIFIER = _verifier;
@@ -84,6 +86,10 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
     ///
     /// @dev Assuming the operation has been pre-verified and that no erc20
     /// transfers revert, this function is guaranteed to not revert.
+    ///
+    /// @dev Intentionally doesn't check `context.caller`. `preVerify` checks it while
+    /// verifying, but once an operation is pre-verified it can be executed by anyone.
+    /// TODO: work out the security implications of this.
     function executePreVerified(bytes32 slot, IPrivacyPool.Operation calldata operation) public {
         bytes32 operationHash = operation.toOperationHash();
         bytes32 storedHash;
@@ -104,8 +110,7 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
 
     // -------------------- EXTERNAL VIEW --------------------
 
-    /// @notice Returns the live frontier, ready to drop into the tail of `Operation.pub`.
-    /// @dev Pass alongside `packedRanks()`, `depth()` and `count()`.
+    /// @notice Returns the MMR's live frontier.
     function frontier() external view returns (bytes32[] memory live) {
         live = new bytes32[](mmr.depth);
         for (uint256 i = 0; i < live.length; ++i) {
@@ -113,16 +118,12 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
         }
     }
 
-    /// @notice Computes the Groth16 public-signal vector `op` must satisfy.
-    /// Exposed so a client can cross-check its locally-computed proof inputs
-    /// against the contract's, rather than debugging an opaque
-    /// `InvalidProof` revert.
-    function computePublicSignals(IPrivacyPool.Operation calldata op) public pure returns (uint256[] memory) {
-        return op.toPublicSignals();
-    }
-
     /// @notice Verifies that the provided operation is valid or reverts if not.
     function verifyOperation(IPrivacyPool.Operation calldata op) public view {
+        // Verify the operation is executed by its caller, if it names one.
+        address caller = op.context.caller;
+        if (caller != address(0) && caller != msg.sender) revert InvalidCaller();
+
         // Verify the frontier the proof was built against is one this pool committed to.
         (uint256 histRanks, uint256 histDepth, uint256 histCount, bytes32[] calldata histFrontier) = op.frontierState();
         if (!verifyFrontier(histRanks, histDepth, histCount, histFrontier)) revert InvalidFrontier();
@@ -137,14 +138,17 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
         uint256[N_COMPRESSED_PUB] memory compressedSignals = op.toCompressedSignals();
         try VERIFIER.verify(op.proof.proof, compressedSignals) {}
         catch {
-            revert InvalidProof();
+            if (!_simulating()) revert InvalidProof();
         }
 
         // Verify policy
         address[N_INPUTS] memory policyAddresses = op.policyAddresses();
         for (uint256 i; i < N_INPUTS; ++i) {
             if (policyAddresses[i] == address(0)) continue;
-            IPolicy(policyAddresses[i]).requireAuthorized(op);
+            try IPolicy(policyAddresses[i]).requireAuthorized(op) {}
+            catch (bytes memory reason) {
+                if (!_simulating()) _bubble(reason);
+            }
         }
     }
 
@@ -186,5 +190,12 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory {
     /// @dev Overridable in test harnesses to swap out the hash function.
     function _hash(bytes32 a, bytes32 b, bytes32 c) internal view virtual override returns (bytes32) {
         return bytes32(POSEIDON.compress(uint256(a), uint256(b), uint256(c), 0));
+    }
+
+    /// @dev Re-raises a caught revert.
+    function _bubble(bytes memory reason) internal pure {
+        assembly {
+            revert(add(reason, 0x20), mload(reason))
+        }
     }
 }

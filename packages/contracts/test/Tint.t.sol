@@ -76,6 +76,12 @@ contract TintTests is Test {
         return OperationLib.bind(tint);
     }
 
+    /// @dev Sets the simulation flag, as a state override would.
+    function _simulate() internal {
+        bytes32 slot = keccak256(abi.encode(uint256(keccak256("tint.simulation")) - 1)) & ~bytes32(uint256(0xff));
+        vm.store(address(tint), slot, bytes32(uint256(1)));
+    }
+
     /// -------------------- deposit() --------------------
 
     /// Should be able to deposit. Depositing should transfer the correct amount
@@ -209,6 +215,50 @@ contract TintTests is Test {
 
         vm.expectRevert(MockPolicy.NotAuthorized.selector);
         tint.operate(op.seal());
+    }
+
+    /// Should let the operation's caller execute it.
+    function test_operateCaller() public {
+        IPrivacyPool.Operation memory op = _operation();
+        op.setNullifier(0, bytes32(uint256(123)));
+        op.context.caller = address(this);
+
+        tint.operate(op.seal());
+        assertTrue(tint.isSpent(bytes32(uint256(123))));
+    }
+
+    /// Should revert if anyone but the operation's caller executes it.
+    function test_operateWrongCaller_reverts() public {
+        IPrivacyPool.Operation memory op = _operation();
+        op.context.caller = address(0xbad);
+
+        vm.expectRevert(Tint.InvalidCaller.selector);
+        tint.operate(op.seal());
+    }
+
+    /// -------------------- simulation --------------------
+
+    /// Should ignore an invalid proof while simulating.
+    function test_operateSimulatingInvalidProof() public {
+        _simulate();
+        verifier.setPass(false);
+        IPrivacyPool.Operation memory op = _operation();
+        op.setNullifier(0, bytes32(uint256(123)));
+
+        tint.operate(op.seal());
+        assertTrue(tint.isSpent(bytes32(uint256(123))));
+    }
+
+    /// Should ignore a reverting policy while simulating.
+    function test_operateSimulatingPolicyReverts() public {
+        _simulate();
+        IPrivacyPool.Operation memory op = _operation();
+        op.setNullifier(0, bytes32(uint256(123)));
+        op.setPolicyAddress(0, address(policy));
+        policy.setPass(false);
+
+        tint.operate(op.seal());
+        assertTrue(tint.isSpent(bytes32(uint256(123))));
     }
 
     /// -------------------- executePreVerified --------------------

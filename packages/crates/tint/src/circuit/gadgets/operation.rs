@@ -12,7 +12,7 @@ use crate::{
         gadgets::{commitment::CommitmentVar, owned::OwnedNoteVar, withdrawal::WithdrawalVar},
         variable,
     },
-    operation::Operation,
+    operation::OperationWitness,
 };
 
 #[derive(Clone, Debug)]
@@ -156,10 +156,10 @@ fn verify_nullifier_uniqueness<const N: usize>(
     Ok(())
 }
 
-impl<const I: usize, const O: usize, const W: usize> AllocVar<Operation<I, O, W>, Fr>
+impl<const I: usize, const O: usize, const W: usize> AllocVar<OperationWitness<I, O, W>, Fr>
     for OperationVar<I, O, W>
 {
-    fn new_variable<T: Borrow<Operation<I, O, W>>>(
+    fn new_variable<T: Borrow<OperationWitness<I, O, W>>>(
         cs: impl Into<Namespace<Fr>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: ark_r1cs_std::prelude::AllocationMode,
@@ -192,8 +192,8 @@ mod tests {
     const DEAD_BEEF: Address = address!("0x00000000000000000000000000000000deadbeef");
     const C0FFEE: Address = address!("0x0000000000000000000000000000000000c0ffee");
 
-    fn default_operation() -> Operation<3, 3, 3> {
-        let mut op = Operation::<3, 3, 3>::default();
+    fn default_operation() -> OperationWitness<3, 3, 3> {
+        let mut op = OperationWitness::<3, 3, 3>::default();
         op.inputs[0].note.note.asset = DEAD_BEEF.into();
         op.inputs[0].note.note.amount = 10;
         op.inputs[1].note.note.asset = DEAD_BEEF.into();
@@ -207,7 +207,7 @@ mod tests {
     #[test]
     fn empty() {
         let cs = ConstraintSystem::<Fr>::new_ref();
-        let op = Operation::<3, 3, 3>::default();
+        let op = OperationWitness::<3, 3, 3>::default();
 
         let var = OperationVar::new_witness(cs.clone(), || Ok(&op)).unwrap();
         let input_commitment_hashes = var.input_commitment_hashes().unwrap();

@@ -11,7 +11,7 @@ use k256::{
 use tint::{
     circuit::join_split::{N_INPUTS, N_OUTPUTS, N_WITHDRAWALS},
     fr::{address_to_fr, fr_to_b256},
-    operation::Operation,
+    operation::OperationWitness,
 };
 use tint_multisig_policy::{N_SIGNERS, ffi, pubkey_hash};
 use tint_poseidon2::poseidon2_compress;
@@ -23,7 +23,8 @@ fn main() {
     let pub_keys: [VerifyingKey; N_SIGNERS] = std::array::from_fn(|i| *signers[i].verifying_key());
     let witness = pubkey_hash::pubkey_hash(&pub_keys).unwrap();
 
-    let mut operation: Operation<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> = Operation::default();
+    let mut operation: OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> =
+        OperationWitness::default();
     operation.inputs[0].note.policy.address = contract_address;
     operation.inputs[0].note.policy.witness = witness;
 

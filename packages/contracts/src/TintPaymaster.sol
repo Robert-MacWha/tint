@@ -18,6 +18,8 @@ import {N_WITHDRAWALS} from "./lib/Constants.sol";
 /// @dev The operation executes during validation, including nullifier writes. Because
 /// this involves writing to non-entity storage, it is not compliant with eip-7562 storage
 /// rules (https://eips.ethereum.org/EIPS/eip-7562#storage-rules).
+/// Tint also reads `block.number` to checkpoint the active block, a banned opcode under
+/// eip-7562 (OP-011).
 contract TintPaymaster is BasePaymaster {
     using ProofLib for IPrivacyPool.Operation;
     using SafeERC20 for IERC20;

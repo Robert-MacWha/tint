@@ -6,6 +6,7 @@ import {ERC20, IERC20Errors} from "@openzeppelin/contracts/token/ERC20/ERC20.sol
 import {IPolicy} from "../src/interfaces/IPolicy.sol";
 import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {Tint} from "../src/Tint.sol";
+import {BlockCheckpoints} from "../src/BlockCheckpoints.sol";
 import {Poseidon2T3} from "../src/poseidon/Poseidon2T3.sol";
 import {NullifierRegistry} from "../src/NullifierRegistry.sol";
 import {IPrivacyPool} from "../src/interfaces/IPrivacyPool.sol";
@@ -106,6 +107,32 @@ contract TintTests is Test {
 
         vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, address(tint), 0, 500));
         tint.deposit(address(fresh), 500, bytes32(uint256(42)), "");
+    }
+
+    /// -------------------- checkpoint --------------------
+
+    /// The first deposit in a block should record it and emit the previous checkpoints.
+    function test_depositCheckpoint() public {
+        uint64[4] memory previous = [tint.checkpoints(0), tint.checkpoints(1), tint.checkpoints(2), tint.checkpoints(3)];
+        vm.roll(block.number + 10);
+
+        vm.expectEmit();
+        emit BlockCheckpoints.Checkpoint(previous);
+        tint.deposit(address(token), 1, bytes32(uint256(1)), "");
+
+        assertEq(tint.checkpoints(0), block.number);
+    }
+
+    /// The first operation in a block should record it and emit the previous checkpoints.
+    function test_operateCheckpoint() public {
+        uint64[4] memory previous = [tint.checkpoints(0), tint.checkpoints(1), tint.checkpoints(2), tint.checkpoints(3)];
+        vm.roll(block.number + 10);
+
+        vm.expectEmit();
+        emit BlockCheckpoints.Checkpoint(previous);
+        tint.operate(_operation().seal());
+
+        assertEq(tint.checkpoints(0), block.number);
     }
 
     /// -------------------- operate() --------------------

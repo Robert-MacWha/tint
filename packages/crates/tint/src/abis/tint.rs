@@ -42,6 +42,7 @@ sol!(
         event Committed(bytes32 commitment, uint64 leafIndex, bytes encryptedNote);
         event Nullified(bytes32 nullifier);
         event Withdrawn(address indexed asset, uint128 amount, address indexed recipient);
+        event Checkpoint(uint64[4] previous);
 
         function deposit(address asset, uint128 amount, bytes32 partialCommitment, bytes calldata encryptedPartial) external;
         function operate(IPrivacyPool.Operation calldata operation) public;
@@ -50,6 +51,7 @@ sol!(
         function isSpent(bytes32 nullifierHash) external view returns (bool);
         function verifyFrontier(uint256 histRanks, uint256 histDepth, uint256 histCount, bytes32[] calldata frontier) external view returns (bool);
         function verifyOperation(IPrivacyPool.Operation calldata op) public view;
+        function checkpoints(uint256 level) external view returns (uint64);
     }
 );
 

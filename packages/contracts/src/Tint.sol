@@ -16,12 +16,13 @@ import {
     N_COMPRESSED_PUB
 } from "./lib/Constants.sol";
 import {ProofLib} from "./lib/ProofLib.sol";
+import {BlockCheckpoints} from "./BlockCheckpoints.sol";
 import {NullifierRegistry} from "./NullifierRegistry.sol";
 import {Simulatable} from "./Simulatable.sol";
 import {SkewMmrWithHistory} from "@skew-mmr/contracts/SkewMmrWithHistory.sol";
 
 /// @notice Privacy-preserving token pool
-contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory, Simulatable {
+contract Tint is IPrivacyPool, NullifierRegistry, BlockCheckpoints, SkewMmrWithHistory, Simulatable {
     using ProofLib for IPrivacyPool.Operation;
     using SafeERC20 for IERC20;
 
@@ -56,6 +57,8 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory, Simulatabl
     function deposit(address asset, uint128 amount, bytes32 partialCommitment, bytes calldata encryptedPartial)
         external
     {
+        _checkpoint();
+
         bytes32 commitment =
             bytes32(POSEIDON.compress(uint256(uint160(asset)), uint256(amount), uint256(partialCommitment), 0));
         uint64 leafIndex = mmr.count;
@@ -157,6 +160,8 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory, Simulatabl
     /// @notice Executes the state changes specified by the operation.
     /// @dev Assumes the operation has already been verified.
     function _executeOperation(IPrivacyPool.Operation calldata op) internal {
+        _checkpoint();
+
         // Nullify the non-sentinel input notes
         for (uint256 i; i < N_INPUTS; ++i) {
             bytes32 hash = op.nullifier(i);

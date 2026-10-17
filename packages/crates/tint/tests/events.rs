@@ -1,9 +1,10 @@
-use alloy_primitives::{Address, Bytes};
+use alloy_primitives::{Address, B256, Bytes};
+use alloy_provider::Provider;
 use ark_std::rand::{Rng, rngs::StdRng};
 use rand_core::SeedableRng;
 use tint::{
+    abis::tint::SIMULATION_SLOT,
     account::Account,
-    circuit::join_split::JoinSplitCircuit,
     deposit::Deposit,
     note::asset::AssetId,
     operation::OperationBuilder,
@@ -11,7 +12,6 @@ use tint::{
     skew_mmr::{SkewMmr, SkewMmrExt},
     syncer::{Committed, Nullified, SyncEvent, Syncer, Withdrawn, rpc::RpcSyncer},
 };
-use tint_groth16::artifacts::Artifacts;
 use tracing::info;
 
 use crate::common::anvil::{self, send};
@@ -38,10 +38,6 @@ async fn events() -> Result<(), Box<dyn std::error::Error>> {
     let tint = *instance.tint.address();
     let token = instance.token;
 
-    // Setup circuits
-    info!("Setting up circuits...");
-    let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>()?;
-
     let account_1 = Account::from_seed(&[11u8; 32], Policy::NONE);
     let account_2 = Account::from_seed(&[22u8; 32], Policy::NONE);
     let unshield_address = Address::new(rng.r#gen());
@@ -66,10 +62,19 @@ async fn events() -> Result<(), Box<dyn std::error::Error>> {
     let notes = snapshot.unspent(&account_1);
     assert_eq!(notes.len(), 2);
 
+    // The events don't depend on the proof, so set the simulation flag and
+    // submit a simulated operation rather than proving one.
+    let _: bool = provider
+        .raw_request(
+            "anvil_setStorageAt".into(),
+            (tint, SIMULATION_SLOT, B256::with_last_byte(1)),
+        )
+        .await?;
+
     // Spend 2 inputs into 2 outputs and 1 withdrawal, leaving the rest of
     // the slots as sentinels.
     info!("Operating");
-    let proven = OperationBuilder::new()
+    let simulated = OperationBuilder::new()
         .spend(notes[0].clone())
         .spend(notes[1].clone())
         .output(account_1.pub_account(), asset, 300)
@@ -77,8 +82,8 @@ async fn events() -> Result<(), Box<dyn std::error::Error>> {
         .withdraw(unshield_address, asset, 2 * amount - 800)
         .build(&mut rng)?
         .authorize(vec![Bytes::default(); 2])?
-        .prove_with_mmr(&mmr, &artifacts, &mut rng)?;
-    let receipt = send(&provider, proven.transaction(tint)).await?;
+        .simulate_with_mmr(&mmr)?;
+    let receipt = send(&provider, simulated.transaction(tint)).await?;
 
     // Verify emitted events
     info!("Verifying events");
@@ -90,8 +95,8 @@ async fn events() -> Result<(), Box<dyn std::error::Error>> {
         .filter_map(SyncEvent::try_from_log)
         .collect();
 
-    let ciphertexts = &proven.operation().context.ciphertexts;
-    let nullified = proven.nullifiers().iter().map(|&nullifier| {
+    let ciphertexts = &simulated.operation().context.ciphertexts;
+    let nullified = simulated.nullifiers().iter().map(|&nullifier| {
         SyncEvent::Nullified(Nullified {
             nullifier,
             block_number,
@@ -99,7 +104,7 @@ async fn events() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // The two deposits occupy leaves 0 and 1.
-    let committed = proven.outputs().iter().zip(ciphertexts).zip(2u64..).map(
+    let committed = simulated.outputs().iter().zip(ciphertexts).zip(2u64..).map(
         |((output, ciphertext), leaf_index)| {
             SyncEvent::Committed(Committed {
                 commitment: output.hash(),
@@ -120,8 +125,8 @@ async fn events() -> Result<(), Box<dyn std::error::Error>> {
         .chain(std::iter::once(withdrawn))
         .collect();
 
-    assert_eq!(proven.nullifiers().len(), 2);
-    assert_eq!(proven.outputs().len(), 2);
+    assert_eq!(simulated.nullifiers().len(), 2);
+    assert_eq!(simulated.outputs().len(), 2);
     assert_eq!(emitted, expected);
 
     Ok(())

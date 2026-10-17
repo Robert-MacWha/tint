@@ -1,6 +1,9 @@
 mod common;
 
+use alloy_node_bindings::Anvil;
 use alloy_primitives::{B256, U256, hex};
+use alloy_provider::{Provider, ProviderBuilder};
+use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_types::SolError;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
 use k256::{ecdsa::SigningKey, elliptic_curve::Generate};
@@ -118,9 +121,14 @@ async fn multisig() -> Result<(), Box<dyn std::error::Error>> {
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
 async fn placeholder_reaches_pairing() -> Result<(), Box<dyn std::error::Error>> {
-    let instance = anvil::setup().await?;
-    let policy = deploy_policy(&instance.provider).await?;
-    let verifier = MultisigPolicyContract::new(policy, &instance.provider)
+    let anvil = Anvil::new().spawn();
+    let signer = PrivateKeySigner::from_slice(&anvil.first_key().to_bytes())?;
+    let provider = ProviderBuilder::new()
+        .wallet(signer)
+        .connect_http(anvil.endpoint().parse()?)
+        .erased();
+    let policy = deploy_policy(&provider).await?;
+    let verifier = MultisigPolicyContract::new(policy, &provider)
         .VERIFIER()
         .call()
         .await?;
@@ -143,7 +151,7 @@ async fn placeholder_reaches_pairing() -> Result<(), Box<dyn std::error::Error>>
         .build(&mut StdRng::seed_from_u64(1))?;
     let placeholder = multisig.placeholder(&op).remove(0);
 
-    let result = MultisigVerifier::new(verifier, &instance.provider)
+    let result = MultisigVerifier::new(verifier, &provider)
         .verifyProof(placeholder, [U256::ZERO, U256::ZERO])
         .call()
         .await;

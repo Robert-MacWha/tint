@@ -1,9 +1,7 @@
-use alloy_primitives::{Address, B256};
-use alloy_provider::Provider;
+use alloy_primitives::Address;
 use ark_std::rand::{Rng, rngs::StdRng};
 use rand_core::SeedableRng;
 use tint::{
-    abis::tint::SIMULATION_SLOT,
     account::Account,
     deposit::Deposit,
     note::asset::AssetId,
@@ -64,12 +62,7 @@ async fn events() -> Result<(), Box<dyn std::error::Error>> {
 
     // The events don't depend on the proof, so set the simulation flag and
     // submit a simulated operation rather than proving one.
-    let _: bool = provider
-        .raw_request(
-            "anvil_setStorageAt".into(),
-            (tint, SIMULATION_SLOT, B256::with_last_byte(1)),
-        )
-        .await?;
+    anvil::enable_simulation(&provider, tint).await?;
 
     // Spend 2 inputs into 2 outputs and 1 withdrawal, leaving the rest of
     // the slots as sentinels.

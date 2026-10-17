@@ -277,9 +277,7 @@ impl Operation {
         &self.witness
     }
 
-    /// Authorizes every live input bound to `policy` with `input`. Policies
-    /// call this from their own `authorize`; inputs under [`Policy::NONE`]
-    /// need no authorization.
+    /// Authorizes every live input bound to `policy` with `input`.
     ///
     /// # Errors
     ///
@@ -404,7 +402,7 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
 }
 
 impl OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
-    /// Proves the operation against `mmr`'s current frontier.
+    /// See [`Self::prove_with_mmr`].
     fn prove_with_mmr<R: RngCore + CryptoRng>(
         self,
         mmr: &SkewMmr,
@@ -415,11 +413,7 @@ impl OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
         self.prove(proofs, artifacts, rng)
     }
 
-    /// Assembles an operation for simulation.
-    ///
-    /// The resulting [`ProvenOperation`] has placeholder proofs. It can be used for simulation, but
-    /// will revert if submitted normally. Use [`Self::prove_with_mmr`] to generate a valid proof
-    /// for submission.
+    /// See [`Self::simulate_with_mmr`].
     fn simulate_with_mmr(self, mmr: &SkewMmr) -> Result<ProvenOperation, OperationError> {
         let proofs = self.inclusion_proofs(mmr)?;
         self.assemble(proofs, |_| Ok(placeholder()))

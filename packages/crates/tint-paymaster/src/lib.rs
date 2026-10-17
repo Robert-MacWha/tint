@@ -1,15 +1,4 @@
 //! Extension trait for paying for ERC-4337 userops with a Tint operation.
-//!
-//! The `TintPaymaster` contract executes a Tint operation during validation.
-//! The operation unshields the gas fee in WETH to the paymaster. Its `caller`
-//! is the paymaster, so only the paymaster can execute it, and its `binding`
-//! commits to the userop's sender, so the proof can't be reused in another
-//! userop. Anything else the operation unshields is available during the
-//! userop's execution.
-//!
-//! Sponsoring follows the same steps as a direct operation: build it with
-//! [`UserOperationPaymasterExt::tint_paymaster_operation`], authorize and prove
-//! it, then attach it with [`UserOperationPaymasterExt::with_tint_paymaster`].
 
 use alloy_primitives::Address;
 use alloy_sol_types::SolValue;
@@ -39,8 +28,7 @@ pub enum TintPaymasterError {
     Operation(#[from] OperationError),
 }
 
-/// Extension trait for [`UserOperationBuilder`] that pays for a userop's gas
-/// with a Tint operation.
+/// Extension trait for [`UserOperationBuilder`] that pays with a [`TintPaymaster`].
 pub trait UserOperationPaymasterExt: Sized {
     /// Builds `operation` to pay `fee` WETH for this userop's gas, ready to
     /// authorize and prove.
@@ -60,7 +48,7 @@ pub trait UserOperationPaymasterExt: Sized {
     ) -> Result<Operation, TintPaymasterError>;
 
     /// Pays for this userop's gas with `operation`, built by
-    /// [`Self::tint_paymaster_operation`], and estimates its gas.
+    /// [`Self::tint_paymaster_operation`].
     ///
     /// The paymaster rejects the userop if its fee doesn't cover the userop's
     /// maximum gas cost.

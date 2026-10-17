@@ -1,10 +1,12 @@
 #![allow(dead_code)]
 
 use alloy_node_bindings::{Anvil, AnvilInstance};
+use alloy_primitives::{Address, B256};
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_macro::sol;
 use anyhow::Context;
+use tint::abis::tint::SIMULATION_SLOT;
 use tracing::info;
 
 use crate::common::anvil::{MockToken::MockTokenInstance, Tint::TintInstance};
@@ -85,4 +87,16 @@ pub async fn send(
     let receipt = provider.send_transaction(tx).await?.get_receipt().await?;
     assert!(receipt.status());
     Ok(receipt)
+}
+
+/// Sets `tint`'s simulation flag, so it accepts operations assembled with
+/// `simulate_with_mmr` in place of proven ones.
+pub async fn enable_simulation(provider: &impl Provider, tint: Address) -> anyhow::Result<()> {
+    let _: bool = provider
+        .raw_request(
+            "anvil_setStorageAt".into(),
+            (tint, SIMULATION_SLOT, B256::with_last_byte(1)),
+        )
+        .await?;
+    Ok(())
 }

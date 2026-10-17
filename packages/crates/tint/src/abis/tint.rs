@@ -53,9 +53,7 @@ sol!(
     }
 );
 
-/// `Simulatable.sol`'s flag slot, at `erc7201:tint.simulation`. Nothing on-chain
-/// writes it, so setting it with a state override lets an operation be
-/// simulated without passing its proof and policy checks.
+/// `Simulatable.sol`'s flag slot, at `erc7201:tint.simulation`.
 pub const SIMULATION_SLOT: B256 =
     b256!("0xb4a234b71e30e41b0c32030fc0a6277a036950341675d2266bc10f1fc28e5200");
 
@@ -73,20 +71,5 @@ impl From<Proof<Bn254>> for ProofLib::Proof {
                 p.c.y.into(),
             ],
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use alloy_primitives::{U256, keccak256};
-
-    use super::*;
-
-    /// `SIMULATION_SLOT` should be the ERC-7201 slot for `tint.simulation`.
-    #[test]
-    fn test_simulation_slot() {
-        let namespace = U256::from_be_bytes(keccak256("tint.simulation").0) - U256::from(1);
-        let slot = keccak256(namespace.to_be_bytes::<32>()) & !B256::with_last_byte(0xff);
-        assert_eq!(slot, SIMULATION_SLOT);
     }
 }

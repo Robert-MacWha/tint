@@ -45,8 +45,7 @@ const MAX_FEE: u128 = NOTE_AMOUNT / 10;
 /// sender during validation, so the userop's own calls can spend it.
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
-async fn test_tint_paymaster() -> anyhow::Result<()> {
-    init_tracing()?;
+async fn tint_paymaster() -> anyhow::Result<()> {
     let mut rng = StdRng::seed_from_u64(1);
 
     let instance = anvil::setup().await?;
@@ -148,14 +147,5 @@ async fn test_tint_paymaster() -> anyhow::Result<()> {
         "userop's call should spend the unshielded WETH"
     );
 
-    Ok(())
-}
-
-fn init_tracing() -> anyhow::Result<()> {
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
-        .add_directive("gr1cs=off".parse()?)
-        .add_directive("r1cs=off".parse()?);
-    let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
     Ok(())
 }

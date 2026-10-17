@@ -217,6 +217,25 @@ contract TintTests is Test {
         tint.operate(op.seal());
     }
 
+    /// Should let the operation's caller execute it.
+    function test_operateCaller() public {
+        IPrivacyPool.Operation memory op = _operation();
+        op.setNullifier(0, bytes32(uint256(123)));
+        op.context.caller = address(this);
+
+        tint.operate(op.seal());
+        assertTrue(tint.isSpent(bytes32(uint256(123))));
+    }
+
+    /// Should revert if anyone but the operation's caller executes it.
+    function test_operateWrongCaller_reverts() public {
+        IPrivacyPool.Operation memory op = _operation();
+        op.context.caller = address(0xbad);
+
+        vm.expectRevert(Tint.InvalidCaller.selector);
+        tint.operate(op.seal());
+    }
+
     /// -------------------- simulation --------------------
 
     /// Should ignore an invalid proof while simulating.

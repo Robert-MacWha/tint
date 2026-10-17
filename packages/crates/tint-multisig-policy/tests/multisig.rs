@@ -1,16 +1,16 @@
 mod common;
 
-use alloy_provider::Provider;
-use alloy_rpc_types_eth::TransactionRequest;
+use alloy_primitives::{B256, U256, hex};
+use alloy_sol_types::SolError;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
 use k256::{ecdsa::SigningKey, elliptic_curve::Generate};
 use tint::{
     account::Account,
     circuit::join_split::JoinSplitCircuit,
     deposit::Deposit,
-    note::asset::AssetId,
+    note::{asset::AssetId, owned::OwnedNote},
     operation::OperationBuilder,
-    policy::Policy,
+    policy::{Authorizer, Policy},
     skew_mmr::{SkewMmr, SkewMmrExt},
     syncer::{Syncer, rpc::RpcSyncer},
 };
@@ -21,7 +21,10 @@ use tint_multisig_policy::{
 };
 use tracing::info;
 
-use crate::common::anvil;
+use crate::common::{
+    anvil::{self, send},
+    policy::{MultisigPolicy as MultisigPolicyContract, MultisigVerifier, deploy_policy},
+};
 
 /// Test that we can spend a note using the `MultisigPolicyCircuit`,
 /// including on-chain verification via the generated (uncompressed) Solidity
@@ -38,11 +41,11 @@ async fn multisig() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut rng = StdRng::seed_from_u64(1);
     let instance = anvil::setup().await?;
+    let policy = deploy_policy(&instance.provider).await?;
 
     let provider = instance.provider;
     let tint = *instance.tint.address();
     let token = instance.token;
-    let policy = instance.policy;
 
     // Setup circuits
     info!("Setting up circuits...");
@@ -54,7 +57,7 @@ async fn multisig() -> Result<(), Box<dyn std::error::Error>> {
     let signers: [Box<dyn Signer + Send + Sync>; N_SIGNERS] =
         std::array::from_fn(|_| Box::new(SigningKey::generate()) as Box<dyn Signer + Send + Sync>);
     let multisig = MultisigPolicy::<N_SIGNERS, THRESHOLD>::new(
-        *policy.address(),
+        policy,
         signers,
         ffi::artifacts::load_artifacts()?,
     )?;
@@ -85,7 +88,7 @@ async fn multisig() -> Result<(), Box<dyn std::error::Error>> {
         .output(account_1.pub_account(), asset, amount - 100)
         .output(account_2.pub_account(), asset, 100)
         .build(&mut rng)?;
-    let policy_input = multisig.authorize(&op)?;
+    let policy_input = multisig.prove(&op)?;
     let proven = op
         .authorize(vec![policy_input])?
         .prove_with_mmr(&mmr, &artifacts, &mut rng)?;
@@ -109,9 +112,47 @@ async fn multisig() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn send(provider: &impl Provider, tx: TransactionRequest) -> anyhow::Result<()> {
-    let receipt = provider.send_transaction(tx).await?.get_receipt().await?;
-    assert!(receipt.status());
+/// The placeholder proof should pass the verifier's commitment check and fail
+/// only at the final pairing, so simulating with it costs as much gas as a
+/// real proof.
+#[tokio::test]
+#[ignore = "run with `cargo test --release -- --ignored`"]
+async fn placeholder_reaches_pairing() -> Result<(), Box<dyn std::error::Error>> {
+    let instance = anvil::setup().await?;
+    let policy = deploy_policy(&instance.provider).await?;
+    let verifier = MultisigPolicyContract::new(policy, &instance.provider)
+        .VERIFIER()
+        .call()
+        .await?;
+
+    let signers: [Box<dyn Signer + Send + Sync>; N_SIGNERS] =
+        std::array::from_fn(|_| Box::new(SigningKey::generate()) as Box<dyn Signer + Send + Sync>);
+    let multisig = MultisigPolicy::<N_SIGNERS, THRESHOLD>::new(
+        policy,
+        signers,
+        ffi::artifacts::load_artifacts()?,
+    )?;
+
+    let account = Account::from_seed(&[11u8; 32], multisig.policy());
+    let note = account
+        .pub_account()
+        .commitment(AssetId::default(), 100, B256::ZERO);
+    let op = OperationBuilder::new()
+        .spend(OwnedNote::new(note, &account)?)
+        .change_to(account.pub_account())
+        .build(&mut StdRng::seed_from_u64(1))?;
+    let placeholder = multisig.placeholder(&op).remove(0);
+
+    let result = MultisigVerifier::new(verifier, &instance.provider)
+        .verifyProof(placeholder, [U256::ZERO, U256::ZERO])
+        .call()
+        .await;
+
+    let Err(err) = result else {
+        return Err("placeholder proof verified".into());
+    };
+    let selector = hex::encode(MultisigVerifier::ProofInvalid::SELECTOR);
+    assert!(err.to_string().contains(&selector), "{err}");
 
     Ok(())
 }

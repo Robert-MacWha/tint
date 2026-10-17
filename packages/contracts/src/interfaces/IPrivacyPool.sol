@@ -6,18 +6,27 @@ import {ProofLib} from "../lib/ProofLib.sol";
 
 interface IPrivacyPool {
     struct Operation {
-        /// @dev Read the typed fields through the `ProofLib` accessors.
+        /// Read the typed fields through the `ProofLib` accessors.
         bytes32[] pub;
         Context context;
         ProofLib.Proof proof;
 
-        /// @dev Hybrid-compression challenge for `proof` (see
+        /// Hybrid-compression challenge for `proof` (see
         /// `ProofLib.toCompressedSignals`).
         uint256 beta;
     }
 
+    /// Context for the operation not included in the proof. The contents
+    /// of this struct are hashed and bound to the proof so that they cannot
+    /// be changed without invalidating the proof.
     struct Context {
+        /// If non-zero, verifies that msg.sender is equal to this address.
+        address caller;
+        /// Opaque binding usable by `caller` to bind arbitrary data.
+        bytes32 binding;
+        /// Opaque inputs for policies to bind their calldata.
         bytes[N_INPUTS] policyInputs;
+        /// The encrypted ciphertext outputs for the operation.
         bytes[N_OUTPUTS] ciphertexts;
     }
 

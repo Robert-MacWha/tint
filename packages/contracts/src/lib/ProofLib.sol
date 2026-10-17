@@ -72,10 +72,12 @@ library ProofLib {
         return poseidon.compress(uint256(operationHash(op)), contextHash(op), 0);
     }
 
-    /// @notice Hashes the context fields the operation hash omits.
+    /// @notice Hashes the context fields the operation hash omits, except
+    /// policy inputs.
     /// @dev Mirrors `UnsignedOperation::context_hash`.
     function contextHash(IPrivacyPool.Operation calldata op) internal pure returns (uint256) {
-        return uint256(keccak256(abi.encode(op.context.ciphertexts))) % BN254_FR_MODULUS;
+        return uint256(keccak256(abi.encode(op.context.caller, op.context.binding, op.context.ciphertexts)))
+            % BN254_FR_MODULUS;
     }
 
     function frontierState(IPrivacyPool.Operation calldata op)

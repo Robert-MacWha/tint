@@ -1,14 +1,23 @@
-use alloy_primitives::{Address, Bytes};
-use ark_bn254::Fr;
+use alloy_primitives::{Address, Bytes, U256};
+use ark_bn254::{Bn254, Fr};
 use ark_ff::{BigInteger, PrimeField};
 use k256::ecdsa::{Signature, VerifyingKey};
-use tint::{fr::address_to_fr, operation::UnauthorizedOperation, policy::Policy};
+use tint::{
+    abis::tint::ProofLib,
+    fr::address_to_fr,
+    operation::UnauthorizedOperation,
+    policy::{Authorizer, Policy},
+};
+use tint_groth16::prove::placeholder;
 
 use crate::{
     N_SIGNERS, THRESHOLD,
     ffi::{self, artifacts::Artifacts},
     pubkey_hash,
 };
+
+/// Length of the proof `MultisigVerifier.verifyProof` takes.
+const PROOF_LEN: usize = 384;
 
 /// A signer capable of producing an ECDSA/secp256k1 signature over an
 /// already-final digest (no further hashing — the circuit signs
@@ -107,7 +116,7 @@ impl MultisigPolicy<N_SIGNERS, THRESHOLD> {
     /// # Errors
     ///
     /// Errors if a signer fails or proving fails.
-    pub fn authorize(&self, op: &UnauthorizedOperation) -> Result<Bytes, MultisigPolicyError> {
+    pub fn prove(&self, op: &UnauthorizedOperation) -> Result<Bytes, MultisigPolicyError> {
         let operation = op.operation();
         let msg = fr_to_be_bytes(operation.signing_hash());
 
@@ -126,6 +135,35 @@ impl MultisigPolicy<N_SIGNERS, THRESHOLD> {
 
         Ok(Bytes::from(solidity_proof))
     }
+}
+
+impl Authorizer for MultisigPolicy<N_SIGNERS, THRESHOLD> {
+    type Error = MultisigPolicyError;
+
+    fn placeholder(&self, op: &UnauthorizedOperation) -> Vec<Bytes> {
+        op.policy_inputs(self.contract_address, &placeholder_proof())
+    }
+
+    fn authorize(&self, op: &UnauthorizedOperation) -> Result<Vec<Bytes>, Self::Error> {
+        Ok(op.policy_inputs(self.contract_address, &self.prove(op)?))
+    }
+}
+
+/// A placeholder for the verifier's 384-byte proof: the Groth16 points
+/// (A, B, C), then the Pedersen commitment and its proof of knowledge.
+///
+/// The commitment and its proof are the point at infinity, which passes the
+/// verifier's commitment check, so the placeholder fails only at the final
+/// pairing and costs as much gas as a real proof.
+fn placeholder_proof() -> Bytes {
+    let groth16 = ProofLib::Proof::from(placeholder::<Bn254>());
+    let mut proof: Vec<u8> = groth16
+        .proof
+        .iter()
+        .flat_map(U256::to_be_bytes::<32>)
+        .collect();
+    proof.resize(PROOF_LEN, 0);
+    proof.into()
 }
 
 fn fr_to_be_bytes(f: Fr) -> [u8; 32] {
@@ -175,6 +213,6 @@ mod tests {
             .build(&mut StdRng::seed_from_u64(1))
             .unwrap();
 
-        multisig.authorize(&op).unwrap();
+        multisig.prove(&op).unwrap();
     }
 }

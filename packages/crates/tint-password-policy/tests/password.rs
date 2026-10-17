@@ -1,8 +1,6 @@
 mod common;
 
 use alloy_primitives::Address;
-use alloy_provider::Provider;
-use alloy_rpc_types_eth::TransactionRequest;
 use ark_bn254::Fr;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
@@ -20,7 +18,10 @@ use tint_groth16::artifacts::Artifacts;
 use tint_password_policy::{circuit::PasswordPolicyCircuit, policy::PasswordPolicy};
 use tracing::info;
 
-use crate::common::anvil;
+use crate::common::{
+    anvil::{self, send},
+    policy::deploy_policy,
+};
 
 /// Test that we can spend a note using the `PasswordPolicyCircuit`.
 #[tokio::test]
@@ -35,11 +36,11 @@ async fn password() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut rng = StdRng::seed_from_u64(1);
     let instance = anvil::setup().await?;
+    let policy = deploy_policy(&instance.provider).await?;
 
     let provider = instance.provider;
     let tint = *instance.tint.address();
     let token = instance.token;
-    let policy = instance.policy;
 
     // Setup circuits
     info!("Setting up circuits...");
@@ -49,7 +50,7 @@ async fn password() -> Result<(), Box<dyn std::error::Error>> {
     // Setup policy
     info!("Setting up password policy...");
     let password = PasswordPolicy::new(
-        *policy.address(),
+        policy,
         Fr::from(1234),
         policy_artifacts,
     );
@@ -81,7 +82,7 @@ async fn password() -> Result<(), Box<dyn std::error::Error>> {
         .output(account_2.pub_account(), asset, 100)
         .withdraw(Address::new([3; 20]), asset, 50)
         .build(&mut rng)?;
-    let policy_input = password.authorize(&op)?;
+    let policy_input = password.prove(&op)?;
     let proven = op
         .authorize(vec![policy_input])?
         .prove_with_mmr(&mmr, &artifacts, &mut rng)?;
@@ -101,13 +102,6 @@ async fn password() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(notes_2.len(), 1);
     assert_eq!(notes_2[0].note.amount, 100);
     assert_eq!(notes_2[0].note.asset, asset);
-
-    Ok(())
-}
-
-async fn send(provider: &impl Provider, tx: TransactionRequest) -> anyhow::Result<()> {
-    let receipt = provider.send_transaction(tx).await?.get_receipt().await?;
-    assert!(receipt.status());
 
     Ok(())
 }

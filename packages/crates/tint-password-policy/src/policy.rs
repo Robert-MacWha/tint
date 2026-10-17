@@ -6,9 +6,15 @@ use ark_relations::gr1cs::SynthesisError;
 use ark_snark::SNARK;
 use rand_core::OsRng;
 use tint::{
-    abis::tint::ProofLib, fr::address_to_fr, operation::UnauthorizedOperation, policy::Policy,
+    abis::tint::ProofLib,
+    fr::address_to_fr,
+    operation::UnauthorizedOperation,
+    policy::{Authorizer, Policy},
 };
-use tint_groth16::{artifacts::Artifacts, prove::prove_with_matrices};
+use tint_groth16::{
+    artifacts::Artifacts,
+    prove::{placeholder, prove_with_matrices},
+};
 use tint_poseidon2::poseidon2_compress;
 use tracing::info;
 
@@ -52,7 +58,7 @@ impl PasswordPolicy {
     /// # Errors
     ///
     /// Errors if proving fails.
-    pub fn authorize(&self, op: &UnauthorizedOperation) -> Result<Bytes, PasswordPolicyError> {
+    pub fn prove(&self, op: &UnauthorizedOperation) -> Result<Bytes, PasswordPolicyError> {
         let operation = op.operation();
         let circuit = PasswordPolicyCircuit::new(
             address_to_fr(self.contract_address),
@@ -77,6 +83,21 @@ impl PasswordPolicy {
         info!("Policy proof verified");
 
         Ok(ProofLib::Proof::from(proof).abi_encode().into())
+    }
+}
+
+impl Authorizer for PasswordPolicy {
+    type Error = PasswordPolicyError;
+
+    fn placeholder(&self, op: &UnauthorizedOperation) -> Vec<Bytes> {
+        let input = ProofLib::Proof::from(placeholder::<Bn254>())
+            .abi_encode()
+            .into();
+        op.policy_inputs(self.contract_address, &input)
+    }
+
+    fn authorize(&self, op: &UnauthorizedOperation) -> Result<Vec<Bytes>, Self::Error> {
+        Ok(op.policy_inputs(self.contract_address, &self.prove(op)?))
     }
 }
 

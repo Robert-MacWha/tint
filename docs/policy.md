@@ -19,11 +19,11 @@ When a user wishes to spend a note, they will provide the `policyAddress` and a 
 Policy rules should authorize the operation's `signingHash` rather than its `operationHash`:
 
 ```
-contextHash = keccak256(abi.encode(ciphertexts)) mod p
+contextHash = keccak256(abi.encode(caller, binding, ciphertexts)) mod p
 signingHash = poseidon2(operationHash, contextHash)
 ```
 
-`operationHash` covers the operation's notes and withdrawals (asset, amount, and recipient), but not the output ciphertexts. `signingHash` covers everything except the policy inputs themselves, so whoever produces the proof can't redirect funds a rule authorized. Rule circuits witness the operation and `contextHash` and recompute `signingHash` in-circuit, keeping it their only operation-specific public input. Contracts compute it with `ProofLib.signingHash`.
+`operationHash` covers the operation's notes and withdrawals (asset, amount, and recipient), but not the output ciphertexts or the context's `caller` and `binding`, which `contextHash` covers. `signingHash` covers everything except the policy inputs themselves, so whoever produces the proof can't redirect funds a rule authorized. Rule circuits witness the operation and `contextHash` and recompute `signingHash` in-circuit, keeping it their only operation-specific public input. Contracts compute it with `ProofLib.signingHash`.
 
 ### Example
 ```solidity

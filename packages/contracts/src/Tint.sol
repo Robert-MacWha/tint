@@ -37,6 +37,7 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory, Simulatabl
 
     error InvalidFrontier();
     error InvalidProof();
+    error InvalidCaller();
 
     constructor(IVerifier _verifier, IPoseidon2T3 _poseidon) SkewMmrWithHistory(MMR_MAX_DEPTH, MMR_HISTORY_SIZE) {
         VERIFIER = _verifier;
@@ -120,6 +121,10 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory, Simulatabl
 
     /// @notice Verifies that the provided operation is valid or reverts if not.
     function verifyOperation(IPrivacyPool.Operation calldata op) public view {
+        // Verify the operation is executed by its caller, if it names one.
+        address caller = op.context.caller;
+        if (caller != address(0) && caller != msg.sender) revert InvalidCaller();
+
         // Verify the frontier the proof was built against is one this pool committed to.
         (uint256 histRanks, uint256 histDepth, uint256 histCount, bytes32[] calldata histFrontier) = op.frontierState();
         if (!verifyFrontier(histRanks, histDepth, histCount, histFrontier)) revert InvalidFrontier();

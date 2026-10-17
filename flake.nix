@@ -72,6 +72,7 @@
           buildInputs = [
             pkgs.just
             pkgs.foundry
+            alto
             rustToolchain
             pkgs.rustPlatform.bindgenHook
             pkgs.go

@@ -114,11 +114,6 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory, Simulatabl
         }
     }
 
-    /// @notice Computes the Groth16 public-signal vector `op` must satisfy.
-    function computePublicSignals(IPrivacyPool.Operation calldata op) public pure returns (uint256[] memory) {
-        return op.toPublicSignals();
-    }
-
     /// @notice Verifies that the provided operation is valid or reverts if not.
     function verifyOperation(IPrivacyPool.Operation calldata op) public view {
         // Verify the operation is executed by its caller, if it names one.

@@ -61,8 +61,7 @@ async fn signing_hash_match_onchain() -> Result<(), Box<dyn std::error::Error>> 
         .build(&mut rng)?;
     let local = op.operation().signing_hash();
 
-    //? `ProofLib.signingHash` reads the operation hash from the public
-    //? signals, which simulating computes without proving.
+    //? The signing hash doesn't depend on the proof, so simulating computes it without proving.
     let simulated = op.authorize(vec![Bytes::new()])?.simulate_with_mmr(&mmr)?;
 
     //? The harness's `sol!` binding has its own `Operation` type, so convert

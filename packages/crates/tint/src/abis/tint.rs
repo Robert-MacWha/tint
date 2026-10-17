@@ -49,7 +49,6 @@ sol!(
         function executePreVerified(bytes32 slot, IPrivacyPool.Operation calldata operation) public;
         function isSpent(bytes32 nullifierHash) external view returns (bool);
         function verifyFrontier(uint256 histRanks, uint256 histDepth, uint256 histCount, bytes32[] calldata frontier) external view returns (bool);
-        function computePublicSignals(IPrivacyPool.Operation calldata op) public view returns (uint256[] memory);
         function verifyOperation(IPrivacyPool.Operation calldata op) public view;
     }
 );

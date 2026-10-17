@@ -1,97 +1,67 @@
-//! Cross-checks that the public-signal vector proven locally matches what
-//! `Tint.computePublicSignals` computes on-chain for the same operation.
+//! Cross-checks that the public-signal vector computed locally matches what
+//! `ProofLib.toPublicSignals` computes on-chain for the same operation.
 
-mod common;
-
-use alloy_primitives::{Address, Bytes, U256};
-use alloy_sol_types::SolCall;
+use alloy_node_bindings::Anvil;
+use alloy_primitives::{Address, B256, Bytes, U256};
+use alloy_provider::{Provider, ProviderBuilder};
+use alloy_signer_local::PrivateKeySigner;
+use alloy_sol_macro::sol;
+use alloy_sol_types::SolValue;
 use ark_bn254::Fr;
-use ark_std::rand::rngs::StdRng;
-use rand_core::SeedableRng;
+use ark_std::rand::{SeedableRng, rngs::StdRng};
 use tint::{
-    abis::tint::Tint,
     account::Account,
-    circuit::join_split::JoinSplitCircuit,
-    deposit::Deposit,
     fr::u256_to_fr,
-    note::asset::AssetId,
+    note::{asset::AssetId, owned::OwnedNote},
     operation::OperationBuilder,
     policy::Policy,
-    skew_mmr::{SkewMmr, SkewMmrExt},
-    syncer::{Syncer, rpc::RpcSyncer},
+    skew_mmr::SkewMmr,
 };
-use tint_groth16::artifacts::Artifacts;
 use tracing::info;
 
-use crate::common::anvil::{self, send};
+sol!(
+    #[sol(rpc)]
+    PublicSignals,
+    "../../contracts/out/PublicSignals.sol/PublicSignals.json"
+);
 
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
 async fn public_signals_match_onchain() -> Result<(), Box<dyn std::error::Error>> {
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
-        .add_directive("gr1cs=off".parse()?)
-        .add_directive("r1cs=off".parse()?);
+    let anvil = Anvil::new().spawn();
+    let signer = PrivateKeySigner::from_slice(&anvil.first_key().to_bytes())?;
+    let provider = ProviderBuilder::new()
+        .wallet(signer)
+        .connect_http(anvil.endpoint().parse()?)
+        .erased();
 
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    let harness = PublicSignals::deploy(provider.clone()).await?;
 
+    // "Spend" a note from a local MMR into an output and a withdrawal.
     let mut rng = StdRng::seed_from_u64(1);
-    let instance = anvil::setup().await?;
-
-    let provider = instance.provider;
-    let tint = instance.tint;
-    let token = instance.token;
-
-    // Setup circuits
-    info!("Setting up circuits...");
-    let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>()?;
-
     let account = Account::from_seed(&[11u8; 32], Policy::NONE);
-
-    // Deposit into Tint
-    info!("Depositing into Tint");
-    let asset = AssetId::from(*token.address());
-    let amount = 1_000u128;
-
-    let deposit = Deposit::new(
-        *tint.address(),
-        account.pub_account(),
-        asset,
-        amount,
-        &mut rng,
-    );
-    send(&provider, deposit.approval()).await?;
-    send(&provider, deposit.transaction(&mut rng)?).await?;
-
-    info!("Syncing");
-    let snapshot = RpcSyncer::new(provider.clone())
-        .sync(*tint.address(), ..)
-        .await?;
+    let asset = AssetId::default();
+    let note = account.pub_account().commitment(asset, 1_000, B256::ZERO);
+    let note = OwnedNote::new(note, &account)?;
     let mut mmr = SkewMmr::new();
-    mmr.append_events(&snapshot.events)?;
+    mmr.append(note.commitment());
 
-    // Verify balances
-    info!("Verifying balances");
-    assert_eq!(
-        token.balanceOf(*tint.address()).call().await?,
-        U256::from(amount)
-    );
-
-    let notes = snapshot.unspent(&account);
-    assert_eq!(notes.len(), 1);
-
-    let proven = OperationBuilder::new()
-        .spend(notes[0].clone())
-        .output(account.pub_account(), asset, amount - 100)
-        .withdraw(Address::new([2; 20]), asset, 100)
+    //? The public signals don't depend on the proof, so simulating computes
+    //? them without proving.
+    let simulated = OperationBuilder::new()
+        .spend(note)
+        .output(account.pub_account(), asset, 900)
+        .withdraw(Address::repeat_byte(2), asset, 100)
         .build(&mut rng)?
-        .authorize(vec![Bytes::default()])?
-        .prove_with_mmr(&mmr, &artifacts, &mut rng)?;
+        .authorize(vec![Bytes::new()])?
+        .simulate_with_mmr(&mmr)?;
 
-    let call = Tint::computePublicSignalsCall::new((proven.operation().clone(),));
-    let onchain_signals = tint.call_builder(&call).call().await?;
+    //? The harness's `sol!` binding has its own `Operation` type, so convert
+    //? tint's through its ABI encoding.
+    let operation = IPrivacyPool::Operation::abi_decode(&simulated.operation().abi_encode())?;
+    let onchain_signals = harness.toPublicSignals(operation).call().await?;
 
-    public_signal_diff(proven.public_signals(), &onchain_signals)?;
+    public_signal_diff(simulated.public_signals(), &onchain_signals)?;
     Ok(())
 }
 

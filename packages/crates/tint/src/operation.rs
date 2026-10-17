@@ -512,7 +512,7 @@ impl ProvenOperation {
     }
 
     /// The full public-signal vector the proof attests to. The contract
-    /// recomputes this in `computePublicSignals`.
+    /// recomputes this in `ProofLib.toPublicSignals`.
     #[must_use]
     pub fn public_signals(&self) -> &[Fr] {
         &self.public_signals

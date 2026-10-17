@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {LibHybridCompression} from "../src/lib/LibHybridCompression.sol";
-import {N_PUB, N_COMPRESSED_PUB, BN254_FR_MODULUS} from "../src/lib/Constants.sol";
+import {LibHybridCompression} from "../../src/lib/LibHybridCompression.sol";
+import {N_PUB, N_COMPRESSED_PUB, BN254_FR_MODULUS} from "../../src/lib/Constants.sol";
 
 /// @notice Exposes `LibHybridCompression.hybridCompression` externally for testing.
 contract HybridCompression {

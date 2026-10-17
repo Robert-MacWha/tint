@@ -86,6 +86,10 @@ contract Tint is IPrivacyPool, NullifierRegistry, SkewMmrWithHistory, Simulatabl
     ///
     /// @dev Assuming the operation has been pre-verified and that no erc20
     /// transfers revert, this function is guaranteed to not revert.
+    ///
+    /// @dev Intentionally doesn't check `context.caller`. `preVerify` checks it while
+    /// verifying, but once an operation is pre-verified it can be executed by anyone.
+    /// TODO: work out the security implications of this.
     function executePreVerified(bytes32 slot, IPrivacyPool.Operation calldata operation) public {
         bytes32 operationHash = operation.toOperationHash();
         bytes32 storedHash;

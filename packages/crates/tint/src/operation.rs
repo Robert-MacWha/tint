@@ -300,8 +300,6 @@ impl Operation {
 
     /// Proves the operation against `mmr`'s current frontier.
     ///
-    /// See [`Self::prove`].
-    ///
     /// # Errors
     ///
     /// Errors if an input is unauthorized or isn't in `mmr`, or proving fails.
@@ -344,7 +342,7 @@ impl Operation {
 impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
     OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>
 {
-    /// This operation's binding hash, mirroring [`crate::circuit::operation::OperationVar::hash`].
+    /// This operation's binding hash, mirroring [`crate::circuit::gadgets::operation::OperationVar::hash`].
     pub fn hash(&self) -> Fr {
         let mut hash = Fr::from(0u64);
         for input in &self.inputs {
@@ -402,7 +400,7 @@ impl<const N_INPUTS: usize, const N_OUTPUTS: usize, const N_WITHDRAWALS: usize>
 }
 
 impl OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
-    /// See [`Self::prove_with_mmr`].
+    /// Proves the operation against `mmr`'s current frontier.
     fn prove_with_mmr<R: RngCore + CryptoRng>(
         self,
         mmr: &SkewMmr,
@@ -413,7 +411,7 @@ impl OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
         self.prove(proofs, artifacts, rng)
     }
 
-    /// See [`Self::simulate_with_mmr`].
+    /// Assembles the operation against `mmr`'s current frontier, with a placeholder proof.
     fn simulate_with_mmr(self, mmr: &SkewMmr) -> Result<ProvenOperation, OperationError> {
         let proofs = self.inclusion_proofs(mmr)?;
         self.assemble(proofs, |_| Ok(placeholder()))
@@ -461,7 +459,7 @@ impl OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
 
         let hist_state = proofs[0].state;
         let frontier = proofs[0].roots;
-        // The frontier is the tail of `stmt`;
+        // The frontier is the tail of `stmt`; only its live roots are sent.
         let live = FRONTIER_OFFSET + hist_state.depth();
 
         // Padding slots take a default proof, which the circuit skips.

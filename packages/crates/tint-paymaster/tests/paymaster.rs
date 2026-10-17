@@ -8,8 +8,11 @@ use kohaku_fork_kit::{
 };
 use kohaku_userop_kit::{
     builder::UserOperationBuilder,
-    bundler::Bundler,
-    smart_account::simple_7702_smart_account::{Call, Simple7702SmartAccount},
+    bundler::{Bundler, BundlerExt},
+    smart_account::{
+        SmartAccount,
+        simple_7702_smart_account::{Call, Simple7702SmartAccount},
+    },
 };
 use tint::{
     account::Account,
@@ -23,7 +26,9 @@ use tint::{
     syncer::{Syncer, rpc::RpcSyncer},
 };
 use tint_groth16::artifacts::Artifacts;
-use tint_paymaster::{Refund, TintPaymaster, UserOperationPaymasterExt};
+use tint_paymaster::{
+    OperationBuilderPaymasterExt, Refund, TintPaymaster, UserOperationPaymasterExt,
+};
 use tracing::info;
 
 use crate::common::{
@@ -108,19 +113,26 @@ async fn tint_paymaster_transfer_refund() -> anyhow::Result<()> {
                 .into(),
         }]);
 
-    let refund = Refund::transfer(REFUND_RECIPIENT);
+    let payment = paymaster.pay(
+        MAX_FEE,
+        Refund::transfer(REFUND_RECIPIENT),
+        smart_account.address(),
+    );
     let operation = OperationBuilder::new()
         .spend(notes[0].clone())
         .withdraw(owner.address(), asset, UNSHIELD_AMOUNT)
-        .change_to(account.pub_account());
-    let operation =
-        builder.tint_paymaster_operation(&paymaster, operation, MAX_FEE, &refund, &mut rng)?;
-    let operation = operation.prove_with_mmr(&mmr, &artifacts, &mut rng)?;
-    let builder = builder
-        .with_tint_paymaster(&paymaster, &operation, &refund, &*alto)
-        .await?;
+        .change_to(account.pub_account())
+        .with_paymaster(&payment)
+        .build(&mut rng)?
+        .prove_with_mmr(&mmr, &artifacts, &mut rng)?;
 
-    let userop = builder.build().sign(&owner).await?;
+    let userop = builder
+        .with_tint_paymaster(&payment, &operation)?
+        .with_gas_estimate(&*alto, None)
+        .await?
+        .build()
+        .sign(&owner)
+        .await?;
     let userop_hash = alto.send_user_operation(&userop).await?;
     let userop_receipt = alto.wait_for_receipt(userop_hash).await?;
     info!("Userop receipt: {userop_receipt:?}");
@@ -218,19 +230,26 @@ async fn tint_paymaster_deposit_refund() -> anyhow::Result<()> {
                 .into(),
         }]);
 
-    let refund = Refund::deposit(&account.pub_account(), &mut rng)?;
+    let payment = paymaster.pay(
+        MAX_FEE,
+        Refund::deposit(&account.pub_account(), &mut rng)?,
+        smart_account.address(),
+    );
     let operation = OperationBuilder::new()
         .spend(notes[0].clone())
         .withdraw(owner.address(), asset, UNSHIELD_AMOUNT)
-        .change_to(account.pub_account());
-    let operation =
-        builder.tint_paymaster_operation(&paymaster, operation, MAX_FEE, &refund, &mut rng)?;
-    let operation = operation.prove_with_mmr(&mmr, &artifacts, &mut rng)?;
-    let builder = builder
-        .with_tint_paymaster(&paymaster, &operation, &refund, &*alto)
-        .await?;
+        .change_to(account.pub_account())
+        .with_paymaster(&payment)
+        .build(&mut rng)?
+        .prove_with_mmr(&mmr, &artifacts, &mut rng)?;
 
-    let userop = builder.build().sign(&owner).await?;
+    let userop = builder
+        .with_tint_paymaster(&payment, &operation)?
+        .with_gas_estimate(&*alto, None)
+        .await?
+        .build()
+        .sign(&owner)
+        .await?;
     let userop_hash = alto.send_user_operation(&userop).await?;
     let userop_receipt = alto.wait_for_receipt(userop_hash).await?;
     info!("Userop receipt: {userop_receipt:?}");

@@ -1,22 +1,19 @@
-//! Extension trait for paying for ERC-4337 userops with a Tint operation.
+//! Extension traits for paying for ERC-4337 userops with a Tint operation.
 
 use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_sol_types::SolValue;
-use kohaku_userop_kit::{
-    builder::UserOperationBuilder,
-    bundler::{Bundler, BundlerError, BundlerExt},
-};
+use kohaku_userop_kit::builder::UserOperationBuilder;
 use rand_core::{CryptoRng, RngCore};
 use tint::{
     account::pub_account::PubAccount,
     fr::fr_to_b256,
     note::{asset::AssetId, commitment::CommitmentError},
-    operation::{Operation, OperationBuilder, OperationError, ProvenOperation},
+    operation::{OperationBuilder, ProvenOperation},
 };
 
 mod abis;
 
-/// A deployed `TintPaymaster`.
+/// A deployed `TintPaymaster` instance.
 #[derive(Clone, Copy, Debug)]
 pub struct TintPaymaster {
     pub address: Address,
@@ -38,93 +35,88 @@ pub enum Refund {
     },
 }
 
+/// `sender`'s userop payment through a [`TintPaymaster`].
+#[derive(Clone, Debug)]
+pub struct TintPayment {
+    pub paymaster: TintPaymaster,
+    pub fee: u128,
+    pub refund: Refund,
+    pub sender: Address,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum TintPaymasterError {
-    #[error("Bundler error: {0}")]
-    Bundler(#[from] BundlerError),
-    #[error("Operation error: {0}")]
-    Operation(#[from] OperationError),
     #[error("Commitment error: {0}")]
     Commitment(#[from] CommitmentError),
     #[error("Operation isn't bound to this refund and userop sender")]
     RefundMismatch,
 }
 
+/// Extension trait for [`OperationBuilder`] that pays a userop's gas through a
+/// [`TintPaymaster`].
+pub trait OperationBuilderPaymasterExt {
+    /// Use `payment` to sponsor this operation.
+    ///
+    /// Adds a withdrawal of `payment.fee` WETH to the paymaster amd
+    /// binds the operation to the given refund and sender.
+    #[must_use]
+    fn with_paymaster(self, payment: &TintPayment) -> Self;
+}
+
 /// Extension trait for [`UserOperationBuilder`] that pays with a [`TintPaymaster`].
 pub trait UserOperationPaymasterExt: Sized {
-    /// Builds `operation` to pay `fee` WETH for this userop's gas, ready to
-    /// authorize and prove.
+    /// Pays for this userop's gas with `operation`, built with
+    /// [`OperationBuilderPaymasterExt::with_paymaster`] and the same `payment`.
     ///
-    /// Adds the fee as a WETH withdrawal to the paymaster, and binds the
-    /// operation to the paymaster, this userop's sender and `refund`.
-    /// `operation` must balance once the fee is withdrawn, e.g. by setting a
-    /// change receiver.
-    ///
-    /// # Errors
-    /// Returns an error if the operation doesn't build.
-    fn tint_paymaster_operation<R: RngCore + CryptoRng>(
-        &self,
-        paymaster: &TintPaymaster,
-        operation: OperationBuilder,
-        fee: u128,
-        refund: &Refund,
-        rng: &mut R,
-    ) -> Result<Operation, TintPaymasterError>;
-
-    /// Pays for this userop's gas with `operation`, built by
-    /// [`Self::tint_paymaster_operation`] with the same `refund`.
-    ///
-    /// The paymaster rejects the userop if its fee doesn't cover the userop's
+    /// The userop will be rejected if its fee doesn't cover the userop's
     /// maximum gas cost.
     ///
     /// # Errors
-    /// Returns an error if `operation` isn't bound to `refund`, or if gas
-    /// estimation fails.
+    /// Returns an error if this userop's sender isn't `payment.sender`, or
+    /// `operation` isn't bound to `payment`.
     fn with_tint_paymaster(
         self,
-        paymaster: &TintPaymaster,
+        payment: &TintPayment,
         operation: &ProvenOperation,
-        refund: &Refund,
-        bundler: &dyn Bundler,
-    ) -> impl Future<Output = Result<Self, TintPaymasterError>>;
+    ) -> Result<Self, TintPaymasterError>;
+}
+
+impl OperationBuilderPaymasterExt for OperationBuilder {
+    fn with_paymaster(self, payment: &TintPayment) -> Self {
+        let TintPaymaster { address, weth } = payment.paymaster;
+        self.withdraw(address, AssetId::from(weth), payment.fee)
+            .caller(address)
+            .binding(payment.refund.binding(payment.sender))
+    }
 }
 
 impl<S> UserOperationPaymasterExt for UserOperationBuilder<S> {
-    fn tint_paymaster_operation<R: RngCore + CryptoRng>(
-        &self,
-        paymaster: &TintPaymaster,
-        operation: OperationBuilder,
-        fee: u128,
-        refund: &Refund,
-        rng: &mut R,
-    ) -> Result<Operation, TintPaymasterError> {
-        let sender = self.build().user_op.sender;
-        Ok(operation
-            .withdraw(paymaster.address, AssetId::from(paymaster.weth), fee)
-            .caller(paymaster.address)
-            .binding(refund.binding(sender))
-            .build(rng)?)
-    }
-
-    #[tracing::instrument(skip_all)]
-    async fn with_tint_paymaster(
+    fn with_tint_paymaster(
         self,
-        paymaster: &TintPaymaster,
+        payment: &TintPayment,
         operation: &ProvenOperation,
-        refund: &Refund,
-        bundler: &dyn Bundler,
     ) -> Result<Self, TintPaymasterError> {
         let sender = self.build().user_op.sender;
         let operation = operation.operation();
-        if operation.context.binding != refund.binding(sender) {
+        let binding = payment.refund.binding(payment.sender);
+        if sender != payment.sender || operation.context.binding != binding {
             return Err(TintPaymasterError::RefundMismatch);
         }
 
-        let data = (operation.clone(), refund.to_sol()).abi_encode_params();
-        Ok(self
-            .with_paymaster_and_data(paymaster.address, data.into())
-            .with_gas_estimate(bundler, None)
-            .await?)
+        let data = (operation.clone(), payment.refund.to_sol()).abi_encode_params();
+        Ok(self.with_paymaster_and_data(payment.paymaster.address, data.into()))
+    }
+}
+
+impl TintPaymaster {
+    #[must_use]
+    pub fn pay(self, fee: u128, refund: Refund, sender: Address) -> TintPayment {
+        TintPayment {
+            paymaster: self,
+            fee,
+            refund,
+            sender,
+        }
     }
 }
 

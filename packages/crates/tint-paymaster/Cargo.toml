@@ -10,7 +10,6 @@ kohaku-userop-kit = { workspace = true }
 rand_core = { workspace = true }
 thiserror = { workspace = true }
 tint = { workspace = true }
-tracing = { workspace = true }
 
 [dev-dependencies]
 alloy-contract = { workspace = true }
@@ -24,6 +23,7 @@ ark-std = { workspace = true }
 kohaku-fork-kit = { workspace = true }
 tint-groth16 = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [lints]

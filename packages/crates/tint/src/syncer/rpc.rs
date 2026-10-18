@@ -37,7 +37,8 @@ impl<P: Provider> RpcSyncer<P> {
     }
 }
 
-#[async_trait::async_trait]
+#[cfg_attr(not(target_family = "wasm"), async_trait::async_trait)]
+#[cfg_attr(target_family = "wasm", async_trait::async_trait(?Send))]
 impl<P: Provider> Syncer for RpcSyncer<P> {
     async fn sync_range(
         &self,

@@ -9,7 +9,8 @@ use crate::{abis::tint::Tint, fr::fr_to_b256, skew_mmr::SkewMmr};
 type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 /// Tint accessors for any alloy [`Provider`].
-#[async_trait::async_trait]
+#[cfg_attr(not(target_family = "wasm"), async_trait::async_trait)]
+#[cfg_attr(target_family = "wasm", async_trait::async_trait(?Send))]
 pub trait TintProviderExt: Provider {
     /// Returns whether `nullifier` has been spent (`NullifierRegistry.isSpent`).
     async fn tint_is_spent(&self, tint: Address, nullifier: Fr) -> Result<bool, BoxError>;
@@ -19,7 +20,8 @@ pub trait TintProviderExt: Provider {
     async fn tint_verify_mmr(&self, tint: Address, mmr: &SkewMmr) -> Result<bool, BoxError>;
 }
 
-#[async_trait::async_trait]
+#[cfg_attr(not(target_family = "wasm"), async_trait::async_trait)]
+#[cfg_attr(target_family = "wasm", async_trait::async_trait(?Send))]
 impl<P: Provider> TintProviderExt for P {
     async fn tint_is_spent(&self, tint: Address, nullifier: Fr) -> Result<bool, BoxError> {
         let call = Tint::isSpentCall {

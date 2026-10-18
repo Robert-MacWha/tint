@@ -14,7 +14,8 @@ pub mod rpc;
 pub use event::{Committed, Deposited, Nullified, Snapshot, SnapshotError, SyncEvent, Withdrawn};
 
 /// Fetches a Tint deployment's events from some source.
-#[async_trait::async_trait]
+#[cfg_attr(not(target_family = "wasm"), async_trait::async_trait)]
+#[cfg_attr(target_family = "wasm", async_trait::async_trait(?Send))]
 pub trait Syncer: Send + Sync {
     /// Fetch the events emitted by the Tint deployment at `tint` within the given block range.
     ///
@@ -61,7 +62,8 @@ impl DynSyncer {
     }
 }
 
-#[async_trait::async_trait]
+#[cfg_attr(not(target_family = "wasm"), async_trait::async_trait)]
+#[cfg_attr(target_family = "wasm", async_trait::async_trait(?Send))]
 impl Syncer for DynSyncer {
     async fn sync_range(
         &self,

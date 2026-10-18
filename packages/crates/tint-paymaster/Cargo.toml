@@ -5,18 +5,17 @@ edition = "2024"
 
 [dependencies]
 alloy-primitives = { workspace = true }
+alloy-rpc-types-eth = { workspace = true }
 alloy-sol-types = { workspace = true }
 kohaku-userop-kit = { workspace = true }
 rand_core = { workspace = true }
 thiserror = { workspace = true }
 tint = { workspace = true }
-tracing = { workspace = true }
 
 [dev-dependencies]
 alloy-contract = { workspace = true }
 alloy-node-bindings = { workspace = true }
 alloy-provider = { workspace = true }
-alloy-rpc-types-eth = { workspace = true }
 alloy-signer-local = { workspace = true }
 alloy-sol-macro = { workspace = true, features = ["json"] }
 anyhow = { workspace = true }
@@ -24,6 +23,7 @@ ark-std = { workspace = true }
 kohaku-fork-kit = { workspace = true }
 tint-groth16 = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [lints]

@@ -11,7 +11,10 @@ use tint::{
     operation::{Operation, OperationError},
     policy::Policy,
 };
-use tint_groth16::{artifacts::Artifacts, prove::prove_with_matrices};
+use tint_groth16::{
+    artifacts::Artifacts,
+    prove::{placeholder, prove_with_matrices},
+};
 use tint_poseidon2::poseidon2_compress;
 use tracing::info;
 
@@ -60,6 +63,19 @@ impl PasswordPolicy {
         let input = self.prove(op)?;
         op.authorize(self.policy(), input)?;
         Ok(())
+    }
+
+    /// Assigns placeholder authorizations to every input of `op` bound to this policy.
+    ///
+    /// Placeholder authorizations are expected to revert, but consume an equivalent
+    /// amount of gas to a valid authorization. Used when simulating operations.
+    ///
+    /// # Errors
+    ///
+    /// Errors if no input of `op` is bound to this policy.
+    pub fn authorize_placeholder(&self, op: &mut Operation) -> Result<(), OperationError> {
+        let input = ProofLib::Proof::from(placeholder::<Bn254>()).abi_encode();
+        op.authorize(self.policy(), input.into())
     }
 
     /// Proves knowledge of the password over `op`'s signing hash. The returned

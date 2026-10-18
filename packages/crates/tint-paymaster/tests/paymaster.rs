@@ -8,8 +8,11 @@ use kohaku_fork_kit::{
 };
 use kohaku_userop_kit::{
     builder::UserOperationBuilder,
-    bundler::Bundler,
-    smart_account::simple_7702_smart_account::{Call, Simple7702SmartAccount},
+    bundler::{Bundler, BundlerExt},
+    smart_account::{
+        SmartAccount,
+        simple_7702_smart_account::{Call, Simple7702SmartAccount},
+    },
 };
 use tint::{
     account::Account,
@@ -23,7 +26,9 @@ use tint::{
     syncer::{Syncer, rpc::RpcSyncer},
 };
 use tint_groth16::artifacts::Artifacts;
-use tint_paymaster::{TintPaymaster, UserOperationPaymasterExt};
+use tint_paymaster::{
+    OperationBuilderPaymasterExt, Refund, TintPaymaster, UserOperationPaymasterExt,
+};
 use tracing::info;
 
 use crate::common::{
@@ -36,24 +41,157 @@ mod common;
 const ALTO_EXECUTOR_PK: &str = "0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5";
 const ALTO_UTILITY_PK: &str = "0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f1f01a6";
 const SINK: Address = address!("0x000000000000000000000000000000000000dEaD");
+const REFUND_RECIPIENT: Address = address!("0x000000000000000000000000000000000000fEEd");
 
 const NOTE_AMOUNT: u128 = 10u128.pow(18);
 const UNSHIELD_AMOUNT: u128 = NOTE_AMOUNT / 2;
-const MAX_FEE: u128 = NOTE_AMOUNT / 10;
 
-/// A userop paid for by a Tint note. The note's WETH is unshielded to the
-/// sender during validation, so the userop's own calls can spend it.
+/// A userop paid for by a Tint note, refunding the unspent fee to an address.
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
-async fn tint_paymaster() -> anyhow::Result<()> {
+#[expect(clippy::too_many_lines)]
+async fn tint_paymaster_transfer_refund() -> anyhow::Result<()> {
     let mut rng = StdRng::seed_from_u64(1);
-
     let instance = anvil::setup().await?;
     let provider = instance.provider.clone();
     let chain_id = provider.get_chain_id().await?;
     let tint = *instance.tint.address();
-    //? `TintPaymaster` only treats WETH as an ERC20, so the mock token stands in.
     let weth = *instance.token.address();
+    let token = MockToken::new(weth, provider.clone());
+
+    let entrypoint = deploy_entry_point(&provider).await?;
+    deploy_simple_account(&provider).await?;
+    let paymaster = TintPaymaster {
+        address: deploy_paymaster(&provider, tint, weth).await?,
+        weth,
+    };
+
+    info!("Starting local alto bundler");
+    let alto = AltoBuilder::new(
+        instance.anvil.endpoint(),
+        entrypoint,
+        ALTO_EXECUTOR_PK,
+        ALTO_UTILITY_PK,
+    )
+    .prefund(&provider)
+    .await?
+    .spawn()
+    .await?;
+
+    info!("Setting up circuits...");
+    let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>()?;
+
+    // Deposit a note
+    info!("Depositing into Tint");
+    let account = Account::from_seed(&[11u8; 32], Policy::NONE);
+    let asset = AssetId::from(weth);
+    let deposit = Deposit::new(tint, account.pub_account(), asset, NOTE_AMOUNT, &mut rng);
+    send(&provider, deposit.approval()).await?;
+    send(&provider, deposit.transaction(&mut rng)?).await?;
+
+    // Sync a skew-MMR against the provider
+    let snapshot = RpcSyncer::new(provider.clone())
+        .sync(tint, ..)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
+    let mut mmr = SkewMmr::new();
+    mmr.append_events(&snapshot.events)?;
+    let notes = snapshot.unspent(&account);
+
+    // Sponsor a UserOp with the note
+    info!("Unshielding from Tint with the tint paymaster");
+    let owner = PrivateKeySigner::random();
+    let smart_account = Simple7702SmartAccount::new(provider.clone(), owner.address(), chain_id);
+
+    let builder = UserOperationBuilder::new_with_smart_account(&smart_account)
+        .await?
+        .with_call(&vec![Call {
+            target: weth,
+            value: U256::ZERO,
+            data: MockToken::transferCall::new((SINK, U256::from(UNSHIELD_AMOUNT)))
+                .abi_encode()
+                .into(),
+        }]);
+
+    let operation = OperationBuilder::new()
+        .spend(notes[0].clone())
+        .withdraw(owner.address(), asset, UNSHIELD_AMOUNT)
+        .change_to(account.pub_account());
+
+    // Estimate gas with a simulated operation paying a nominal fee
+    let mut payment = paymaster.pay(
+        1,
+        Refund::transfer(REFUND_RECIPIENT),
+        smart_account.address(),
+    );
+    let simulated = operation
+        .clone()
+        .with_paymaster(&payment)
+        .build(&mut rng)?
+        .simulate_with_mmr(&mmr)?;
+    let builder = builder
+        .with_tint_paymaster(&payment, &simulated)?
+        .with_gas_estimate(&*alto, Some(&paymaster.simulation_override(tint)))
+        .await?;
+
+    // Pay the estimated fee with a proven operation
+    payment.fee = builder.max_gas_cost();
+    let operation = operation
+        .with_paymaster(&payment)
+        .build(&mut rng)?
+        .prove_with_mmr(&mmr, &artifacts, &mut rng)?;
+
+    let userop = builder
+        .with_tint_paymaster(&payment, &operation)?
+        .build()
+        .sign(&owner)
+        .await?;
+    let userop_hash = alto.send_user_operation(&userop).await?;
+    let userop_receipt = alto.wait_for_receipt(userop_hash).await?;
+    info!("Userop receipt: {userop_receipt:?}");
+
+    assert!(userop_receipt.success, "userop should succeed");
+    assert!(
+        provider
+            .tint_is_spent(tint, notes[0].nullifier())
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?,
+        "note should be spent"
+    );
+    assert_eq!(
+        token.balanceOf(SINK).call().await?,
+        U256::from(UNSHIELD_AMOUNT),
+        "userop's call should spend the unshielded WETH"
+    );
+
+    let kept = token.balanceOf(paymaster.address).call().await?;
+    assert!(
+        kept >= userop_receipt.actual_gas_cost,
+        "paymaster should keep at least the gas it paid for"
+    );
+    let refunded = token.balanceOf(REFUND_RECIPIENT).call().await?;
+    assert!(refunded > U256::ZERO, "recipient should be refunded");
+    assert_eq!(
+        kept + refunded,
+        U256::from(payment.fee),
+        "paymaster should keep only the fee it didn't refund"
+    );
+
+    Ok(())
+}
+
+/// A userop paid for by a Tint note, refunding the unspent fee as a new note.
+#[tokio::test]
+#[ignore = "run with `cargo test --release -- --ignored`"]
+#[expect(clippy::too_many_lines)]
+async fn tint_paymaster_deposit_refund() -> anyhow::Result<()> {
+    let mut rng = StdRng::seed_from_u64(1);
+    let instance = anvil::setup().await?;
+    let provider = instance.provider.clone();
+    let chain_id = provider.get_chain_id().await?;
+    let tint = *instance.tint.address();
+    let weth = *instance.token.address();
+    let token = MockToken::new(weth, provider.clone());
 
     let entrypoint = deploy_entry_point(&provider).await?;
     deploy_simple_account(&provider).await?;
@@ -114,14 +252,35 @@ async fn tint_paymaster() -> anyhow::Result<()> {
         .spend(notes[0].clone())
         .withdraw(owner.address(), asset, UNSHIELD_AMOUNT)
         .change_to(account.pub_account());
-    let operation = builder.tint_paymaster_operation(&paymaster, operation, MAX_FEE, &mut rng)?;
-    // The note is under `Policy::NONE`, so there's nothing to authorize.
-    let operation = operation.prove_with_mmr(&mmr, &artifacts, &mut rng)?;
+
+    // Estimate gas with a simulated operation paying a nominal fee
+    let mut payment = paymaster.pay(
+        1,
+        Refund::deposit(&account.pub_account(), &mut rng)?,
+        smart_account.address(),
+    );
+    let simulated = operation
+        .clone()
+        .with_paymaster(&payment)
+        .build(&mut rng)?
+        .simulate_with_mmr(&mmr)?;
     let builder = builder
-        .with_tint_paymaster(&paymaster, &operation, &*alto)
+        .with_tint_paymaster(&payment, &simulated)?
+        .with_gas_estimate(&*alto, Some(&paymaster.simulation_override(tint)))
         .await?;
 
-    let userop = builder.build().sign(&owner).await?;
+    // Pay the estimated fee with a proven operation
+    payment.fee = builder.max_gas_cost();
+    let operation = operation
+        .with_paymaster(&payment)
+        .build(&mut rng)?
+        .prove_with_mmr(&mmr, &artifacts, &mut rng)?;
+
+    let userop = builder
+        .with_tint_paymaster(&payment, &operation)?
+        .build()
+        .sign(&owner)
+        .await?;
     let userop_hash = alto.send_user_operation(&userop).await?;
     let userop_receipt = alto.wait_for_receipt(userop_hash).await?;
     info!("Userop receipt: {userop_receipt:?}");
@@ -134,17 +293,30 @@ async fn tint_paymaster() -> anyhow::Result<()> {
             .map_err(|e| anyhow::anyhow!(e))?,
         "note should be spent"
     );
-
-    let token = MockToken::new(weth, provider.clone());
-    assert_eq!(
-        token.balanceOf(paymaster.address).call().await?,
-        U256::from(MAX_FEE),
-        "paymaster should collect the fee"
-    );
     assert_eq!(
         token.balanceOf(SINK).call().await?,
         U256::from(UNSHIELD_AMOUNT),
         "userop's call should spend the unshielded WETH"
+    );
+
+    let kept = token.balanceOf(paymaster.address).call().await?;
+    assert!(
+        kept >= userop_receipt.actual_gas_cost,
+        "paymaster should keep at least the gas it paid for"
+    );
+    let refunded = payment.fee - u128::try_from(kept)?;
+    assert!(refunded > 0, "account should be refunded");
+
+    let snapshot = syncer
+        .sync(tint, ..)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
+    let notes = snapshot.unspent(&account);
+    assert!(
+        notes
+            .iter()
+            .any(|n| n.note.asset == asset && n.note.amount == refunded),
+        "account should own the refunded note"
     );
 
     Ok(())

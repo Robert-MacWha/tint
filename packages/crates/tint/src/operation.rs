@@ -433,6 +433,8 @@ impl OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS> {
             if !Groth16::<Bn254>::verify(&artifacts.vk, &public_inputs, &proof)? {
                 return Err(OperationError::InvalidProof);
             }
+
+            info!("Proved operation");
             Ok(proof)
         })
     }

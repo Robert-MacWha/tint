@@ -37,7 +37,7 @@ ark-crypto-primitives = "0.6.0"
 ark-ec = "0.6.0"
 ark-ed-on-bn254 = "0.6.0"
 ark-ff = "0.6.0"
-ark-groth16 = "0.6.0"
+ark-groth16 = { version = "0.6.0", default-features = false, features = ["std"] }
 ark-hybrid-compression = { git = "https://github.com/Robert-MacWha/ark-hybrid-compression" }
 ark-poly = "0.6.0"
 ark-profiler = "0.1.0"

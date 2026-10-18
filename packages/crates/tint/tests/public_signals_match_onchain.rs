@@ -1,10 +1,7 @@
 //! Cross-checks that the public-signal vector computed locally matches what
 //! `ProofLib.toPublicSignals` computes on-chain for the same operation.
 
-use alloy_node_bindings::Anvil;
 use alloy_primitives::{Address, B256, U256};
-use alloy_provider::{Provider, ProviderBuilder};
-use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_macro::sol;
 use alloy_sol_types::SolValue;
 use ark_bn254::Fr;
@@ -19,6 +16,10 @@ use tint::{
 };
 use tracing::info;
 
+use crate::common::anvil::Instance;
+
+mod common;
+
 sol!(
     #[sol(rpc)]
     PublicSignals,
@@ -28,12 +29,8 @@ sol!(
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
 async fn public_signals_match_onchain() -> Result<(), Box<dyn std::error::Error>> {
-    let anvil = Anvil::new().spawn();
-    let signer = PrivateKeySigner::from_slice(&anvil.first_key().to_bytes())?;
-    let provider = ProviderBuilder::new()
-        .wallet(signer)
-        .connect_http(anvil.endpoint().parse()?)
-        .erased();
+    let instance = Instance::setup().await?;
+    let provider = instance.provider.clone();
 
     let harness = PublicSignals::deploy(provider.clone()).await?;
 

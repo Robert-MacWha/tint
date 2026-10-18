@@ -2,10 +2,7 @@
 //! matches what `ProofLib.signingHash` computes on-chain for the same
 //! operation.
 
-use alloy_node_bindings::Anvil;
 use alloy_primitives::{Address, B256};
-use alloy_provider::{Provider, ProviderBuilder};
-use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_macro::sol;
 use alloy_sol_types::SolValue;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
@@ -17,6 +14,10 @@ use tint::{
     policy::Policy,
     skew_mmr::SkewMmr,
 };
+
+use crate::common::anvil::Instance;
+
+mod common;
 
 sol!(
     #[sol(rpc)]
@@ -33,12 +34,8 @@ sol!(
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
 async fn signing_hash_match_onchain() -> Result<(), Box<dyn std::error::Error>> {
-    let anvil = Anvil::new().spawn();
-    let signer = PrivateKeySigner::from_slice(&anvil.first_key().to_bytes())?;
-    let provider = ProviderBuilder::new()
-        .wallet(signer)
-        .connect_http(anvil.endpoint().parse()?)
-        .erased();
+    let instance = Instance::setup().await?;
+    let provider = instance.provider.clone();
 
     let poseidon = Poseidon2T2::deploy(provider.clone()).await?;
     let harness = SigningHash::deploy(provider.clone(), *poseidon.address()).await?;

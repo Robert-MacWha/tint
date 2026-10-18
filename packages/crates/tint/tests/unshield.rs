@@ -4,8 +4,6 @@ use rand_core::SeedableRng;
 use tint::{
     account::Account,
     circuit::join_split::JoinSplitCircuit,
-    deposit::Deposit,
-    note::asset::AssetId,
     operation::OperationBuilder,
     policy::Policy,
     skew_mmr::{SkewMmr, SkewMmrExt},
@@ -14,26 +12,24 @@ use tint::{
 use tint_groth16::artifacts::Artifacts;
 use tracing::info;
 
-use crate::common::anvil::{self, send};
+use crate::common::{
+    anvil::{Instance, send},
+    util::{assert_unspent, init_tracing},
+};
 
 mod common;
 
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
 async fn unshield() -> Result<(), Box<dyn std::error::Error>> {
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
-        .add_directive("gr1cs=off".parse()?)
-        .add_directive("r1cs=off".parse()?);
-
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    init_tracing();
 
     let mut rng = StdRng::seed_from_u64(1);
-    let instance = anvil::setup().await?;
+    let instance = Instance::setup().await?;
 
-    let provider = instance.provider;
+    let provider = instance.provider.clone();
     let tint = *instance.tint.address();
-    let token = instance.token;
+    let asset = instance.asset();
 
     // Setup circuits
     info!("Setting up circuits...");
@@ -42,14 +38,10 @@ async fn unshield() -> Result<(), Box<dyn std::error::Error>> {
     let account_1 = Account::from_seed(&[11u8; 32], Policy::NONE);
     let unshield_address = Address::new(rng.r#gen());
 
-    // Deposit into Tint
-    info!("Depositing into Tint");
-    let asset = AssetId::from(*token.address());
     let amount = 1_000u128;
-
-    let deposit = Deposit::new(tint, account_1.pub_account(), asset, amount, &mut rng);
-    send(&provider, deposit.approval()).await?;
-    send(&provider, deposit.transaction(&mut rng)?).await?;
+    instance
+        .deposit(account_1.pub_account(), amount, &mut rng)
+        .await?;
 
     info!("Syncing");
     let syncer = RpcSyncer::new(provider.clone());
@@ -60,9 +52,6 @@ async fn unshield() -> Result<(), Box<dyn std::error::Error>> {
     // Unshield
     info!("Unshielding");
     let notes = snapshot.unspent(&account_1);
-    assert_eq!(notes.len(), 1);
-    assert_eq!(notes[0].note.amount, amount);
-    assert_eq!(notes[0].note.asset, asset);
 
     let proven = OperationBuilder::new()
         .spend(notes[0].clone())
@@ -78,13 +67,9 @@ async fn unshield() -> Result<(), Box<dyn std::error::Error>> {
 
     // Verify balances
     info!("Verifying balances");
-    let notes_1 = snapshot.unspent(&account_1);
-    assert_eq!(notes_1.len(), 1);
-    assert_eq!(notes_1[0].note.amount, 100);
-    assert_eq!(notes_1[0].note.asset, asset);
-
+    assert_unspent(&snapshot, &account_1, &[(asset, 100)]);
     assert_eq!(
-        token.balanceOf(unshield_address).call().await?,
+        instance.token.balanceOf(unshield_address).call().await?,
         U256::from(amount - 100)
     );
 

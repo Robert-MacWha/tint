@@ -19,6 +19,7 @@ contract TintPaymasterTests is Test {
     uint256 constant MAX_COST = 0.5 ether;
     uint256 constant GAS_COST = 0.1 ether;
     uint256 constant FEE_PER_GAS = 1 gwei;
+    uint128 constant POST_OP_GAS_LIMIT = 100_000;
     address constant SENDER = address(0x5e7d);
     address constant RECIPIENT = address(0xbeef);
     address constant REFUND_RECIPIENT = address(0xfeed);
@@ -108,31 +109,25 @@ contract TintPaymasterTests is Test {
         paymaster.validatePaymasterUserOp(userOp, bytes32(0), MAX_COST);
     }
 
-    /// Should only let the paymaster execute refunds.
-    function test_executeRefundNotSelf_reverts() public {
-        vm.expectRevert(TintPaymaster.OnlySelf.selector);
-        paymaster.executeRefund(1, _transferRefund());
-    }
-
     /// Should skip `postOp` when there's no refund.
     function test_validateNoRefund_emptyContext() public {
         bytes memory context = _validate(SENDER, _operation(address(weth), MAX_COST, _noRefund()), _noRefund());
         assertEq(context.length, 0);
     }
 
-    /// Should transfer the fee left after gas and the buffer to the refund recipient.
+    /// Should transfer the fee left after gas and the postOp reserve to the refund recipient.
     function test_postOpTransferRefund() public {
         bytes memory context =
             _validate(SENDER, _operation(address(weth), MAX_COST, _transferRefund()), _transferRefund());
 
         _postOp(context, GAS_COST);
 
-        uint256 refund = MAX_COST - GAS_COST - paymaster.REFUND_GAS_BUFFER() * FEE_PER_GAS;
+        uint256 refund = MAX_COST - GAS_COST - _postOpCost();
         assertEq(weth.balanceOf(REFUND_RECIPIENT), refund);
         assertEq(weth.balanceOf(address(paymaster)), MAX_COST - refund);
     }
 
-    /// Should deposit the fee left after gas and the buffer into Tint.
+    /// Should deposit the fee left after gas and the postOp reserve into Tint.
     function test_postOpDepositRefund() public {
         bytes memory context =
             _validate(SENDER, _operation(address(weth), MAX_COST, _depositRefund()), _depositRefund());
@@ -141,32 +136,51 @@ contract TintPaymasterTests is Test {
 
         _postOp(context, GAS_COST);
 
-        uint256 refund = MAX_COST - GAS_COST - paymaster.REFUND_GAS_BUFFER() * FEE_PER_GAS;
+        uint256 refund = MAX_COST - GAS_COST - _postOpCost();
         assertEq(tint.count(), count + 1);
         assertEq(weth.balanceOf(address(tint)), tintBalance + refund);
         assertEq(weth.balanceOf(address(paymaster)), MAX_COST - refund);
     }
 
-    /// Should not refund if gas and the buffer use up the fee.
+    /// Should not refund if gas and the postOp reserve use up the fee.
     function test_postOpFeeExhausted_noRefund() public {
         bytes memory context =
             _validate(SENDER, _operation(address(weth), MAX_COST, _transferRefund()), _transferRefund());
 
-        _postOp(context, MAX_COST - paymaster.REFUND_GAS_BUFFER() * FEE_PER_GAS);
+        _postOp(context, MAX_COST - _postOpCost());
 
         assertEq(weth.balanceOf(REFUND_RECIPIENT), 0);
         assertEq(weth.balanceOf(address(paymaster)), MAX_COST);
     }
 
-    /// Should keep the fee if the refund fails.
-    function test_postOpRefundFails_keepsFee() public {
+    /// Should revert if the refund fails.
+    function test_postOpRefundFails_reverts() public {
         bytes memory context =
             _validate(SENDER, _operation(address(weth), MAX_COST, _depositRefund()), _depositRefund());
         vm.mockCallRevert(address(tint), abi.encodeWithSelector(Tint.deposit.selector), "");
 
+        vm.expectRevert();
         _postOp(context, GAS_COST);
+    }
 
-        assertEq(weth.balanceOf(address(paymaster)), MAX_COST);
+    /// Should accept a fee below `maxCost` while simulating.
+    function test_validateSimulatingInsufficientFee() public {
+        _simulate();
+        IPrivacyPool.Operation memory op = _operation(address(weth), MAX_COST - 1, _noRefund());
+
+        _validate(SENDER, op, _noRefund());
+        assertEq(weth.balanceOf(address(paymaster)), MAX_COST - 1);
+    }
+
+    /// Should refund the whole fee while simulating, even if gas uses it up.
+    function test_postOpSimulatingFeeExhausted_refunds() public {
+        bytes memory context =
+            _validate(SENDER, _operation(address(weth), MAX_COST, _transferRefund()), _transferRefund());
+        _simulate();
+
+        _postOp(context, MAX_COST);
+
+        assertEq(weth.balanceOf(REFUND_RECIPIENT), MAX_COST);
     }
 
     /// Should let the owner sweep collected WETH.
@@ -205,6 +219,17 @@ contract TintPaymasterTests is Test {
         op.seal();
     }
 
+    /// @dev Sets the paymaster's simulation flag, as a state override would.
+    function _simulate() internal {
+        bytes32 slot = keccak256(abi.encode(uint256(keccak256("tint.simulation")) - 1)) & ~bytes32(uint256(0xff));
+        vm.store(address(paymaster), slot, bytes32(uint256(1)));
+    }
+
+    /// @dev The gas cost the paymaster reserves for `postOp`.
+    function _postOpCost() internal view returns (uint256) {
+        return (POST_OP_GAS_LIMIT + paymaster.POST_OP_OVERHEAD()) * FEE_PER_GAS;
+    }
+
     function _noRefund() internal pure returns (TintPaymaster.Refund memory refund) {}
 
     function _transferRefund() internal pure returns (TintPaymaster.Refund memory refund) {
@@ -237,6 +262,7 @@ contract TintPaymasterTests is Test {
         returns (PackedUserOperation memory userOp)
     {
         userOp.sender = sender;
-        userOp.paymasterAndData = abi.encodePacked(address(paymaster), uint128(0), uint128(0), abi.encode(op, refund));
+        userOp.paymasterAndData =
+            abi.encodePacked(address(paymaster), uint128(0), POST_OP_GAS_LIMIT, abi.encode(op, refund));
     }
 }

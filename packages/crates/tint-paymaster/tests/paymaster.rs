@@ -45,11 +45,11 @@ const REFUND_RECIPIENT: Address = address!("0x0000000000000000000000000000000000
 
 const NOTE_AMOUNT: u128 = 10u128.pow(18);
 const UNSHIELD_AMOUNT: u128 = NOTE_AMOUNT / 2;
-const MAX_FEE: u128 = NOTE_AMOUNT / 10;
 
 /// A userop paid for by a Tint note, refunding the unspent fee to an address.
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
+#[expect(clippy::too_many_lines)]
 async fn tint_paymaster_transfer_refund() -> anyhow::Result<()> {
     let mut rng = StdRng::seed_from_u64(1);
     let instance = anvil::setup().await?;
@@ -113,23 +113,36 @@ async fn tint_paymaster_transfer_refund() -> anyhow::Result<()> {
                 .into(),
         }]);
 
-    let payment = paymaster.pay(
-        MAX_FEE,
-        Refund::transfer(REFUND_RECIPIENT),
-        smart_account.address(),
-    );
     let operation = OperationBuilder::new()
         .spend(notes[0].clone())
         .withdraw(owner.address(), asset, UNSHIELD_AMOUNT)
-        .change_to(account.pub_account())
+        .change_to(account.pub_account());
+
+    // Estimate gas with a simulated operation paying a nominal fee
+    let mut payment = paymaster.pay(
+        1,
+        Refund::transfer(REFUND_RECIPIENT),
+        smart_account.address(),
+    );
+    let simulated = operation
+        .clone()
+        .with_paymaster(&payment)
+        .build(&mut rng)?
+        .simulate_with_mmr(&mmr)?;
+    let builder = builder
+        .with_tint_paymaster(&payment, &simulated)?
+        .with_gas_estimate(&*alto, Some(&paymaster.simulation_override(tint)))
+        .await?;
+
+    // Pay the estimated fee with a proven operation
+    payment.fee = builder.max_gas_cost();
+    let operation = operation
         .with_paymaster(&payment)
         .build(&mut rng)?
         .prove_with_mmr(&mmr, &artifacts, &mut rng)?;
 
     let userop = builder
         .with_tint_paymaster(&payment, &operation)?
-        .with_gas_estimate(&*alto, None)
-        .await?
         .build()
         .sign(&owner)
         .await?;
@@ -152,11 +165,15 @@ async fn tint_paymaster_transfer_refund() -> anyhow::Result<()> {
     );
 
     let kept = token.balanceOf(paymaster.address).call().await?;
+    assert!(
+        kept >= userop_receipt.actual_gas_cost,
+        "paymaster should keep at least the gas it paid for"
+    );
     let refunded = token.balanceOf(REFUND_RECIPIENT).call().await?;
     assert!(refunded > U256::ZERO, "recipient should be refunded");
     assert_eq!(
         kept + refunded,
-        U256::from(MAX_FEE),
+        U256::from(payment.fee),
         "paymaster should keep only the fee it didn't refund"
     );
 
@@ -166,6 +183,7 @@ async fn tint_paymaster_transfer_refund() -> anyhow::Result<()> {
 /// A userop paid for by a Tint note, refunding the unspent fee as a new note.
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
+#[expect(clippy::too_many_lines)]
 async fn tint_paymaster_deposit_refund() -> anyhow::Result<()> {
     let mut rng = StdRng::seed_from_u64(1);
     let instance = anvil::setup().await?;
@@ -230,23 +248,36 @@ async fn tint_paymaster_deposit_refund() -> anyhow::Result<()> {
                 .into(),
         }]);
 
-    let payment = paymaster.pay(
-        MAX_FEE,
-        Refund::deposit(&account.pub_account(), &mut rng)?,
-        smart_account.address(),
-    );
     let operation = OperationBuilder::new()
         .spend(notes[0].clone())
         .withdraw(owner.address(), asset, UNSHIELD_AMOUNT)
-        .change_to(account.pub_account())
+        .change_to(account.pub_account());
+
+    // Estimate gas with a simulated operation paying a nominal fee
+    let mut payment = paymaster.pay(
+        1,
+        Refund::deposit(&account.pub_account(), &mut rng)?,
+        smart_account.address(),
+    );
+    let simulated = operation
+        .clone()
+        .with_paymaster(&payment)
+        .build(&mut rng)?
+        .simulate_with_mmr(&mmr)?;
+    let builder = builder
+        .with_tint_paymaster(&payment, &simulated)?
+        .with_gas_estimate(&*alto, Some(&paymaster.simulation_override(tint)))
+        .await?;
+
+    // Pay the estimated fee with a proven operation
+    payment.fee = builder.max_gas_cost();
+    let operation = operation
         .with_paymaster(&payment)
         .build(&mut rng)?
         .prove_with_mmr(&mmr, &artifacts, &mut rng)?;
 
     let userop = builder
         .with_tint_paymaster(&payment, &operation)?
-        .with_gas_estimate(&*alto, None)
-        .await?
         .build()
         .sign(&owner)
         .await?;
@@ -269,7 +300,11 @@ async fn tint_paymaster_deposit_refund() -> anyhow::Result<()> {
     );
 
     let kept = token.balanceOf(paymaster.address).call().await?;
-    let refunded = MAX_FEE - u128::try_from(kept)?;
+    assert!(
+        kept >= userop_receipt.actual_gas_cost,
+        "paymaster should keep at least the gas it paid for"
+    );
+    let refunded = payment.fee - u128::try_from(kept)?;
     assert!(refunded > 0, "account should be refunded");
 
     let snapshot = syncer

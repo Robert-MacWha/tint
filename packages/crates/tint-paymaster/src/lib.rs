@@ -1,10 +1,12 @@
 //! Extension traits for paying for ERC-4337 userops with a Tint operation.
 
 use alloy_primitives::{Address, B256, Bytes, keccak256};
+use alloy_rpc_types_eth::state::{StateOverride, StateOverridesBuilder};
 use alloy_sol_types::SolValue;
 use kohaku_userop_kit::builder::UserOperationBuilder;
 use rand_core::{CryptoRng, RngCore};
 use tint::{
+    abis::tint::SIMULATION_SLOT,
     account::pub_account::PubAccount,
     fr::fr_to_b256,
     note::{asset::AssetId, commitment::CommitmentError},
@@ -65,8 +67,10 @@ pub trait OperationBuilderPaymasterExt {
 
 /// Extension trait for [`UserOperationBuilder`] that pays with a [`TintPaymaster`].
 pub trait UserOperationPaymasterExt: Sized {
-    /// Pays for this userop's gas with `operation`, built with
-    /// [`OperationBuilderPaymasterExt::with_paymaster`] and the same `payment`.
+    /// Pays for this userop's gas with `operation`.
+    ///
+    /// Built with [`OperationBuilderPaymasterExt::with_paymaster`] and the
+    /// same `payment`.
     ///
     /// The userop will be rejected if its fee doesn't cover the userop's
     /// maximum gas cost.
@@ -79,6 +83,9 @@ pub trait UserOperationPaymasterExt: Sized {
         payment: &TintPayment,
         operation: &ProvenOperation,
     ) -> Result<Self, TintPaymasterError>;
+
+    /// The estimated fee the paymaster requires for this userop.
+    fn max_gas_cost(&self) -> u128;
 }
 
 impl OperationBuilderPaymasterExt for OperationBuilder {
@@ -106,6 +113,11 @@ impl<S> UserOperationPaymasterExt for UserOperationBuilder<S> {
         let data = (operation.clone(), payment.refund.to_sol()).abi_encode_params();
         Ok(self.with_paymaster_and_data(payment.paymaster.address, data.into()))
     }
+
+    fn max_gas_cost(&self) -> u128 {
+        let op = self.build();
+        op.total_gas_limit() * op.user_op.max_fee_per_gas
+    }
 }
 
 impl TintPaymaster {
@@ -118,9 +130,23 @@ impl TintPaymaster {
             sender,
         }
     }
+
+    /// A state override for simulating the tint-sponsored userop.
+    ///
+    /// Allows simulating the operation without needing valid proofs for tint
+    /// or its policies by enabling tint's simulation flag.
+    #[must_use]
+    pub fn simulation_override(&self, tint: Address) -> StateOverride {
+        let flag = [(SIMULATION_SLOT, B256::with_last_byte(1))];
+        StateOverridesBuilder::default()
+            .with_state_diff(tint, flag)
+            .with_state_diff(self.address, flag)
+            .build()
+    }
 }
 
 impl Refund {
+    #[must_use]
     pub fn transfer(recipient: Address) -> Self {
         Self::Transfer(recipient)
     }
@@ -168,7 +194,7 @@ impl From<Refund> for abis::Refund {
             },
             Refund::Transfer(recipient) => abis::Refund {
                 kind: abis::RefundKind::Transfer,
-                recipient: recipient,
+                recipient,
                 partialCommitment: B256::ZERO,
                 encryptedPartial: Bytes::new(),
             },

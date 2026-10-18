@@ -8,6 +8,7 @@ import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint
 import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
 
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
+import {Simulatable} from "./Simulatable.sol";
 import {ProofLib} from "./lib/ProofLib.sol";
 import {N_WITHDRAWALS} from "./lib/Constants.sol";
 
@@ -15,26 +16,18 @@ import {N_WITHDRAWALS} from "./lib/Constants.sol";
 /// which unshields its fee in WETH to the paymaster. Designed for the v0.8.0
 /// EntryPoint.
 ///
-/// Whatever of the fee the userop doesn't spend on gas is refunded in `postOp`,
-/// either transferred to an address or deposited back into Tint.
-///
 /// @dev The operation executes during validation, including nullifier writes. Because
 /// this involves writing to non-entity storage, it is not compliant with eip-7562 storage
 /// rules (https://eips.ethereum.org/EIPS/eip-7562#storage-rules).
 /// Tint also reads `block.number` to checkpoint the active block, a banned opcode under
 /// eip-7562 (OP-011).
-contract TintPaymaster is BasePaymaster {
+contract TintPaymaster is BasePaymaster, Simulatable {
     using ProofLib for IPrivacyPool.Operation;
     using SafeERC20 for IERC20;
 
-    /// Gas reserved to cover `postOp`.
-    uint256 public constant REFUND_GAS_BUFFER = REFUND_GAS_LIMIT + 10_000;
-    /// Gas cap on the refund call.
-    ///
-    /// TODO: Measure the actual gas used, seeing if we can find a quantitative
-    /// bound on any resonable refund call. It should be possible to cap this at
-    /// ~100k gas.
-    uint256 public constant REFUND_GAS_LIMIT = 200_000;
+    /// Additional gas deducted from the paymaster's refund to cover EntryPoint overhead.
+    /// TODO: Measure and optimize me.
+    uint256 public constant POST_OP_OVERHEAD = 10_000;
 
     IPrivacyPool public immutable TINT;
     IERC20 public immutable WETH;
@@ -59,7 +52,6 @@ contract TintPaymaster is BasePaymaster {
 
     error InvalidBinding();
     error InsufficientFee(uint256 required, uint256 paid);
-    error OnlySelf();
 
     constructor(IEntryPoint _entryPoint, IPrivacyPool _tint, IERC20 _weth) BasePaymaster(_entryPoint) {
         TINT = _tint;
@@ -91,7 +83,7 @@ contract TintPaymaster is BasePaymaster {
         if (op.context.binding != binding(userOp.sender, refund)) revert InvalidBinding();
 
         uint256 fee = _feePaid(op);
-        if (fee < maxCost) revert InsufficientFee(maxCost, fee);
+        if (fee < maxCost && !_simulating()) revert InsufficientFee(maxCost, fee);
 
         // Involves a non-compliant storage write to the nullifier set, required
         // to prevent double-spending.
@@ -99,7 +91,8 @@ contract TintPaymaster is BasePaymaster {
 
         //? An empty context skips `postOp`.
         if (refund.kind == RefundKind.None) return ("", 0);
-        return (abi.encode(fee, refund), 0);
+        uint256 postOpGas = UserOperationLib.unpackPostOpGasLimit(userOp) + POST_OP_OVERHEAD;
+        return (abi.encode(fee, postOpGas, refund), 0);
     }
 
     /// Refunds the fee left over after gas.
@@ -108,18 +101,16 @@ contract TintPaymaster is BasePaymaster {
         virtual
         override
     {
-        (uint256 fee, Refund memory refund) = abi.decode(context, (uint256, Refund));
+        (uint256 fee, uint256 postOpGas, Refund memory refund) = abi.decode(context, (uint256, uint256, Refund));
 
-        uint256 cost = actualGasCost + REFUND_GAS_BUFFER * actualUserOpFeePerGas;
-        if (fee <= cost) return;
+        uint256 cost = actualGasCost + postOpGas * actualUserOpFeePerGas;
+        if (fee <= cost) {
+            //? While simulating refund anyway so gas estimates cover refunds.
+            if (!_simulating()) return;
+            cost = 0;
+        }
 
-        try this.executeRefund{gas: REFUND_GAS_LIMIT}(fee - cost, refund) {} catch {}
-    }
-
-    /// Pays `amount` of WETH to `refund`. Only callable by this paymaster, from `postOp`.
-    function executeRefund(uint256 amount, Refund calldata refund) external {
-        if (msg.sender != address(this)) revert OnlySelf();
-
+        uint256 amount = fee - cost;
         if (refund.kind == RefundKind.Transfer) {
             WETH.safeTransfer(refund.recipient, amount);
             return;

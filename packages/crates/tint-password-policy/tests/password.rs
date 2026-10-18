@@ -49,11 +49,7 @@ async fn password() -> Result<(), Box<dyn std::error::Error>> {
 
     // Setup policy
     info!("Setting up password policy...");
-    let password = PasswordPolicy::new(
-        policy,
-        Fr::from(1234),
-        policy_artifacts,
-    );
+    let password = PasswordPolicy::new(policy, Fr::from(1234), policy_artifacts);
     let account_1 = Account::from_seed(&[11u8; 32], password.policy());
     let account_2 = Account::from_seed(&[22u8; 32], Policy::NONE);
 

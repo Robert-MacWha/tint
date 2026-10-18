@@ -1,16 +1,16 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+    rust-overlay.url = "github:oxalica/rust-overlay";
+    rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
     {
       self,
       nixpkgs,
+      nixpkgs-unstable,
       rust-overlay,
     }:
     let
@@ -18,6 +18,9 @@
       pkgs = import nixpkgs {
         inherit system;
         overlays = [ rust-overlay.overlays.default ];
+      };
+      unstable = import nixpkgs-unstable {
+        inherit system;
       };
 
       rustToolchain = pkgs.rust-bin.stable."1.98.0".default.override {
@@ -44,7 +47,7 @@
         default = pkgs.mkShell {
           buildInputs = [
             pkgs.just
-            pkgs.foundry
+            unstable.foundry
             yices
             halmos
             picus
@@ -71,7 +74,7 @@
         ci = pkgs.mkShell {
           buildInputs = [
             pkgs.just
-            pkgs.foundry
+            unstable.foundry
             alto
             rustToolchain
             pkgs.rustPlatform.bindgenHook

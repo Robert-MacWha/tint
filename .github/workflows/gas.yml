@@ -1,0 +1,35 @@
+name: Gas
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: cachix/install-nix-action@v31
+    - uses: nix-community/cache-nix-action@v7
+      with:
+        primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: "packages/crates"
+        key: ${{ hashFiles('**/*.nix', '**/flake.lock') }}
+
+    - run: nix develop .#ci --command bash -c "just build"
+
+    - name: Report gas
+      run: |
+        nix develop .#ci --command bash -c \
+          "cd packages/contracts && forge test --match-path test/TintBenchmark.t.sol --gas-report --md" \
+          | tee gas.txt
+        grep -E '^(\||$)' gas.txt >> "$GITHUB_STEP_SUMMARY"

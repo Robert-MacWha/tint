@@ -291,6 +291,7 @@ contract TintTests is Test {
     /// -------------------- executePreVerified --------------------
 
     /// Should be able to execute a pre-verified operation.
+    /// forge-config: default.isolate = false
     function test_preVerifyAllowsExecution() public {
         bytes32 slot = keccak256("slot");
 
@@ -303,6 +304,7 @@ contract TintTests is Test {
     }
 
     /// Should revert because the nullifier was already spent, even though the operation was pre-verified.
+    /// forge-config: default.isolate = false
     function test_doubleSpendPreverified_reverts() public {
         bytes32 slotA = keccak256("slotA");
         bytes32 slotB = keccak256("slotB");

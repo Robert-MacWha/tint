@@ -17,7 +17,8 @@ contract BlockCheckpointsTests is Test {
         checkpoints = new BlockCheckpointsHarness();
     }
 
-    /// The first checkpoint in a block should record it and emit the previous checkpoints.
+    /// The first checkpoint in a block emits the previous checkpoints
+    /// and increments the levels.
     function test_checkpoint() public {
         checkpoints.checkpoint();
         uint64[4] memory previous = _levels();
@@ -28,9 +29,12 @@ contract BlockCheckpointsTests is Test {
         checkpoints.checkpoint();
 
         assertEq(_level(0), block.number);
+        assertEq(_level(1), previous[1]);
+        assertEq(_level(2), previous[2]);
+        assertEq(_level(3), previous[3]);
     }
 
-    /// Later checkpoints in an already-active block should be no-ops.
+    /// Calling checkpoint multiple times in the same block is a no-op.
     function test_checkpointOncePerBlock() public {
         checkpoints.checkpoint();
         bytes memory before = abi.encode(_levels());
@@ -42,7 +46,7 @@ contract BlockCheckpointsTests is Test {
         assertEq(abi.encode(_levels()), before);
     }
 
-    /// Level `i` should only move once it's at least `100 ** i` blocks behind.
+    /// Level `i` should move once it's at least `100 ** i` blocks behind.
     function test_checkpointLevels() public {
         uint256 start = 2_000_000;
         vm.roll(start);

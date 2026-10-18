@@ -3,16 +3,13 @@ pragma solidity ^0.8.28;
 
 /// @notice Tracks recently active blocks for use when syncing.
 contract BlockCheckpoints {
-    /// @dev Number of checkpoint levels packed into `checkpoints`.
     uint256 internal constant CHECKPOINT_LEVELS = 4;
-    /// @dev Level `i` only moves once it's `CHECKPOINT_SPACING ** i` blocks stale.
     uint256 internal constant CHECKPOINT_SPACING = 100;
 
     /// @notice Recently active blocks.
-
-    /// Level 0 is the most recent active block.
-    /// level `i` moves to the current active block once it's at least
-    /// `CHECKPOINT_SPACING ** i` blocks behind.
+    ///
+    /// `checkpoints[i]` is set to the most recent block once it's at least
+    /// `CHECKPOINT_SPACING ** i` blocks behind the current block.
     uint64[CHECKPOINT_LEVELS] public checkpoints;
 
     event Checkpoint(uint64[CHECKPOINT_LEVELS] previous);

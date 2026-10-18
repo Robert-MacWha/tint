@@ -5,6 +5,9 @@ libs = ["dependencies"]
 optimizer = true
 optimizer_runs = 5000
 via_ir = true
+# Poseidon2T3 at 5000 runs loads its constants via CODECOPY; 1M runs inlines them as PUSH32, halving each hash.
+additional_compiler_profiles = [{ name = "poseidon", optimizer_runs = 1000000 }]
+compilation_restrictions = [{ paths = "src/poseidon/Poseidon2T3.sol", optimizer_runs = 1000000 }]
 remappings = [
     "forge-std/=dependencies/forge-std-1.16.2/src/",
     "halmos-cheatcodes/=dependencies/halmos-cheatcodes-6da4e69/src/",

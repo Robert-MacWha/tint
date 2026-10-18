@@ -108,36 +108,44 @@ contract TintGasReportTest is Test {
     function test_operate_gas() public {
         require(token.transfer(address(tint), 1_000), "Transfer failed");
 
-        IPrivacyPool.Operation memory op = _operation();
+        for (uint256 i = 0; i < 100; i++) {
+            vm.pauseGasMetering();
+            IPrivacyPool.Operation memory op = _operation();
 
-        op.setNullifier(0, bytes32(uint256(1)));
-        op.setCommitmentOut(0, bytes32(uint256(keccak256(abi.encode("commitment", uint256(0)))) % BN254_FR_MODULUS));
-        op.setUnshieldAmount(0, 1);
-        op.setUnshieldAsset(0, address(token));
-        op.setUnshieldRecipient(0, address(1));
+            op.setNullifier(0, bytes32(i + 1));
+            op.setCommitmentOut(0, bytes32(uint256(keccak256(abi.encode("commitment", i))) % BN254_FR_MODULUS));
+            op.setUnshieldAmount(0, 1);
+            op.setUnshieldAsset(0, address(token));
+            op.setUnshieldRecipient(0, address(1));
+            op = op.seal();
+            vm.resumeGasMetering();
 
-        vm.resetGasMetering();
-        tint.operate(op.seal());
+            tint.operate(op);
+        }
     }
 
     function test_operate_full_gas() public {
         require(token.transfer(address(tint), 1_000), "Transfer failed");
 
-        IPrivacyPool.Operation memory op = _operation();
+        for (uint256 n = 0; n < 100; n++) {
+            vm.pauseGasMetering();
+            IPrivacyPool.Operation memory op = _operation();
 
-        for (uint256 i = 0; i < N_INPUTS; i++) {
-            op.setNullifier(i, bytes32(i + 1));
-        }
-        for (uint256 i = 0; i < N_OUTPUTS; i++) {
-            op.setCommitmentOut(i, bytes32(i + 1));
-        }
-        for (uint120 i = 0; i < N_WITHDRAWALS; i++) {
-            op.setUnshieldAmount(i, 1);
-            op.setUnshieldAsset(i, address(token));
-            op.setUnshieldRecipient(i, address(uint160(i + 1)));
-        }
+            for (uint256 i = 0; i < N_INPUTS; i++) {
+                op.setNullifier(i, bytes32(n * N_INPUTS + i + 1));
+            }
+            for (uint256 i = 0; i < N_OUTPUTS; i++) {
+                op.setCommitmentOut(i, bytes32(n * N_OUTPUTS + i + 1));
+            }
+            for (uint120 i = 0; i < N_WITHDRAWALS; i++) {
+                op.setUnshieldAmount(i, 1);
+                op.setUnshieldAsset(i, address(token));
+                op.setUnshieldRecipient(i, address(uint160(i + 1)));
+            }
+            op = op.seal();
+            vm.resumeGasMetering();
 
-        vm.resetGasMetering();
-        tint.operate(op.seal());
+            tint.operate(op);
+        }
     }
 }

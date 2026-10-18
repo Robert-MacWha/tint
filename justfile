@@ -39,3 +39,20 @@ run *ARGS:
     set -euo pipefail
     eval "$(just env)"
     cd packages/crates/cli && cargo run --release -- {{ARGS}}
+
+# Builds the tint worker and serves the web UI with `dx serve`.
+web:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # The worker embeds the contract ABIs to decode reverts.
+    (cd packages/contracts && forge build)
+    cd packages/crates
+    cargo build --release -p tint-web-worker --target wasm32-unknown-unknown
+    wasm-bindgen --target web --out-dir tint-web/public/worker \
+        target/wasm32-unknown-unknown/release/tint_web_worker.wasm
+    mkdir -p tint-web/public/artifacts
+    # Hard links, since dx doesn't copy symlinks into its build.
+    for f in proving_key matrices verifying_key; do
+        ln -f "tint/artifacts/$f.bin.br" "tint-web/public/artifacts/$f.bin"
+    done
+    cd tint-web && dx serve

@@ -1,0 +1,31 @@
+[package]
+name = "tint-web"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+alloy-primitives = { workspace = true }
+alloy-signer-local = { workspace = true }
+dioxus = { workspace = true }
+futures = { workspace = true }
+js-sys = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tint-web-protocol = { workspace = true }
+wasm-bindgen = { workspace = true }
+web-sys = { workspace = true, features = [
+    "console",
+    "ErrorEvent",
+    "MessageEvent",
+    "Storage",
+    "Window",
+    "Worker",
+    "WorkerOptions",
+    "WorkerType",
+] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
+
+[lints]
+workspace = true

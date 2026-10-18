@@ -65,6 +65,9 @@
             pkgs.cargo-insta
             pkgs.bacon
             pkgs.wasm-pack
+            # tint-web; both must match the versions in Cargo.lock
+            pkgs.dioxus-cli
+            pkgs.wasm-bindgen-cli_0_2_108
 
             pkgs.go
             pkgs.gopls

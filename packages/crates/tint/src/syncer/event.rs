@@ -1,6 +1,6 @@
 use std::{collections::HashSet, ops::Range};
 
-use alloy_primitives::{Address, Bytes};
+use alloy_primitives::{Address, B256, Bytes};
 use alloy_rpc_types_eth::Log;
 use alloy_sol_types::SolEvent;
 use ark_bn254::Fr;
@@ -54,6 +54,7 @@ pub struct Deposited {
     pub amount: u128,
     pub encrypted_partial: Bytes,
     pub block_number: u64,
+    pub tx_hash: B256,
 }
 
 #[serde_with::serde_as]
@@ -64,6 +65,7 @@ pub struct Committed {
     pub leaf_index: u64,
     pub encrypted_note: Bytes,
     pub block_number: u64,
+    pub tx_hash: B256,
 }
 
 #[serde_with::serde_as]
@@ -72,6 +74,7 @@ pub struct Nullified {
     #[serde_as(as = "tint_groth16::serde::field::FieldAsBytes")]
     pub nullifier: Fr,
     pub block_number: u64,
+    pub tx_hash: B256,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -80,6 +83,7 @@ pub struct Withdrawn {
     pub amount: u128,
     pub recipient: Address,
     pub block_number: u64,
+    pub tx_hash: B256,
 }
 
 impl Snapshot {
@@ -167,6 +171,7 @@ impl SyncEvent {
     #[must_use]
     pub fn try_from_log(log: &Log) -> Option<Self> {
         let block_number = log.block_number?;
+        let tx_hash = log.transaction_hash?;
         match log.topic0() {
             Some(&Tint::Deposited::SIGNATURE_HASH) => {
                 let decoded = Tint::Deposited::decode_log(&log.inner).ok()?.data;
@@ -177,6 +182,7 @@ impl SyncEvent {
                     amount: decoded.amount,
                     encrypted_partial: decoded.encryptedPartial,
                     block_number,
+                    tx_hash,
                 }))
             }
             Some(&Tint::Committed::SIGNATURE_HASH) => {
@@ -186,6 +192,7 @@ impl SyncEvent {
                     leaf_index: decoded.leafIndex,
                     encrypted_note: decoded.encryptedNote,
                     block_number,
+                    tx_hash,
                 }))
             }
             Some(&Tint::Nullified::SIGNATURE_HASH) => {
@@ -193,6 +200,7 @@ impl SyncEvent {
                 Some(SyncEvent::Nullified(Nullified {
                     nullifier: b256_to_fr(decoded.nullifier),
                     block_number,
+                    tx_hash,
                 }))
             }
             Some(&Tint::Withdrawn::SIGNATURE_HASH) => {
@@ -202,6 +210,7 @@ impl SyncEvent {
                     amount: decoded.amount,
                     recipient: decoded.recipient,
                     block_number,
+                    tx_hash,
                 }))
             }
             _ => None,
@@ -215,6 +224,17 @@ impl SyncEvent {
             SyncEvent::Committed(c) => c.block_number,
             SyncEvent::Nullified(n) => n.block_number,
             SyncEvent::Withdrawn(w) => w.block_number,
+        }
+    }
+
+    /// The hash of the transaction that emitted this event.
+    #[must_use]
+    pub fn tx_hash(&self) -> B256 {
+        match self {
+            SyncEvent::Deposited(d) => d.tx_hash,
+            SyncEvent::Committed(c) => c.tx_hash,
+            SyncEvent::Nullified(n) => n.tx_hash,
+            SyncEvent::Withdrawn(w) => w.tx_hash,
         }
     }
 

@@ -8,7 +8,6 @@ import {Poseidon2T2} from "../src/poseidon/Poseidon2T2.sol";
 import {Poseidon2T3} from "../src/poseidon/Poseidon2T3.sol";
 import {BN254_FR_MODULUS} from "../src/lib/Constants.sol";
 
-/// Checks the standalone Poseidon2 contracts against the taceo library they wrap.
 contract Poseidon2Test is Test {
     Poseidon2T2 t2;
     Poseidon2T3 t3;

@@ -291,6 +291,7 @@ contract TintTests is Test {
     /// -------------------- executePreVerified --------------------
 
     /// Should be able to execute a pre-verified operation.
+    /// forge-config: default.isolate = false
     function test_preVerifyAllowsExecution() public {
         bytes32 slot = keccak256("slot");
 
@@ -303,6 +304,7 @@ contract TintTests is Test {
     }
 
     /// Should revert because the nullifier was already spent, even though the operation was pre-verified.
+    /// forge-config: default.isolate = false
     function test_doubleSpendPreverified_reverts() public {
         bytes32 slotA = keccak256("slotA");
         bytes32 slotB = keccak256("slotB");
@@ -356,5 +358,16 @@ contract TintTests is Test {
         tint.operate(op.seal());
 
         assertEq(tint.count(), countBefore + 2);
+    }
+
+    /// Should commit the frontier after an operation's last output, so later
+    /// operations can be proven against it.
+    function test_operateCommitsFinalFrontier() public {
+        IPrivacyPool.Operation memory op = _operation();
+        op.setCommitmentOut(0, bytes32(uint256(42)));
+        op.setCommitmentOut(1, bytes32(uint256(43)));
+        tint.operate(op.seal());
+
+        tint.verifyOperation(_operation().seal());
     }
 }

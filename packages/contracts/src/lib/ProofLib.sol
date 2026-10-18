@@ -120,7 +120,7 @@ library ProofLib {
         return _toAddress(op.pub[N_CONST + 2 * N_INPUTS + N_OUTPUTS + 3 * i + 2]);
     }
 
-    /// @notice Returns the unique policy addresses in an operation.
+    /// @notice Returns the unique non-zero policy addresses in an operation, zero-padded.
     function policyAddresses(IPrivacyPool.Operation calldata op)
         internal
         pure
@@ -130,6 +130,7 @@ library ProofLib {
 
         for (uint256 i = 0; i < N_INPUTS; i++) {
             address addr = policyAddress(op, i);
+            if (addr == address(0)) continue;
             bool exists = false;
             for (uint256 j = 0; j < count; j++) {
                 if (output[j] == addr) {

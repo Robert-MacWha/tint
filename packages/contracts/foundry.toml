@@ -5,13 +5,16 @@ libs = ["dependencies"]
 optimizer = true
 optimizer_runs = 5000
 via_ir = true
+# Poseidon2T3 at 5000 runs loads its constants via CODECOPY; 1M runs inlines them as PUSH32, halving each hash.
+additional_compiler_profiles = [{ name = "poseidon", optimizer_runs = 1000000 }]
+compilation_restrictions = [{ paths = "src/poseidon/Poseidon2T3.sol", optimizer_runs = 1000000 }]
 remappings = [
     "forge-std/=dependencies/forge-std-1.16.2/src/",
     "halmos-cheatcodes/=dependencies/halmos-cheatcodes-6da4e69/src/",
     "@openzeppelin/contracts/=dependencies/openzeppelin-contracts-5.6.1/contracts/",
     "@taceo/poseidon2/=dependencies/poseidon2-solidity-0.1.0/src/",
     "@account-abstraction/contracts/=dependencies/account-abstraction-0.8.0/contracts/",
-    "@skew-mmr/contracts/=dependencies/efficient-inclusion-proofs-30883a0/contracts/src/",
+    "@skew-mmr/contracts/=dependencies/efficient-inclusion-proofs-6f2b03c/contracts/src/",
 ]
 
 [soldeer]
@@ -24,4 +27,4 @@ halmos-cheatcodes = { version = "6da4e69", git = "https://github.com/a16z/halmos
 openzeppelin-contracts = { version = "5.6.1", git = "https://github.com/OpenZeppelin/openzeppelin-contracts.git", rev = "5fd1781b1454fd1ef8e722282f86f9293cacf256" }
 poseidon2-solidity = { version = "0.1.0", git = "https://github.com/TaceoLabs/poseidon2-solidity.git", rev = "00acb649ef8fb7bf58a6ce33af6815024299b7be" }
 account-abstraction = { version = "0.8.0", git = "https://github.com/eth-infinitism/account-abstraction.git", rev = "4cbc06072cdc19fd60f285c5997f4f7f57a588de" }
-efficient-inclusion-proofs = { version = "30883a0", git = "https://github.com/Robert-MacWha/efficient-inclusion-proofs.git", rev = "30883a02185c77c27fcb3ea0f8d7d1c51acf62c0" }
+efficient-inclusion-proofs = { version = "6f2b03c", git = "https://github.com/Robert-MacWha/efficient-inclusion-proofs.git", rev = "6f2b03c77c699682e9dd5411a1377987ba8eebca" }

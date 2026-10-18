@@ -1,3 +1,5 @@
+version = 1
+
 [[dependencies]]
 name = "account-abstraction"
 version = "0.8.0"
@@ -6,9 +8,9 @@ rev = "4cbc06072cdc19fd60f285c5997f4f7f57a588de"
 
 [[dependencies]]
 name = "efficient-inclusion-proofs"
-version = "30883a0"
+version = "6f2b03c"
 git = "https://github.com/Robert-MacWha/efficient-inclusion-proofs.git"
-rev = "30883a02185c77c27fcb3ea0f8d7d1c51acf62c0"
+rev = "6f2b03c77c699682e9dd5411a1377987ba8eebca"
 
 [[dependencies]]
 name = "forge-std"

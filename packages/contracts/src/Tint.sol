@@ -170,14 +170,17 @@ contract Tint is IPrivacyPool, NullifierRegistry, BlockCheckpoints, SkewMmrWithH
             emit Nullified(hash);
         }
 
-        // Append the non-sentinel output notes
+        // Append the non-sentinel output notes.
+        bool appended;
         for (uint256 i; i < N_OUTPUTS; ++i) {
             bytes32 commitment = op.commitmentOut(i);
             if (commitment == 0) continue;
             uint64 leafIndex = mmr.count;
-            _append(commitment);
+            _appendWithoutHistory(commitment);
+            appended = true;
             emit Committed(commitment, leafIndex, op.context.ciphertexts[i]);
         }
+        if (appended) _recordHistory();
 
         // Execute the non-sentinel withdrawals
         for (uint256 i; i < N_WITHDRAWALS; ++i) {

@@ -359,4 +359,15 @@ contract TintTests is Test {
 
         assertEq(tint.count(), countBefore + 2);
     }
+
+    /// Should commit the frontier after an operation's last output, so later
+    /// operations can be proven against it.
+    function test_operateCommitsFinalFrontier() public {
+        IPrivacyPool.Operation memory op = _operation();
+        op.setCommitmentOut(0, bytes32(uint256(42)));
+        op.setCommitmentOut(1, bytes32(uint256(43)));
+        tint.operate(op.seal());
+
+        tint.verifyOperation(_operation().seal());
+    }
 }

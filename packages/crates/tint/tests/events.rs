@@ -3,16 +3,16 @@ use ark_std::rand::{Rng, rngs::StdRng};
 use rand_core::SeedableRng;
 use tint::{
     account::Account,
-    deposit::Deposit,
-    note::asset::AssetId,
     operation::OperationBuilder,
     policy::Policy,
-    skew_mmr::{SkewMmr, SkewMmrExt},
-    syncer::{Committed, Nullified, SyncEvent, Syncer, Withdrawn, rpc::RpcSyncer},
+    syncer::{Committed, Nullified, SyncEvent, Withdrawn},
 };
 use tracing::info;
 
-use crate::common::anvil::{self, send};
+use crate::common::{
+    anvil::{Instance, enable_simulation, send},
+    util::{assert_unspent, init_tracing},
+};
 
 mod common;
 
@@ -22,47 +22,34 @@ mod common;
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
 async fn events() -> Result<(), Box<dyn std::error::Error>> {
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
-        .add_directive("gr1cs=off".parse()?)
-        .add_directive("r1cs=off".parse()?);
-
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    init_tracing();
 
     let mut rng = StdRng::seed_from_u64(1);
-    let instance = anvil::setup().await?;
+    let instance = Instance::setup().await?;
 
-    let provider = instance.provider;
+    let provider = instance.provider.clone();
     let tint = *instance.tint.address();
-    let token = instance.token;
+    let asset = instance.asset();
 
     let account_1 = Account::from_seed(&[11u8; 32], Policy::NONE);
     let account_2 = Account::from_seed(&[22u8; 32], Policy::NONE);
     let unshield_address = Address::new(rng.r#gen());
 
     // Deposit two notes into Tint
-    info!("Depositing into Tint");
-    let asset = AssetId::from(*token.address());
     let amount = 1_000u128;
-
     for _ in 0..2 {
-        let deposit = Deposit::new(tint, account_1.pub_account(), asset, amount, &mut rng);
-        send(&provider, deposit.approval()).await?;
-        send(&provider, deposit.transaction(&mut rng)?).await?;
+        instance
+            .deposit(account_1.pub_account(), amount, &mut rng)
+            .await?;
     }
 
-    info!("Syncing");
-    let syncer = RpcSyncer::new(provider.clone());
-    let snapshot = syncer.sync(tint, ..).await?;
-    let mut mmr = SkewMmr::new();
-    mmr.append_events(&snapshot.events)?;
-
+    let (snapshot, mmr) = instance.sync().await?;
+    assert_unspent(&snapshot, &account_1, &[(asset, amount), (asset, amount)]);
     let notes = snapshot.unspent(&account_1);
-    assert_eq!(notes.len(), 2);
 
     // The events don't depend on the proof, so set the simulation flag and
     // submit a simulated operation rather than proving one.
-    anvil::enable_simulation(&provider, tint).await?;
+    enable_simulation(&provider, tint).await?;
 
     // Spend 2 inputs into 2 outputs and 1 withdrawal, leaving the rest of
     // the slots as sentinels.

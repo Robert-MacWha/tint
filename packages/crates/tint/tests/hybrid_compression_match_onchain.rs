@@ -4,10 +4,7 @@
 
 mod common;
 
-use alloy_node_bindings::Anvil;
 use alloy_primitives::U256;
-use alloy_provider::{Provider, ProviderBuilder};
-use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_macro::sol;
 use ark_bn254::Fr;
 use tint::{
@@ -16,6 +13,8 @@ use tint::{
 };
 use tint_poseidon2::crh::Poseidon2ChainCrh;
 use tracing::info;
+
+use crate::common::{anvil::Instance, util::init_tracing};
 
 sol!(
     #[sol(rpc)]
@@ -26,18 +25,10 @@ sol!(
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
 async fn hybrid_compression_match_onchain() -> Result<(), Box<dyn std::error::Error>> {
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    init_tracing();
 
-    let anvil = Anvil::new().spawn();
-    let rpc_url = anvil.endpoint();
-    let signer = PrivateKeySigner::from_slice(&anvil.first_key().to_bytes())?;
-
-    let provider = ProviderBuilder::new()
-        .wallet(signer)
-        .connect_http(rpc_url.parse()?)
-        .erased();
+    let instance = Instance::setup().await?;
+    let provider = instance.provider.clone();
 
     let hybrid_compression = HybridCompression::deploy(provider.clone()).await?;
 

@@ -3,9 +3,6 @@ use alloy_provider::Provider;
 use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_types::SolCall;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
-use kohaku_fork_kit::{
-    alto::AltoBuilder, entry_point::deploy_entry_point, simple_account::deploy_simple_account,
-};
 use kohaku_userop_kit::{
     builder::UserOperationBuilder,
     bundler::{Bundler, BundlerExt},
@@ -15,31 +12,20 @@ use kohaku_userop_kit::{
     },
 };
 use tint::{
-    account::Account,
-    circuit::join_split::JoinSplitCircuit,
-    deposit::Deposit,
-    note::asset::AssetId,
-    operation::OperationBuilder,
-    policy::Policy,
-    provider_ext::TintProviderExt,
-    skew_mmr::{SkewMmr, SkewMmrExt},
-    syncer::{Syncer, rpc::RpcSyncer},
+    account::Account, circuit::join_split::JoinSplitCircuit, operation::OperationBuilder,
+    policy::Policy, provider_ext::TintProviderExt,
 };
 use tint_groth16::artifacts::Artifacts;
-use tint_paymaster::{
-    OperationBuilderPaymasterExt, Refund, TintPaymaster, UserOperationPaymasterExt,
-};
+use tint_paymaster::{OperationBuilderPaymasterExt, Refund, UserOperationPaymasterExt};
 use tracing::info;
 
 use crate::common::{
-    anvil::{self, MockToken, send},
-    paymaster::deploy_paymaster,
+    anvil::{Instance, MockToken},
+    paymaster,
 };
 
 mod common;
 
-const ALTO_EXECUTOR_PK: &str = "0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5";
-const ALTO_UTILITY_PK: &str = "0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f1f01a6";
 const SINK: Address = address!("0x000000000000000000000000000000000000dEaD");
 const REFUND_RECIPIENT: Address = address!("0x000000000000000000000000000000000000fEEd");
 
@@ -49,53 +35,25 @@ const UNSHIELD_AMOUNT: u128 = NOTE_AMOUNT / 2;
 /// A userop paid for by a Tint note, refunding the unspent fee to an address.
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
-#[expect(clippy::too_many_lines)]
 async fn tint_paymaster_transfer_refund() -> anyhow::Result<()> {
     let mut rng = StdRng::seed_from_u64(1);
-    let instance = anvil::setup().await?;
+    let instance = Instance::setup().await?;
     let provider = instance.provider.clone();
     let chain_id = provider.get_chain_id().await?;
     let tint = *instance.tint.address();
     let weth = *instance.token.address();
-    let token = MockToken::new(weth, provider.clone());
-
-    let entrypoint = deploy_entry_point(&provider).await?;
-    deploy_simple_account(&provider).await?;
-    let paymaster = TintPaymaster {
-        address: deploy_paymaster(&provider, tint, weth).await?,
-        weth,
-    };
-
-    info!("Starting local alto bundler");
-    let alto = AltoBuilder::new(
-        instance.anvil.endpoint(),
-        entrypoint,
-        ALTO_EXECUTOR_PK,
-        ALTO_UTILITY_PK,
-    )
-    .prefund(&provider)
-    .await?
-    .spawn()
-    .await?;
+    let asset = instance.asset();
+    let token = &instance.token;
+    let (paymaster, alto) = paymaster::setup(&instance).await?;
 
     info!("Setting up circuits...");
     let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>()?;
 
-    // Deposit a note
-    info!("Depositing into Tint");
     let account = Account::from_seed(&[11u8; 32], Policy::NONE);
-    let asset = AssetId::from(weth);
-    let deposit = Deposit::new(tint, account.pub_account(), asset, NOTE_AMOUNT, &mut rng);
-    send(&provider, deposit.approval()).await?;
-    send(&provider, deposit.transaction(&mut rng)?).await?;
-
-    // Sync a skew-MMR against the provider
-    let snapshot = RpcSyncer::new(provider.clone())
-        .sync(tint, ..)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
-    let mut mmr = SkewMmr::new();
-    mmr.append_events(&snapshot.events)?;
+    instance
+        .deposit(account.pub_account(), NOTE_AMOUNT, &mut rng)
+        .await?;
+    let (snapshot, mmr) = instance.sync().await?;
     let notes = snapshot.unspent(&account);
 
     // Sponsor a UserOp with the note
@@ -183,54 +141,25 @@ async fn tint_paymaster_transfer_refund() -> anyhow::Result<()> {
 /// A userop paid for by a Tint note, refunding the unspent fee as a new note.
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
-#[expect(clippy::too_many_lines)]
 async fn tint_paymaster_deposit_refund() -> anyhow::Result<()> {
     let mut rng = StdRng::seed_from_u64(1);
-    let instance = anvil::setup().await?;
+    let instance = Instance::setup().await?;
     let provider = instance.provider.clone();
     let chain_id = provider.get_chain_id().await?;
     let tint = *instance.tint.address();
     let weth = *instance.token.address();
-    let token = MockToken::new(weth, provider.clone());
-
-    let entrypoint = deploy_entry_point(&provider).await?;
-    deploy_simple_account(&provider).await?;
-    let paymaster = TintPaymaster {
-        address: deploy_paymaster(&provider, tint, weth).await?,
-        weth,
-    };
-
-    info!("Starting local alto bundler");
-    let alto = AltoBuilder::new(
-        instance.anvil.endpoint(),
-        entrypoint,
-        ALTO_EXECUTOR_PK,
-        ALTO_UTILITY_PK,
-    )
-    .prefund(&provider)
-    .await?
-    .spawn()
-    .await?;
+    let asset = instance.asset();
+    let token = &instance.token;
+    let (paymaster, alto) = paymaster::setup(&instance).await?;
 
     info!("Setting up circuits...");
     let artifacts = Artifacts::generate_deterministic::<JoinSplitCircuit>()?;
 
-    // Deposit a note
-    info!("Depositing into Tint");
     let account = Account::from_seed(&[11u8; 32], Policy::NONE);
-    let asset = AssetId::from(weth);
-    let deposit = Deposit::new(tint, account.pub_account(), asset, NOTE_AMOUNT, &mut rng);
-    send(&provider, deposit.approval()).await?;
-    send(&provider, deposit.transaction(&mut rng)?).await?;
-
-    // Sync a skew-MMR against the provider
-    let syncer = RpcSyncer::new(provider.clone());
-    let snapshot = syncer
-        .sync(tint, ..)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
-    let mut mmr = SkewMmr::new();
-    mmr.append_events(&snapshot.events)?;
+    instance
+        .deposit(account.pub_account(), NOTE_AMOUNT, &mut rng)
+        .await?;
+    let (snapshot, mmr) = instance.sync().await?;
     let notes = snapshot.unspent(&account);
 
     // Sponsor a UserOp with the note
@@ -307,10 +236,7 @@ async fn tint_paymaster_deposit_refund() -> anyhow::Result<()> {
     let refunded = payment.fee - u128::try_from(kept)?;
     assert!(refunded > 0, "account should be refunded");
 
-    let snapshot = syncer
-        .sync(tint, ..)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    let (snapshot, _) = instance.sync().await?;
     let notes = snapshot.unspent(&account);
     assert!(
         notes

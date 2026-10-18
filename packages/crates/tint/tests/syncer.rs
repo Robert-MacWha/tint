@@ -4,14 +4,12 @@ use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
 use tint::{
     account::Account,
-    deposit::Deposit,
-    note::asset::AssetId,
     policy::Policy,
     syncer::{Snapshot, Syncer, rpc::RpcSyncer},
 };
 use tracing::info;
 
-use crate::common::anvil::{self, send};
+use crate::common::{anvil::Instance, util::init_tracing};
 
 mod common;
 
@@ -20,16 +18,13 @@ mod common;
 #[tokio::test]
 #[ignore = "run with `cargo test --release -- --ignored`"]
 async fn syncer() -> Result<(), Box<dyn std::error::Error>> {
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    init_tracing();
 
     let mut rng = StdRng::seed_from_u64(1);
-    let instance = anvil::setup().await?;
+    let instance = Instance::setup().await?;
 
-    let provider = instance.provider;
+    let provider = instance.provider.clone();
     let tint = *instance.tint.address();
-    let asset = AssetId::from(*instance.token.address());
     let account = Account::from_seed(&[11u8; 32], Policy::NONE);
 
     // Deposit in sparse blocks, separated by empty ones.
@@ -39,9 +34,9 @@ async fn syncer() -> Result<(), Box<dyn std::error::Error>> {
         let _: () = provider
             .raw_request("anvil_mine".into(), (U64::from(20),))
             .await?;
-        let deposit = Deposit::new(tint, account.pub_account(), asset, 1_000, &mut rng);
-        send(&provider, deposit.approval()).await?;
-        let receipt = send(&provider, deposit.transaction(&mut rng)?).await?;
+        let receipt = instance
+            .deposit(account.pub_account(), 1_000, &mut rng)
+            .await?;
         blocks.push(receipt.block_number.ok_or("receipt missing block number")?);
     }
     let _: () = provider

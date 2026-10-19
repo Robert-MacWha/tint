@@ -8,6 +8,7 @@ use tint_web_protocol::{
 use crate::{
     ErrorMessage, ReloadAccounts,
     actions::{Action, DepositForm, TransferForm, WithdrawForm},
+    config,
     storage::Settings,
     worker::WorkerClient,
 };
@@ -219,7 +220,7 @@ fn History(history: Vec<HistoryEntry>, global_history: Vec<GlobalEntry>) -> Elem
                     checked: global(),
                     onchange: move |e| global.set(e.checked()),
                 }
-                " Show every Tint transaction, not just this account's"
+                " Show all transactions"
             }
         }
         if global() {
@@ -279,8 +280,8 @@ fn GlobalHistory(global_history: Vec<GlobalEntry>, history: Vec<HistoryEntry>) -
                     th { "block" }
                     th { "tx" }
                     th { "mine" }
-                    th { "notes spent" }
-                    th { "notes created" }
+                    th { "spent" }
+                    th { "created" }
                     th { "public movements" }
                 }
             }
@@ -321,21 +322,14 @@ fn GlobalHistory(global_history: Vec<GlobalEntry>, history: Vec<HistoryEntry>) -
     }
 }
 
-/// A transaction hash, linking to the explorer if one is set.
+/// A transaction hash, linking to the explorer if built with one.
 #[component]
 fn TxLink(tx: B256) -> Element {
-    let settings = use_context::<Signal<Settings>>();
-    let explorer = settings
-        .read()
-        .explorer_url
-        .trim()
-        .trim_end_matches('/')
-        .to_string();
-    if explorer.is_empty() {
+    let Some(explorer) = config::explorer_url() else {
         return rsx! {
             span { class: "mono", "{tx}" }
         };
-    }
+    };
     rsx! {
         a {
             class: "mono",
@@ -347,12 +341,10 @@ fn TxLink(tx: B256) -> Element {
     }
 }
 
-/// A token's symbol from the settings, or its address if it's unknown.
+/// A token's symbol, or its address if it's unsupported.
 #[component]
-fn TokenSymbol(token: Address) -> Element {
-    let settings = use_context::<Signal<Settings>>();
-    let symbol = settings.read().symbol(token);
-    match symbol {
+pub fn TokenSymbol(token: Address) -> Element {
+    match config::symbol(token) {
         Some(symbol) => rsx! { "{symbol}" },
         None => rsx! {
             span { class: "mono", "{token}" }

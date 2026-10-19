@@ -47,6 +47,6 @@ async fn fetch_bytes(url: &str) -> anyhow::Result<Vec<u8>> {
     Ok(Uint8Array::new(&buffer).to_vec())
 }
 
-fn js_error(value: &JsValue) -> anyhow::Error {
+pub fn js_error(value: &JsValue) -> anyhow::Error {
     anyhow::anyhow!("{value:?}")
 }

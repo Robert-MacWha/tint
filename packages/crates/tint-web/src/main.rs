@@ -4,6 +4,8 @@
 mod account;
 mod accounts;
 mod actions;
+mod config;
+mod public;
 mod settings;
 mod storage;
 mod worker;
@@ -13,7 +15,8 @@ use tint_web_protocol::AccountInfo;
 
 use crate::{
     account::AccountView,
-    accounts::Accounts,
+    accounts::{Accounts, Selected},
+    public::PublicView,
     settings::SettingsPanel,
     storage::{SETTINGS_KEY, Settings},
     worker::{LogEntry, WorkerClient},
@@ -64,7 +67,7 @@ fn Wallet(client: WorkerClient) -> Element {
     let ReloadAccounts(reload) = use_context_provider(|| ReloadAccounts(Signal::new(0)));
     let settings = use_context_provider(|| Signal::new(storage::load::<Settings>(SETTINGS_KEY)));
     let mut accounts = use_signal(Vec::<AccountInfo>::new);
-    let selected = use_signal(|| Some(0));
+    let selected = use_signal(|| Selected::Account(0));
     // How many accounts to show, beyond those recovered as used.
     let min = use_signal(|| 1);
     let conn = use_memo(move || settings.read().connection().ok());
@@ -89,8 +92,9 @@ fn Wallet(client: WorkerClient) -> Element {
     let account = accounts
         .read()
         .iter()
-        .find(|a| Some(a.index) == selected())
+        .find(|a| selected() == Selected::Account(a.index))
         .cloned();
+    let signer = settings.read().signer();
 
     rsx! {
         document::Stylesheet { href: asset!("/assets/main.css") }
@@ -112,12 +116,15 @@ fn Wallet(client: WorkerClient) -> Element {
                 if let Some(error) = error() {
                     p { class: "error", "Error: {error}" }
                 }
-                match account {
-                    // Keyed by receive address, so a new private key remounts it.
-                    Some(account) => rsx! {
+                match (selected(), account, signer) {
+                    // Keyed by address, so a new private key remounts it.
+                    (Selected::Public, _, Some(signer)) => rsx! {
+                        PublicView { key: "{signer}" }
+                    },
+                    (Selected::Account(_), Some(account), _) => rsx! {
                         AccountView { key: "{account.receiver}", account, accounts }
                     },
-                    None => rsx! {
+                    _ => rsx! {
                         p { "Select an account." }
                     },
                 }

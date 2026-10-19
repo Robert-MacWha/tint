@@ -116,7 +116,7 @@ pub async fn send(
         .clone()
         .with_paymaster(&payment)
         .build(&mut OsRng)
-        .context("the note doesn't cover the amount, or isn't WETH")?
+        .context("the notes don't cover the amount, or aren't WETH")?
         .simulate_with_mmr(mmr)?;
     let builder = builder.with_tint_paymaster(&payment, &simulated)?;
     let gas = bundler
@@ -134,7 +134,7 @@ pub async fn send(
         .build(&mut OsRng)
         .with_context(|| {
             format!(
-                "the note doesn't cover the amount plus the {} wei fee",
+                "the notes don't cover the amount plus the {} wei fee",
                 payment.fee
             )
         })?

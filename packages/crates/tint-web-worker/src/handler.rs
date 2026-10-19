@@ -10,6 +10,7 @@ use ark_bn254::Bn254;
 use rand_core::OsRng;
 use tint::{
     account::{Account, pub_account::PubAccount},
+    circuit::join_split::N_INPUTS,
     deposit::Deposit,
     note::{asset::AssetId, owned::OwnedNote},
     operation::OperationBuilder,
@@ -24,7 +25,7 @@ use crate::{
     account_state::account_state,
     artifacts::fetch_artifacts,
     keys::{account_root, derive_account, recover_accounts},
-    progress, revert, sponsor,
+    progress, public, revert, sponsor, store,
 };
 
 /// Handles requests, caching the proving artifacts and synced chain state
@@ -71,6 +72,19 @@ impl Handler {
                 let session = Session::connect(&conn, account)?;
                 self.sync(id, &session).await?;
                 self.state(&session)
+            }
+            RequestKind::Public { conn, tokens } => {
+                let session = Session::connect(&conn, 0)?;
+                let state = public::state(&session.provider, session.from, &tokens).await?;
+                Ok(Reply::Public(state))
+            }
+            RequestKind::Faucet { conn, eth, tokens } => {
+                let session = Session::connect(&conn, 0)?;
+                progress(id, "Funding");
+                public::fund(&session.provider, session.from, eth, &tokens).await?;
+                let tokens: Vec<_> = tokens.iter().map(|t| t.token).collect();
+                let state = public::state(&session.provider, session.from, &tokens).await?;
+                Ok(Reply::Public(state))
             }
             RequestKind::Deposit {
                 conn,
@@ -140,9 +154,9 @@ impl Handler {
         self.state(session)
     }
 
-    /// Proves and sends an operation spending a note covering `amount` of
+    /// Proves and sends an operation spending notes covering `amount` of
     /// `token`, with `add`'s outputs or withdrawals, sending the change back
-    /// to `session`'s account. With a `sponsor`, the note also pays the gas.
+    /// to `session`'s account. With a `sponsor`, the notes also pay the gas.
     async fn operate(
         &mut self,
         id: u64,
@@ -161,8 +175,10 @@ impl Handler {
         };
 
         let asset = AssetId::from(token);
-        let builder = OperationBuilder::new()
-            .spend(pick_note(&chain.snapshot, &session.account, asset, amount)?)
+        let notes = pick_notes(&chain.snapshot, &session.account, asset, amount)?;
+        let builder = notes
+            .into_iter()
+            .fold(OperationBuilder::new(), OperationBuilder::spend)
             .change_to(session.account.pub_account());
         let builder = add(builder, asset);
 
@@ -180,20 +196,23 @@ impl Handler {
         self.state(session)
     }
 
-    /// Syncs the chain state with `session`'s deployment, discarding it on
-    /// failure so the next sync starts clean.
+    /// Syncs the chain state with `session`'s deployment, discarding it and
+    /// its stored copy on failure so the next sync starts clean.
     async fn sync(&mut self, id: u64, session: &Session) -> anyhow::Result<()> {
         progress(id, "Syncing");
-        let result = self.try_sync(session).await;
+        let result = self.try_sync(id, session).await;
         if result.is_err() {
             self.chain = None;
+            if let Err(e) = store::delete(&session.rpc_url, session.tint).await {
+                progress(id, &format!("Couldn't delete stored events: {e:#}"));
+            }
         }
         result
     }
 
-    /// Fetches events since the last sync, overlapping its final block, and
-    /// checks the resulting MMR against the chain.
-    async fn try_sync(&mut self, session: &Session) -> anyhow::Result<()> {
+    /// Fetches events since the last sync, overlapping its final block,
+    /// checks the resulting MMR against the chain, and stores the result.
+    async fn try_sync(&mut self, id: u64, session: &Session) -> anyhow::Result<()> {
         // Calls to an address without code return no data, which otherwise
         // surfaces as an opaque ABI decoding error.
         if session.provider.get_code_at(session.tint).await?.is_empty() {
@@ -204,7 +223,7 @@ impl Handler {
             );
         }
 
-        let chain = self.chain_for(session);
+        let chain = self.chain_for(id, session).await;
 
         // Tint has no known deployment block to start from, so fetch everything
         // in a single `eth_getLogs` call rather than batching from genesis.
@@ -228,25 +247,24 @@ impl Handler {
         if !verified {
             anyhow::bail!("local skew-MMR does not match the on-chain frontier");
         }
+
+        if let Err(e) = store::save(&session.rpc_url, &chain.snapshot).await {
+            progress(id, &format!("Couldn't store synced events: {e:#}"));
+        }
         Ok(())
     }
 
     /// The cached chain state for `session`'s deployment, replacing any cached
-    /// for another.
-    fn chain_for(&mut self, session: &Session) -> &mut ChainState {
-        let fresh = || ChainState {
-            rpc_url: session.rpc_url.clone(),
-            snapshot: Snapshot::new(session.tint, 0..0, Vec::new()),
-            mmr: SkewMmr::new(),
-        };
-        if !self
+    /// for another with the one stored for it, if any.
+    async fn chain_for(&mut self, id: u64, session: &Session) -> &mut ChainState {
+        let cached = self
             .chain
             .as_ref()
-            .is_some_and(|c| c.rpc_url == session.rpc_url && c.snapshot.tint == session.tint)
-        {
-            self.chain = Some(fresh());
+            .is_some_and(|c| c.rpc_url == session.rpc_url && c.snapshot.tint == session.tint);
+        if !cached {
+            self.chain = Some(load_chain(id, session).await);
         }
-        self.chain.get_or_insert_with(fresh)
+        self.chain.get_or_insert_with(|| ChainState::empty(session))
     }
 
     fn state(&self, session: &Session) -> anyhow::Result<Reply> {
@@ -257,6 +275,27 @@ impl Handler {
             &session.account,
             session.from,
         )))
+    }
+}
+
+impl ChainState {
+    fn empty(session: &Session) -> Self {
+        Self {
+            rpc_url: session.rpc_url.clone(),
+            snapshot: Snapshot::new(session.tint, 0..0, Vec::new()),
+            mmr: SkewMmr::new(),
+        }
+    }
+
+    /// Rebuilds the skew-MMR from `snapshot`'s events.
+    fn from_snapshot(session: &Session, snapshot: Snapshot) -> anyhow::Result<Self> {
+        let mut mmr = SkewMmr::new();
+        mmr.append_events(&snapshot.events)?;
+        Ok(Self {
+            rpc_url: session.rpc_url.clone(),
+            snapshot,
+            mmr,
+        })
     }
 }
 
@@ -297,18 +336,48 @@ impl Session {
     }
 }
 
-/// Picks a single spendable note covering `amount` of `asset`. Tint supports
-/// spending multiple notes at once, but this keeps things simple and only
-/// ever spends one.
-fn pick_note(
+/// The chain state stored for `session`'s deployment, or an empty one if
+/// none is stored or it can't be loaded.
+async fn load_chain(id: u64, session: &Session) -> ChainState {
+    let stored = store::load(&session.rpc_url, session.tint).await;
+    let chain = stored.and_then(|s| s.map(|s| ChainState::from_snapshot(session, s)).transpose());
+    match chain {
+        Ok(Some(chain)) => {
+            let events = chain.snapshot.events.len();
+            progress(id, &format!("Loaded {events} stored events"));
+            chain
+        }
+        Ok(None) => ChainState::empty(session),
+        Err(e) => {
+            progress(id, &format!("Couldn't load stored events: {e:#}"));
+            ChainState::empty(session)
+        }
+    }
+}
+
+/// Picks as many of the account's spendable `asset` notes as an operation
+/// can spend, largest first, so spending them also consolidates the
+/// account's notes. Every note is nullified once eventually, so spending more
+/// now costs no extra gas overall.
+fn pick_notes(
     snapshot: &Snapshot,
     account: &Account,
     asset: AssetId,
     amount: u128,
-) -> anyhow::Result<OwnedNote> {
-    snapshot
+) -> anyhow::Result<Vec<OwnedNote>> {
+    let mut notes: Vec<_> = snapshot
         .unspent(account)
         .into_iter()
-        .find(|note| note.note.asset == asset && note.note.amount >= amount)
-        .context("no single spendable note covers that amount of this token")
+        .filter(|note| note.note.asset == asset)
+        .collect();
+    notes.sort_by_key(|note| std::cmp::Reverse(note.note.amount));
+    notes.truncate(N_INPUTS);
+
+    let total: u128 = notes.iter().map(|note| note.note.amount).sum();
+    if total < amount {
+        anyhow::bail!(
+            "an operation can spend up to {N_INPUTS} notes, and the largest of this token only hold {total}"
+        );
+    }
+    Ok(notes)
 }

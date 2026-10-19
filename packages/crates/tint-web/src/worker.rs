@@ -10,7 +10,7 @@ use futures::{
     channel::{mpsc, oneshot},
 };
 use tint_web_protocol::{
-    AccountInfo, AccountState, Connection, Reply, Request, RequestKind, WorkerMessage,
+    AccountInfo, AccountState, Connection, PublicState, Reply, Request, RequestKind, WorkerMessage,
 };
 use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 use web_sys::{ErrorEvent, MessageEvent, Worker, WorkerOptions, WorkerType};
@@ -105,7 +105,7 @@ impl WorkerClient {
     pub async fn accounts(&self, conn: Connection, min: u32) -> Result<Vec<AccountInfo>, String> {
         match self.request(RequestKind::Accounts { conn, min }).await? {
             Reply::Accounts(accounts) => Ok(accounts),
-            Reply::State(_) => Err("worker replied with the wrong type".to_string()),
+            _ => Err("worker replied with the wrong type".to_string()),
         }
     }
 
@@ -113,7 +113,15 @@ impl WorkerClient {
     pub async fn account_state(&self, kind: RequestKind) -> Result<AccountState, String> {
         match self.request(kind).await? {
             Reply::State(state) => Ok(state),
-            Reply::Accounts(_) => Err("worker replied with the wrong type".to_string()),
+            _ => Err("worker replied with the wrong type".to_string()),
+        }
+    }
+
+    /// Makes a request that replies with the signer's public balances.
+    pub async fn public(&self, kind: RequestKind) -> Result<PublicState, String> {
+        match self.request(kind).await? {
+            Reply::Public(state) => Ok(state),
+            _ => Err("worker replied with the wrong type".to_string()),
         }
     }
 

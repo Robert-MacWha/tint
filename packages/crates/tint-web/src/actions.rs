@@ -6,7 +6,7 @@ use alloy_primitives::Address;
 use dioxus::prelude::*;
 use tint_web_protocol::{AccountInfo, RequestKind, Sponsor};
 
-use crate::storage::Settings;
+use crate::{config, storage::Settings};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Action {
@@ -89,7 +89,7 @@ pub fn TransferForm(
             to,
             token: parse_address(&token(), "token")?,
             amount: parse_amount(&amount())?,
-            sponsor: sponsor(&settings.read(), sponsored())?,
+            sponsor: sponsor(sponsored())?,
         })
     };
 
@@ -149,7 +149,7 @@ pub fn WithdrawForm(
             to: parse_address(&to(), "recipient")?,
             token: parse_address(&token(), "token")?,
             amount: parse_amount(&amount())?,
-            sponsor: sponsor(&settings.read(), sponsored())?,
+            sponsor: sponsor(sponsored())?,
         })
     };
 
@@ -179,17 +179,15 @@ pub fn WithdrawForm(
     }
 }
 
-/// Picks one of the tokens listed in the settings.
+/// Picks one of the supported tokens.
 #[component]
 fn TokenRow(token: Signal<String>) -> Element {
-    let settings = use_context::<Signal<Settings>>();
-    let tokens = settings.read().tokens();
     rsx! {
         tr {
             th { "Token" }
             td {
                 select { value: "{token}", onchange: move |e| token.set(e.value()),
-                    for t in tokens {
+                    for t in config::TOKENS {
                         option { value: "{t.address}", "{t.symbol} ({t.address})" }
                     }
                 }
@@ -231,24 +229,16 @@ fn SponsorRow(sponsored: Signal<bool>) -> Element {
     }
 }
 
-/// A token selection, starting at the first known token.
+/// A token selection, starting at the first supported token.
 fn use_first_token() -> Signal<String> {
-    let settings = use_context::<Signal<Settings>>();
-    use_signal(move || {
-        settings
-            .read()
-            .tokens()
-            .first()
-            .map(|t| t.address.to_string())
-            .unwrap_or_default()
-    })
+    use_signal(|| config::TOKENS[0].address.to_string())
 }
 
-fn sponsor(settings: &Settings, sponsored: bool) -> Result<Option<Sponsor>, String> {
+fn sponsor(sponsored: bool) -> Result<Option<Sponsor>, String> {
     if !sponsored {
         return Ok(None);
     }
-    settings.sponsor().map(Some)
+    config::sponsor().map(Some)
 }
 
 fn parse_address(value: &str, what: &str) -> Result<Address, String> {

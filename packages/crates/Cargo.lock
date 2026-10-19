@@ -7134,6 +7134,7 @@ dependencies = [
  "futures",
  "js-sys",
  "kohaku-userop-kit",
+ "postcard",
  "rand_core 0.6.4",
  "serde",
  "serde_json",

@@ -1,20 +1,39 @@
 use dioxus::prelude::*;
 use tint_web_protocol::AccountInfo;
 
-/// Lists the private key's recovered accounts, selecting one on click.
+/// The signer's public account, or one of its private accounts by index.
+#[derive(Clone, Copy, PartialEq)]
+pub enum Selected {
+    Public,
+    Account(u32),
+}
+
+/// Lists the signer's public account and recovered private accounts,
+/// selecting one on click.
 #[component]
 pub fn Accounts(
     accounts: Signal<Vec<AccountInfo>>,
-    selected: Signal<Option<u32>>,
+    selected: Signal<Selected>,
     min: Signal<u32>,
 ) -> Element {
     let count = accounts.read().len();
+    let public_selected = selected() == Selected::Public;
     rsx! {
         h3 { "Accounts" }
         if count == 0 {
-            p { "Set the RPC URL, Tint address, and private key to recover accounts." }
+            p { "Set a private key to recover accounts." }
         }
         ul {
+            li {
+                button {
+                    disabled: public_selected,
+                    onclick: move |_| selected.set(Selected::Public),
+                    "Public"
+                }
+                if public_selected {
+                    " (selected)"
+                }
+            }
             for account in accounts() {
                 AccountItem { key: "{account.index}", account, selected }
             }
@@ -24,14 +43,14 @@ pub fn Accounts(
 }
 
 #[component]
-fn AccountItem(account: AccountInfo, selected: Signal<Option<u32>>) -> Element {
+fn AccountItem(account: AccountInfo, selected: Signal<Selected>) -> Element {
     let index = account.index;
-    let is_selected = selected() == Some(index);
+    let is_selected = selected() == Selected::Account(index);
     rsx! {
         li {
             button {
                 disabled: is_selected,
-                onclick: move |_| selected.set(Some(index)),
+                onclick: move |_| selected.set(Selected::Account(index)),
                 "Account {index}"
             }
             match account.notes {

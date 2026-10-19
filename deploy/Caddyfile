@@ -1,0 +1,28 @@
+# Serves tint-web and proxies its bundler, with automatic HTTPS.
+#
+# Build the site with `just web-build https://$TINT_DOMAIN/bundler`, copy
+# packages/crates/tint-web/dist/public to /srv/tint-web, run `just bundler`
+# on this host, then `TINT_DOMAIN=tint.example.com caddy run`.
+
+{$TINT_DOMAIN} {
+	# Shared wasm memory, which the prover's thread pool needs, requires a
+	# cross-origin isolated page.
+	header {
+		Cross-Origin-Opener-Policy same-origin
+		Cross-Origin-Embedder-Policy require-corp
+	}
+
+	# alto, from `just bundler`. Same origin, so it needs no CORS.
+	handle_path /bundler* {
+		reverse_proxy 127.0.0.1:4337
+	}
+
+	handle {
+		root * {$TINT_WEB_ROOT:/srv/tint-web}
+		try_files {path} /index.html
+		# `just web-build` gzips the worker and proving artifacts.
+		file_server {
+			precompressed gzip
+		}
+	}
+}

@@ -21,6 +21,19 @@ pub enum RequestKind {
     Accounts { conn: Connection, min: u32 },
     /// Syncs with the chain, replying [`Reply::State`].
     Sync { conn: Connection, account: u32 },
+    /// Reads the signer's native and `tokens` balances, replying
+    /// [`Reply::Public`].
+    Public {
+        conn: Connection,
+        tokens: Vec<Address>,
+    },
+    /// Sets the signer's native and token balances with Tenderly's cheatcodes,
+    /// replying [`Reply::Public`].
+    Faucet {
+        conn: Connection,
+        eth: u128,
+        tokens: Vec<PublicBalance>,
+    },
     /// Approves and deposits `amount` of `token`, replying [`Reply::State`].
     Deposit {
         conn: Connection,
@@ -84,6 +97,21 @@ pub enum WorkerMessage {
 pub enum Reply {
     Accounts(Vec<AccountInfo>),
     State(AccountState),
+    Public(PublicState),
+}
+
+/// The signer's public balances.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublicState {
+    pub address: Address,
+    pub eth: u128,
+    pub balances: Vec<PublicBalance>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublicBalance {
+    pub token: Address,
+    pub amount: u128,
 }
 
 /// One of the accounts derived from a private key.
@@ -195,6 +223,8 @@ impl RequestKind {
         match self {
             RequestKind::Accounts { .. } => "accounts",
             RequestKind::Sync { .. } => "sync",
+            RequestKind::Public { .. } => "public",
+            RequestKind::Faucet { .. } => "faucet",
             RequestKind::Deposit { .. } => "deposit",
             RequestKind::Transfer { .. } => "transfer",
             RequestKind::Withdraw { .. } => "withdraw",

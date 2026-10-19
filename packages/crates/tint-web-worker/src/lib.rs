@@ -7,8 +7,10 @@ mod account_state;
 mod artifacts;
 mod handler;
 mod keys;
+mod public;
 mod revert;
 mod sponsor;
+mod store;
 
 use futures::{StreamExt, channel::mpsc};
 use tint_web_protocol::{Request, WorkerMessage};

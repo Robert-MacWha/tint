@@ -1,29 +1,31 @@
+use alloy_primitives::hex;
+use alloy_signer_local::PrivateKeySigner;
 use dioxus::prelude::*;
 
-use crate::storage::Settings;
+use crate::{config, storage::Settings};
 
-/// The RPC, deployment, signer, and known tokens every request uses, and
-/// the paymaster sponsored requests use.
+/// The private key every request signs with.
 #[component]
 pub fn SettingsPanel(settings: Signal<Settings>) -> Element {
     rsx! {
-        h3 { "Settings" }
-        label { "RPC URL" }
-        input {
-            value: "{settings.read().rpc_url}",
-            oninput: move |e| settings.write().rpc_url = e.value(),
-        }
-        label { "Tint address" }
-        input {
-            value: "{settings.read().tint}",
-            placeholder: "0x…",
-            oninput: move |e| settings.write().tint = e.value(),
+        if let Err(e) = config::rpc_url().and(config::tint()) {
+            p { class: "error", "{e}" }
         }
         label { "Private key" }
         input {
             value: "{settings.read().private_key}",
             placeholder: "0x…",
             oninput: move |e| settings.write().private_key = e.value(),
+        }
+        p {
+            button {
+                onclick: move |_| {
+                    let key = PrivateKeySigner::random().to_bytes();
+                    settings.write().private_key = hex::encode_prefixed(key);
+                },
+                "New key"
+            }
+            " Testnet only. Never paste a real key."
         }
         if !settings.read().private_key.is_empty() {
             div { class: "mono",
@@ -32,28 +34,6 @@ pub fn SettingsPanel(settings: Signal<Settings>) -> Element {
                     None => rsx! { "Invalid private key" },
                 }
             }
-        }
-        label { "Tokens (one \"SYMBOL 0xaddress\" per line)" }
-        textarea {
-            rows: 4,
-            value: "{settings.read().tokens}",
-            oninput: move |e| settings.write().tokens = e.value(),
-        }
-        label { "Paymaster address (for sponsored operations)" }
-        input {
-            value: "{settings.read().paymaster}",
-            placeholder: "0x…",
-            oninput: move |e| settings.write().paymaster = e.value(),
-        }
-        label { "Bundler URL (for sponsored operations)" }
-        input {
-            value: "{settings.read().bundler_url}",
-            oninput: move |e| settings.write().bundler_url = e.value(),
-        }
-        label { "Explorer URL (transactions link to URL/tx/HASH)" }
-        input {
-            value: "{settings.read().explorer_url}",
-            oninput: move |e| settings.write().explorer_url = e.value(),
         }
     }
 }

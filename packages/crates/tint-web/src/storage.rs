@@ -3,47 +3,18 @@
 use alloy_primitives::{Address, B256};
 use alloy_signer_local::PrivateKeySigner;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use tint_web_protocol::{Connection, Sponsor};
+use tint_web_protocol::Connection;
 use web_sys::Storage;
+
+use crate::config;
 
 pub const SETTINGS_KEY: &str = "tint-web/settings";
 
-/// The chain, signer, known tokens, paymaster, and explorer, as typed by the user.
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+/// The signer's private key, as typed by the user.
+#[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
-    pub rpc_url: String,
-    pub tint: String,
     pub private_key: String,
-    /// Known tokens, one `SYMBOL 0xaddress` per line.
-    pub tokens: String,
-    pub paymaster: String,
-    pub bundler_url: String,
-    /// The block explorer transactions link to, as `{explorer_url}/tx/{hash}`.
-    pub explorer_url: String,
-}
-
-/// A known token, as listed in [`Settings::tokens`].
-#[derive(Clone, PartialEq)]
-pub struct Token {
-    pub symbol: String,
-    pub address: Address,
-}
-
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            rpc_url: "http://127.0.0.1:8545".to_string(),
-            tint: String::new(),
-            private_key: String::new(),
-            tokens: String::new(),
-            paymaster: String::new(),
-            bundler_url: "http://127.0.0.1:4337".to_string(),
-            explorer_url:
-                "https://dashboard.tenderly.co/explorer/vnet/c864f850-a1ce-475a-b196-2b1b14573e7a"
-                    .to_string(),
-        }
-    }
 }
 
 impl Settings {
@@ -55,51 +26,14 @@ impl Settings {
 
     pub fn connection(&self) -> Result<Connection, String> {
         Ok(Connection {
-            rpc_url: self.rpc_url.trim().to_string(),
-            tint: self
-                .tint
-                .trim()
-                .parse()
-                .map_err(|_| "invalid Tint address")?,
+            rpc_url: config::rpc_url()?.to_string(),
+            tint: config::tint()?,
             private_key: self
                 .private_key
                 .trim()
                 .parse()
                 .map_err(|_| "invalid private key")?,
         })
-    }
-
-    pub fn sponsor(&self) -> Result<Sponsor, String> {
-        Ok(Sponsor {
-            paymaster: self
-                .paymaster
-                .trim()
-                .parse()
-                .map_err(|_| "invalid paymaster address")?,
-            bundler_url: self.bundler_url.trim().to_string(),
-        })
-    }
-
-    /// The parseable lines of [`Self::tokens`].
-    pub fn tokens(&self) -> Vec<Token> {
-        self.tokens
-            .lines()
-            .filter_map(|line| {
-                let (symbol, address) = line.trim().split_once(char::is_whitespace)?;
-                Some(Token {
-                    symbol: symbol.to_string(),
-                    address: address.trim().parse().ok()?,
-                })
-            })
-            .collect()
-    }
-
-    /// `token`'s symbol, if it's a known token.
-    pub fn symbol(&self, token: Address) -> Option<String> {
-        self.tokens()
-            .into_iter()
-            .find(|t| t.address == token)
-            .map(|t| t.symbol)
     }
 }
 

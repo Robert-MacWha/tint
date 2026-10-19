@@ -1,0 +1,5 @@
+public/worker/
+public/artifacts/
+/dist
+# Written by `just web`.
+public/config.json

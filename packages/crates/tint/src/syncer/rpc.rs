@@ -37,7 +37,8 @@ impl<P: Provider> RpcSyncer<P> {
     }
 }
 
-#[async_trait::async_trait]
+#[cfg_attr(not(target_family = "wasm"), async_trait::async_trait)]
+#[cfg_attr(target_family = "wasm", async_trait::async_trait(?Send))]
 impl<P: Provider> Syncer for RpcSyncer<P> {
     async fn sync_range(
         &self,
@@ -64,6 +65,13 @@ impl<P: Provider> RpcSyncer<P> {
         info!("Syncing from {} to {}", range.start, range.end);
         if range.is_empty() {
             return Ok(Snapshot::new(tint, range, Vec::new()));
+        }
+
+        //? A range that fits in one batch needs no walking back through the
+        //? blocks Tint was active in.
+        if range.end - range.start <= self.batch_size {
+            let (events, _) = self.fetch_window(tint, range.start, range.end - 1).await?;
+            return Ok(Snapshot::new(tint, range, events));
         }
 
         let mut windows = Vec::new();

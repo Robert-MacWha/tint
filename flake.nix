@@ -41,8 +41,21 @@
       halmos = pkgs.callPackage ./nix/halmos/package.nix { };
       picus = pkgs.callPackage ./nix/picus/package.nix { };
       alto = pkgs.callPackage ./nix/alto/package.nix { };
+      tintVendor = pkgs.callPackage ./nix/tint-web/vendor.nix { inherit rustToolchain; };
+      tint-artifacts = pkgs.callPackage ./nix/tint-web/artifacts.nix {
+        inherit rustToolchain tintVendor;
+      };
+      tint-web = pkgs.callPackage ./nix/tint-web/package.nix {
+        inherit rustToolchain tintVendor tint-artifacts;
+      };
     in
     {
+      packages.${system} = {
+        inherit alto tint-artifacts tint-web;
+      };
+
+      nixosModules.tint-web = import ./nix/tint-web/module.nix { inherit alto tint-web; };
+
       devShells.${system} = {
         default = pkgs.mkShell {
           buildInputs = [
@@ -65,6 +78,11 @@
             pkgs.cargo-insta
             pkgs.bacon
             pkgs.wasm-pack
+
+            # both must match the versions in Cargo.lock
+            pkgs.dioxus-cli
+            pkgs.wasm-bindgen-cli_0_2_108
+            pkgs.binaryen
 
             pkgs.go
             pkgs.gopls

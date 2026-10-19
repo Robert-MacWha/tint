@@ -8,6 +8,7 @@ mod artifacts;
 mod handler;
 mod keys;
 mod revert;
+mod sponsor;
 
 use futures::{StreamExt, channel::mpsc};
 use tint_web_protocol::{Request, WorkerMessage};

@@ -1,4 +1,4 @@
-use alloy_primitives::Address;
+use alloy_primitives::{Address, B256};
 use dioxus::prelude::*;
 use tint_web_protocol::{
     AccountInfo, AccountState, Balance, GlobalEntry, HistoryEntry, HistoryKind, NoteInfo,
@@ -186,7 +186,9 @@ fn Notes(notes: Vec<NoteInfo>) -> Element {
                     tr {
                         td { "{note.leaf_index}" }
                         td { "{note.block}" }
-                        td { class: "mono", "{note.tx}" }
+                        td {
+                            TxLink { tx: note.tx }
+                        }
                         td {
                             TokenSymbol { token: note.token }
                         }
@@ -246,7 +248,9 @@ fn AccountHistory(history: Vec<HistoryEntry>) -> Element {
                 for entry in history {
                     tr {
                         td { "{entry.block}" }
-                        td { class: "mono", "{entry.tx}" }
+                        td {
+                            TxLink { tx: entry.tx }
+                        }
                         td { {kind_label(entry.kind)} }
                         td {
                             TokenSymbol { token: entry.token }
@@ -284,7 +288,9 @@ fn GlobalHistory(global_history: Vec<GlobalEntry>, history: Vec<HistoryEntry>) -
                 for entry in global_history {
                     tr {
                         td { "{entry.block}" }
-                        td { class: "mono", "{entry.tx}" }
+                        td {
+                            TxLink { tx: entry.tx }
+                        }
                         td {
                             if history.iter().any(|h| h.tx == entry.tx) {
                                 "yes"
@@ -311,6 +317,32 @@ fn GlobalHistory(global_history: Vec<GlobalEntry>, history: Vec<HistoryEntry>) -
                     }
                 }
             }
+        }
+    }
+}
+
+/// A transaction hash, linking to the explorer if one is set.
+#[component]
+fn TxLink(tx: B256) -> Element {
+    let settings = use_context::<Signal<Settings>>();
+    let explorer = settings
+        .read()
+        .explorer_url
+        .trim()
+        .trim_end_matches('/')
+        .to_string();
+    if explorer.is_empty() {
+        return rsx! {
+            span { class: "mono", "{tx}" }
+        };
+    }
+    rsx! {
+        a {
+            class: "mono",
+            href: "{explorer}/tx/{tx}",
+            target: "_blank",
+            rel: "noopener",
+            "{tx}"
         }
     }
 }

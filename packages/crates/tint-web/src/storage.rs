@@ -3,12 +3,12 @@
 use alloy_primitives::{Address, B256};
 use alloy_signer_local::PrivateKeySigner;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use tint_web_protocol::Connection;
+use tint_web_protocol::{Connection, Sponsor};
 use web_sys::Storage;
 
 pub const SETTINGS_KEY: &str = "tint-web/settings";
 
-/// The chain, signer, and known tokens, as typed by the user.
+/// The chain, signer, known tokens, paymaster, and explorer, as typed by the user.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -17,6 +17,10 @@ pub struct Settings {
     pub private_key: String,
     /// Known tokens, one `SYMBOL 0xaddress` per line.
     pub tokens: String,
+    pub paymaster: String,
+    pub bundler_url: String,
+    /// The block explorer transactions link to, as `{explorer_url}/tx/{hash}`.
+    pub explorer_url: String,
 }
 
 /// A known token, as listed in [`Settings::tokens`].
@@ -33,6 +37,11 @@ impl Default for Settings {
             tint: String::new(),
             private_key: String::new(),
             tokens: String::new(),
+            paymaster: String::new(),
+            bundler_url: "http://127.0.0.1:4337".to_string(),
+            explorer_url:
+                "https://dashboard.tenderly.co/explorer/vnet/c864f850-a1ce-475a-b196-2b1b14573e7a"
+                    .to_string(),
         }
     }
 }
@@ -57,6 +66,17 @@ impl Settings {
                 .trim()
                 .parse()
                 .map_err(|_| "invalid private key")?,
+        })
+    }
+
+    pub fn sponsor(&self) -> Result<Sponsor, String> {
+        Ok(Sponsor {
+            paymaster: self
+                .paymaster
+                .trim()
+                .parse()
+                .map_err(|_| "invalid paymaster address")?,
+            bundler_url: self.bundler_url.trim().to_string(),
         })
     }
 

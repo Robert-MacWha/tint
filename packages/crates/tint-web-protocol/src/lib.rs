@@ -36,6 +36,7 @@ pub enum RequestKind {
         to: String,
         token: Address,
         amount: u128,
+        sponsor: Option<Sponsor>,
     },
     /// Withdraws `amount` of `token` to `to`, replying [`Reply::State`].
     Withdraw {
@@ -44,7 +45,16 @@ pub enum RequestKind {
         to: Address,
         token: Address,
         amount: u128,
+        sponsor: Option<Sponsor>,
     },
+}
+
+/// Pays an operation's gas from the spent note, by sending it as a userop
+/// through a `TintPaymaster` rather than from the signer.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Sponsor {
+    pub paymaster: Address,
+    pub bundler_url: String,
 }
 
 /// The chain and signer a request runs against.

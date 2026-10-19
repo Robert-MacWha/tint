@@ -18,13 +18,13 @@ use tint::{
     syncer::{Snapshot, Syncer, rpc::RpcSyncer},
 };
 use tint_groth16::artifacts::Artifacts;
-use tint_web_protocol::{Connection, Reply, RequestKind};
+use tint_web_protocol::{Connection, Reply, RequestKind, Sponsor};
 
 use crate::{
     account_state::account_state,
     artifacts::fetch_artifacts,
     keys::{account_root, derive_account, recover_accounts},
-    progress, revert,
+    progress, revert, sponsor,
 };
 
 /// Handles requests, caching the proving artifacts and synced chain state
@@ -37,14 +37,14 @@ pub struct Handler {
 
 /// A signing connection to one Tint deployment, acting for one of the
 /// signer's accounts.
-struct Session {
-    provider: DynProvider,
+pub struct Session {
+    pub provider: DynProvider,
     rpc_url: String,
-    tint: Address,
+    pub tint: Address,
     from: Address,
     /// The root the signer's accounts are derived from.
     root: B256,
-    account: Account,
+    pub account: Account,
 }
 
 /// Tint's synced events and skew-MMR for one deployment.
@@ -87,12 +87,13 @@ impl Handler {
                 to,
                 token,
                 amount,
+                sponsor,
             } => {
                 let session = Session::connect(&conn, account)?;
                 let bytes = hex::decode(to.trim()).context("invalid receive address")?;
                 let recipient =
                     PubAccount::from_bytes(&bytes).context("invalid receive address")?;
-                self.operate(id, &session, token, amount, |op, asset| {
+                self.operate(id, &session, token, amount, sponsor, |op, asset| {
                     op.output(recipient, asset, amount)
                 })
                 .await
@@ -103,9 +104,10 @@ impl Handler {
                 to,
                 token,
                 amount,
+                sponsor,
             } => {
                 let session = Session::connect(&conn, account)?;
-                self.operate(id, &session, token, amount, |op, asset| {
+                self.operate(id, &session, token, amount, sponsor, |op, asset| {
                     op.withdraw(to, asset, amount)
                 })
                 .await
@@ -140,13 +142,14 @@ impl Handler {
 
     /// Proves and sends an operation spending a note covering `amount` of
     /// `token`, with `add`'s outputs or withdrawals, sending the change back
-    /// to `session`'s account.
+    /// to `session`'s account. With a `sponsor`, the note also pays the gas.
     async fn operate(
         &mut self,
         id: u64,
         session: &Session,
         token: Address,
         amount: u128,
+        sponsor: Option<Sponsor>,
         add: impl FnOnce(OperationBuilder, AssetId) -> OperationBuilder,
     ) -> anyhow::Result<Reply> {
         self.sync(id, session).await?;
@@ -161,12 +164,17 @@ impl Handler {
         let builder = OperationBuilder::new()
             .spend(pick_note(&chain.snapshot, &session.account, asset, amount)?)
             .change_to(session.account.pub_account());
-        let op = add(builder, asset).build(&mut OsRng)?;
+        let builder = add(builder, asset);
 
-        progress(id, "Proving");
-        let proven = op.prove_with_mmr(&chain.mmr, artifacts, &mut OsRng)?;
-        progress(id, "Sending operation");
-        session.send(proven.transaction(session.tint)).await?;
+        if let Some(sponsor) = sponsor {
+            sponsor::send(id, &sponsor, session, builder, &chain.mmr, artifacts).await?;
+        } else {
+            let op = builder.build(&mut OsRng)?;
+            progress(id, "Proving");
+            let proven = op.prove_with_mmr(&chain.mmr, artifacts, &mut OsRng)?;
+            progress(id, "Sending operation");
+            session.send(proven.transaction(session.tint)).await?;
+        }
 
         self.sync(id, session).await?;
         self.state(session)

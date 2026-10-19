@@ -575,7 +575,7 @@ dependencies = [
  "alloy-serde",
  "alloy-sol-types",
  "alloy-trie",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "serde",
  "serde_json",
  "serde_with",
@@ -729,7 +729,7 @@ checksum = "df948f2f9530ed0325d789ad98aa08403aaeaf55ddd6eeaf0cda143e02afab39"
 dependencies = [
  "alloy-json-rpc",
  "alloy-transport",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "reqwest 0.13.4",
  "serde_json",
  "tower",
@@ -4479,7 +4479,7 @@ dependencies = [
 [[package]]
 name = "kohaku-fork-kit"
 version = "0.1.0"
-source = "git+https://github.com/ethereum/kohaku-rs?rev=e3639d1c8c767682e229de4ae37b48dd445b5633#e3639d1c8c767682e229de4ae37b48dd445b5633"
+source = "git+https://github.com/ethereum/kohaku-rs?rev=fd342d74d0c3079320c641724f67b1ec73d168b4#fd342d74d0c3079320c641724f67b1ec73d168b4"
 dependencies = [
  "alloy",
  "anyhow",
@@ -4492,15 +4492,26 @@ dependencies = [
 [[package]]
 name = "kohaku-merkle-tree"
 version = "0.1.0"
-source = "git+https://github.com/ethereum/kohaku-rs?rev=e3639d1c8c767682e229de4ae37b48dd445b5633#e3639d1c8c767682e229de4ae37b48dd445b5633"
+source = "git+https://github.com/ethereum/kohaku-rs?rev=fd342d74d0c3079320c641724f67b1ec73d168b4#fd342d74d0c3079320c641724f67b1ec73d168b4"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
+name = "kohaku-rpc-provider"
+version = "0.1.0"
+source = "git+https://github.com/ethereum/kohaku-rs?rev=fd342d74d0c3079320c641724f67b1ec73d168b4#fd342d74d0c3079320c641724f67b1ec73d168b4"
+dependencies = [
+ "alloy",
+ "futures",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "kohaku-tornadocash"
 version = "0.1.0"
-source = "git+https://github.com/ethereum/kohaku-rs?rev=e3639d1c8c767682e229de4ae37b48dd445b5633#e3639d1c8c767682e229de4ae37b48dd445b5633"
+source = "git+https://github.com/ethereum/kohaku-rs?rev=fd342d74d0c3079320c641724f67b1ec73d168b4#fd342d74d0c3079320c641724f67b1ec73d168b4"
 dependencies = [
  "alloy",
  "ark-bn254",
@@ -4511,6 +4522,7 @@ dependencies = [
  "flate2",
  "hex",
  "kohaku-merkle-tree",
+ "kohaku-rpc-provider",
  "kohaku-tornadocash-circuit",
  "kohaku-userop-kit",
  "num-bigint 0.5.1",
@@ -4529,7 +4541,7 @@ dependencies = [
 [[package]]
 name = "kohaku-tornadocash-circuit"
 version = "0.1.0"
-source = "git+https://github.com/ethereum/kohaku-rs?rev=e3639d1c8c767682e229de4ae37b48dd445b5633#e3639d1c8c767682e229de4ae37b48dd445b5633"
+source = "git+https://github.com/ethereum/kohaku-rs?rev=fd342d74d0c3079320c641724f67b1ec73d168b4#fd342d74d0c3079320c641724f67b1ec73d168b4"
 dependencies = [
  "brotli",
  "postcard",
@@ -4543,7 +4555,7 @@ dependencies = [
 [[package]]
 name = "kohaku-userop-kit"
 version = "0.1.0"
-source = "git+https://github.com/ethereum/kohaku-rs?rev=e3639d1c8c767682e229de4ae37b48dd445b5633#e3639d1c8c767682e229de4ae37b48dd445b5633"
+source = "git+https://github.com/ethereum/kohaku-rs?rev=fd342d74d0c3079320c641724f67b1ec73d168b4#fd342d74d0c3079320c641724f67b1ec73d168b4"
 dependencies = [
  "alloy",
  "alloy-sol-types",
@@ -6800,7 +6812,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -7121,10 +7133,13 @@ dependencies = [
  "ark-serialize 0.6.0",
  "futures",
  "js-sys",
+ "kohaku-userop-kit",
  "rand_core 0.6.4",
+ "serde",
  "serde_json",
  "tint",
  "tint-groth16",
+ "tint-paymaster",
  "tint-web-protocol",
  "wasm-bindgen",
  "wasm-bindgen-futures",

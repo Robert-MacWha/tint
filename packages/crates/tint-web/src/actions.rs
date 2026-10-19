@@ -4,7 +4,7 @@
 
 use alloy_primitives::Address;
 use dioxus::prelude::*;
-use tint_web_protocol::{AccountInfo, RequestKind};
+use tint_web_protocol::{AccountInfo, RequestKind, Sponsor};
 
 use crate::storage::Settings;
 
@@ -75,6 +75,7 @@ pub fn TransferForm(
     let mut to = use_signal(String::new);
     let token = use_first_token();
     let amount = use_signal(String::new);
+    let sponsored = use_signal(|| false);
     let index = account.index;
 
     let request = move || -> Result<RequestKind, String> {
@@ -88,6 +89,7 @@ pub fn TransferForm(
             to,
             token: parse_address(&token(), "token")?,
             amount: parse_amount(&amount())?,
+            sponsor: sponsor(&settings.read(), sponsored())?,
         })
     };
 
@@ -115,6 +117,7 @@ pub fn TransferForm(
                 }
                 TokenRow { token }
                 AmountRow { amount }
+                SponsorRow { sponsored }
             }
         }
         p {
@@ -137,6 +140,7 @@ pub fn WithdrawForm(
     let mut to = use_signal(String::new);
     let token = use_first_token();
     let amount = use_signal(String::new);
+    let sponsored = use_signal(|| false);
 
     let request = move || -> Result<RequestKind, String> {
         Ok(RequestKind::Withdraw {
@@ -145,6 +149,7 @@ pub fn WithdrawForm(
             to: parse_address(&to(), "recipient")?,
             token: parse_address(&token(), "token")?,
             amount: parse_amount(&amount())?,
+            sponsor: sponsor(&settings.read(), sponsored())?,
         })
     };
 
@@ -163,6 +168,7 @@ pub fn WithdrawForm(
                 }
                 TokenRow { token }
                 AmountRow { amount }
+                SponsorRow { sponsored }
             }
         }
         p {
@@ -207,6 +213,24 @@ fn AmountRow(amount: Signal<String>) -> Element {
     }
 }
 
+/// Whether to pay gas from the spent note through the paymaster.
+#[component]
+fn SponsorRow(sponsored: Signal<bool>) -> Element {
+    rsx! {
+        tr {
+            th { "Pay gas from note" }
+            td {
+                input {
+                    r#type: "checkbox",
+                    checked: sponsored(),
+                    onchange: move |e| sponsored.set(e.checked()),
+                }
+                " via the paymaster, in WETH"
+            }
+        }
+    }
+}
+
 /// A token selection, starting at the first known token.
 fn use_first_token() -> Signal<String> {
     let settings = use_context::<Signal<Settings>>();
@@ -218,6 +242,13 @@ fn use_first_token() -> Signal<String> {
             .map(|t| t.address.to_string())
             .unwrap_or_default()
     })
+}
+
+fn sponsor(settings: &Settings, sponsored: bool) -> Result<Option<Sponsor>, String> {
+    if !sponsored {
+        return Ok(None);
+    }
+    settings.sponsor().map(Some)
 }
 
 fn parse_address(value: &str, what: &str) -> Result<Address, String> {

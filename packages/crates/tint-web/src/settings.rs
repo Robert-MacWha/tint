@@ -2,7 +2,8 @@ use dioxus::prelude::*;
 
 use crate::storage::Settings;
 
-/// The RPC, deployment, signer, and known tokens every request uses.
+/// The RPC, deployment, signer, and known tokens every request uses, and
+/// the paymaster sponsored requests use.
 #[component]
 pub fn SettingsPanel(settings: Signal<Settings>) -> Element {
     rsx! {
@@ -37,6 +38,22 @@ pub fn SettingsPanel(settings: Signal<Settings>) -> Element {
             rows: 4,
             value: "{settings.read().tokens}",
             oninput: move |e| settings.write().tokens = e.value(),
+        }
+        label { "Paymaster address (for sponsored operations)" }
+        input {
+            value: "{settings.read().paymaster}",
+            placeholder: "0x…",
+            oninput: move |e| settings.write().paymaster = e.value(),
+        }
+        label { "Bundler URL (for sponsored operations)" }
+        input {
+            value: "{settings.read().bundler_url}",
+            oninput: move |e| settings.write().bundler_url = e.value(),
+        }
+        label { "Explorer URL (transactions link to URL/tx/HASH)" }
+        input {
+            value: "{settings.read().explorer_url}",
+            oninput: move |e| settings.write().explorer_url = e.value(),
         }
     }
 }

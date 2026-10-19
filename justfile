@@ -1,6 +1,7 @@
 set export := true
 
-TINT_ADDRESS := "0x8F5DA18CbB981c809d95E01d0aBC1a17B5B29B05"
+TINT_ADDRESS := "0x9e86ed840D1b97E047718318eE96af15F16E5BeD"
+PAYMASTER_ADDRESS := "0xcd3d4FEc298436676B40a889AfcFAC5bf3111c4C"
 PASSWORD_POLICY_ADDRESS := "0xe78836929dc9cfbbee7c4d262d7721b43e4848dd"
 MULTISIG_POLICY_ADDRESS := "0x3e597E5aD27891eae319DBBBbAe71a3b0e9aCEd7"
 TOKEN := "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
@@ -9,6 +10,7 @@ env:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "TINT_ADDRESS=${TINT_ADDRESS}"
+    echo "PAYMASTER_ADDRESS=${PAYMASTER_ADDRESS}"
     echo "PASSWORD_POLICY_ADDRESS=${PASSWORD_POLICY_ADDRESS}"
     echo "MULTISIG_POLICY_ADDRESS=${MULTISIG_POLICY_ADDRESS}"
     echo "TOKEN=${TOKEN}"
@@ -39,6 +41,25 @@ run *ARGS:
     set -euo pipefail
     eval "$(just env)"
     cd packages/crates/cli && cargo run --release -- {{ARGS}}
+
+# Runs a local alto bundler against a Tenderly virtual testnet at $RPC_URL, for
+# tint-web's sponsored operations. TintPaymaster breaks the ERC-7562 rules, so
+# alto runs without safe mode.
+bundler:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    eval "$(just env)"
+    # Throwaway keys, funded with Tenderly's cheatcode.
+    executor=0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5
+    utility=0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f1f01a6
+    for key in $executor $utility; do
+        cast rpc tenderly_setBalance "$(cast wallet address $key)" 0x3635C9ADC5DEA00000 \
+            --rpc-url "$RPC_URL" > /dev/null
+    done
+    alto --rpc-url "$RPC_URL" \
+        --entrypoints 0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108 \
+        --executor-private-keys $executor --utility-private-key $utility \
+        --port 4337 --safe-mode false --enable-cors true
 
 # Builds the tint worker and serves the web UI with `dx serve`.
 web:

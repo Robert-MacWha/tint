@@ -14,10 +14,13 @@ ark-groth16 = { workspace = true }
 ark-serialize = { workspace = true }
 futures = { workspace = true }
 js-sys = { workspace = true }
+kohaku-userop-kit = { workspace = true }
 rand_core = { workspace = true, features = ["getrandom"] }
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tint = { workspace = true, features = ["parallel"] }
 tint-groth16 = { workspace = true }
+tint-paymaster = { workspace = true }
 tint-web-protocol = { workspace = true }
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }

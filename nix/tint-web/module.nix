@@ -138,6 +138,10 @@ in
           Cross-Origin-Embedder-Policy require-corp
         }
 
+        @unhashed not path /assets/*
+        header @unhashed Cache-Control no-cache
+        header /assets/* Cache-Control "public, max-age=31536000, immutable"
+
         # Same origin, so the bundler needs no CORS.
         handle_path /bundler* {
           reverse_proxy 127.0.0.1:${toString cfg.bundler.port}

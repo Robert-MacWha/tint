@@ -385,6 +385,8 @@ async fn run_request(
             return;
         }
     };
+    // A new request supersedes the last one's error.
+    error.set(None);
 
     // Anything but a sync may change which accounts are used.
     let changes_accounts = !matches!(kind, RequestKind::Sync { .. });
@@ -394,7 +396,6 @@ async fn run_request(
     match result {
         Ok(new_state) => {
             state.set(Some(new_state));
-            error.set(None);
             if changes_accounts {
                 reload += 1;
             }

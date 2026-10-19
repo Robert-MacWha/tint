@@ -165,7 +165,7 @@ fn WorkerLog() -> Element {
                 }
                 tbody {
                     for entry in log.read().iter().rev() {
-                        tr {
+                        tr { class: if entry.failed { "error" },
                             td { "{entry.time}" }
                             td { "{entry.id}" }
                             td { "{entry.request}" }

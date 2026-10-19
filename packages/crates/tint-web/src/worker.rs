@@ -29,6 +29,8 @@ pub struct LogEntry {
     pub id: u64,
     pub request: &'static str,
     pub message: String,
+    /// Whether this is a request failing, or the worker stopping.
+    pub failed: bool,
 }
 
 struct Inner {
@@ -143,7 +145,7 @@ impl WorkerClient {
                 started: js_sys::Date::now(),
             },
         );
-        self.log(id, request, "requested".to_string());
+        self.log(id, request, "requested".to_string(), false);
         self.send(json)?;
         rx.await
             .map_err(|_| "worker dropped the request".to_string())?
@@ -167,7 +169,7 @@ impl WorkerClient {
         }
     }
 
-    fn log(&self, id: u64, request: &'static str, message: String) {
+    fn log(&self, id: u64, request: &'static str, message: String, failed: bool) {
         let time = String::from(js_sys::Date::new_0().to_locale_time_string("en-GB"));
         let mut log = self.0.log;
         log.write().push(LogEntry {
@@ -175,6 +177,7 @@ impl WorkerClient {
             id,
             request,
             message,
+            failed,
         });
     }
 
@@ -201,7 +204,7 @@ async fn listen(client: WorkerClient, mut messages: mpsc::UnboundedReceiver<Work
             WorkerMessage::Ready => client.flush(),
             WorkerMessage::Progress { id, message } => {
                 let request = client.0.pending.borrow().get(&id).map(|p| p.request);
-                client.log(id, request.unwrap_or("?"), message.clone());
+                client.log(id, request.unwrap_or("?"), message.clone(), false);
                 status.set(Some(message));
             }
             WorkerMessage::Done { id, result } => {
@@ -214,14 +217,14 @@ async fn listen(client: WorkerClient, mut messages: mpsc::UnboundedReceiver<Work
                     Ok(_) => format!("done in {elapsed:.0}ms"),
                     Err(e) => format!("failed in {elapsed:.0}ms: {e}"),
                 };
-                client.log(id, pending.request, outcome);
+                client.log(id, pending.request, outcome, result.is_err());
                 let _ = pending.tx.send(result);
             }
             WorkerMessage::Crashed { message } => {
                 status.set(None);
                 let error = format!("the tint worker stopped: {message}");
                 for (id, pending) in client.0.pending.borrow_mut().drain() {
-                    client.log(id, pending.request, error.clone());
+                    client.log(id, pending.request, error.clone(), true);
                     let _ = pending.tx.send(Err(error.clone()));
                 }
                 *client.0.crashed.borrow_mut() = Some(message);

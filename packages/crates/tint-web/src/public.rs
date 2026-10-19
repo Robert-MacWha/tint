@@ -107,6 +107,8 @@ async fn run_request(
             return;
         }
     };
+    // A new request supersedes the last one's error.
+    error.set(None);
 
     busy.set(true);
     let result = client.public(kind).await;
@@ -114,7 +116,6 @@ async fn run_request(
     match result {
         Ok(new_state) => {
             state.set(Some(new_state));
-            error.set(None);
         }
         Err(e) => error.set(Some(e)),
     }

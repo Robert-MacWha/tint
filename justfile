@@ -94,32 +94,24 @@ web-worker:
         ln -f "tint/artifacts/$f.bin.br" "tint-web/public/artifacts/$f.bin"
     done
 
-# Serves the web UI with `dx serve`. tint-web is built for the deployment
-# `just env` describes, sending sponsored operations to BUNDLER_URL.
+# Serves the web UI with `dx serve`, against the deployment `just env`
+# describes, sending sponsored operations to BUNDLER_URL.
 web BUNDLER_URL="http://127.0.0.1:4337":
     #!/usr/bin/env bash
     set -euo pipefail
     just web-worker
-    set -a; eval "$(just env)"; set +a
-    # tint-web links transactions to $EXPLORER_URL/tx/HASH.
-    export EXPLORER_URL="${EXPLORER_URL%/transactions}"
-    # Shared wasm memory needs the page to be cross-origin isolated.
-    cd packages/crates/tint-web && dx serve --cross-origin-policy
-
-# Builds the web UI into packages/crates/tint-web/dist, to serve with
-# deploy/Caddyfile. BUNDLER_URL is the bundler as the browser reaches it,
-# e.g. https://tint.example.com/bundler.
-web-build BUNDLER_URL:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    just web-worker
-    set -a; eval "$(just env)"; set +a
-    export EXPLORER_URL="${EXPLORER_URL%/transactions}"
+    eval "$(just env)"
     cd packages/crates/tint-web
-    # dx stages bundles here and never clears out old hashed assets.
-    rm -rf dist ../target/dx/tint-web/release/web
-    # Debug symbols crash wasm-opt.
-    dx bundle --web --release --debug-symbols false --out-dir dist
-    # Caddy serves these precompressed; the artifacts shrink the most.
-    find dist/public -type f \( -name '*.bin' -o -name '*.wasm' -o -name '*.js' \) \
-        -exec gzip -k -9 {} +
+    # tint-web loads its deployment from here at runtime, and links
+    # transactions to $EXPLORER_URL/tx/HASH.
+    cat > public/config.json <<EOF
+    {
+      "rpcUrl": "$RPC_URL",
+      "explorerUrl": "${EXPLORER_URL%/transactions}",
+      "tint": "$TINT_ADDRESS",
+      "paymaster": "$PAYMASTER_ADDRESS",
+      "bundlerUrl": "$BUNDLER_URL"
+    }
+    EOF
+    # Shared wasm memory needs the page to be cross-origin isolated.
+    dx serve --cross-origin-policy

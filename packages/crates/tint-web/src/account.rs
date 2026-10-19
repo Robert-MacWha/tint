@@ -8,7 +8,7 @@ use tint_web_protocol::{
 use crate::{
     ErrorMessage, ReloadAccounts,
     actions::{Action, DepositForm, TransferForm, WithdrawForm},
-    config,
+    config::{self, Deployment},
     storage::Settings,
     worker::WorkerClient,
 };
@@ -18,6 +18,7 @@ use crate::{
 pub fn AccountView(account: AccountInfo, accounts: Signal<Vec<AccountInfo>>) -> Element {
     let client = use_context::<WorkerClient>();
     let settings = use_context::<Signal<Settings>>();
+    let deployment = use_context::<Signal<Deployment>>();
     let ErrorMessage(error) = use_context();
     let ReloadAccounts(reload) = use_context();
     let state = use_signal(|| None::<AccountState>);
@@ -35,12 +36,15 @@ pub fn AccountView(account: AccountInfo, accounts: Signal<Vec<AccountInfo>>) -> 
             reload,
         ));
     });
-    let sync = move || {
-        run.call(settings.read().connection().map(|conn| RequestKind::Sync {
-            conn,
-            account: index,
-        }));
-    };
+    let sync =
+        move || {
+            run.call(settings.read().connection(&deployment.read()).map(|conn| {
+                RequestKind::Sync {
+                    conn,
+                    account: index,
+                }
+            }));
+        };
     use_hook(sync);
     let close = use_callback(move |()| action.set(None));
 
@@ -325,7 +329,11 @@ fn GlobalHistory(global_history: Vec<GlobalEntry>, history: Vec<HistoryEntry>) -
 /// A transaction hash, linking to the explorer if built with one.
 #[component]
 fn TxLink(tx: B256) -> Element {
-    let Some(explorer) = config::explorer_url() else {
+    let Some(explorer) = use_context::<Signal<Deployment>>()
+        .read()
+        .explorer_url
+        .clone()
+    else {
         return rsx! {
             span { class: "mono", "{tx}" }
         };

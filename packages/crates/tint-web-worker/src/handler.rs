@@ -175,15 +175,26 @@ impl Handler {
         };
 
         let asset = AssetId::from(token);
-        let notes = pick_notes(&chain.snapshot, &session.account, asset, amount)?;
+        let paymaster = match &sponsor {
+            Some(sponsor) => Some(sponsor::paymaster(&session.provider, sponsor).await?),
+            None => None,
+        };
+        // The paymaster's fee comes from WETH notes, alongside the spent asset's.
+        let fee_asset = paymaster
+            .map(|p| AssetId::from(p.weth))
+            .filter(|&weth| weth != asset);
+        let notes = pick_notes(&chain.snapshot, &session.account, asset, amount, fee_asset)?;
         let builder = notes
             .into_iter()
             .fold(OperationBuilder::new(), OperationBuilder::spend)
             .change_to(session.account.pub_account());
         let builder = add(builder, asset);
 
-        if let Some(sponsor) = sponsor {
-            sponsor::send(id, &sponsor, session, builder, &chain.mmr, artifacts).await?;
+        if let (Some(sponsor), Some(paymaster)) = (sponsor, paymaster) {
+            sponsor::send(
+                id, &sponsor, paymaster, session, builder, &chain.mmr, artifacts,
+            )
+            .await?;
         } else {
             let op = builder.build(&mut OsRng)?;
             progress(id, "Proving");
@@ -354,29 +365,64 @@ async fn load_chain(id: u64, session: &Session) -> ChainState {
     }
 }
 
-/// Picks as many of the account's spendable `asset` notes as an operation
-/// can spend, largest first, so spending them also consolidates the
-/// account's notes. Every note is nullified once eventually, so spending more
-/// now costs no extra gas overall.
+/// Picks as many of the account's spendable notes as an operation can spend,
+/// largest first, so spending them also consolidates the account's notes.
+/// Every note is nullified once eventually, so spending more now costs no
+/// extra gas overall.
+///
+/// The notes cover `amount` of `asset`. With a `fee_asset`, they also include
+/// as many of its notes as fit beside the fewest `asset` notes covering
+/// `amount`, to pay a fee in it.
 fn pick_notes(
     snapshot: &Snapshot,
     account: &Account,
     asset: AssetId,
     amount: u128,
+    fee_asset: Option<AssetId>,
 ) -> anyhow::Result<Vec<OwnedNote>> {
+    let mut notes = largest_notes(snapshot, account, asset);
+    let Some(fee_asset) = fee_asset else {
+        notes.truncate(N_INPUTS);
+        let total: u128 = notes.iter().map(|note| note.note.amount).sum();
+        if total < amount {
+            anyhow::bail!(
+                "an operation can spend up to {N_INPUTS} notes, and the largest of this token only hold {total}"
+            );
+        }
+        return Ok(notes);
+    };
+
+    let fee_notes = largest_notes(snapshot, account, fee_asset);
+    if fee_notes.is_empty() {
+        anyhow::bail!("paying the paymaster's fee needs a WETH note");
+    }
+    let mut total = 0;
+    let covering = notes
+        .iter()
+        .position(|note| {
+            total += note.note.amount;
+            total >= amount
+        })
+        .filter(|&i| i < N_INPUTS - 1)
+        .context(format!(
+            "an operation can spend up to {} notes of this token beside a WETH note for the fee, and they don't cover the amount",
+            N_INPUTS - 1
+        ))?;
+
+    let mut picked: Vec<_> = notes.drain(..=covering).collect();
+    picked.extend(fee_notes.into_iter().take(N_INPUTS - picked.len()));
+    // Fill any slots left with more of the asset's notes.
+    picked.extend(notes.into_iter().take(N_INPUTS - picked.len()));
+    Ok(picked)
+}
+
+/// The account's spendable `asset` notes, largest first.
+fn largest_notes(snapshot: &Snapshot, account: &Account, asset: AssetId) -> Vec<OwnedNote> {
     let mut notes: Vec<_> = snapshot
         .unspent(account)
         .into_iter()
         .filter(|note| note.note.asset == asset)
         .collect();
     notes.sort_by_key(|note| std::cmp::Reverse(note.note.amount));
-    notes.truncate(N_INPUTS);
-
-    let total: u128 = notes.iter().map(|note| note.note.amount).sum();
-    if total < amount {
-        anyhow::bail!(
-            "an operation can spend up to {N_INPUTS} notes, and the largest of this token only hold {total}"
-        );
-    }
-    Ok(notes)
+    notes
 }

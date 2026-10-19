@@ -1,10 +1,28 @@
-//! The deployment tint-web is built for.
-//!
-//! URLs and addresses come from the environment at build time (`just web`
-//! loads them from `just env`), so the RPC URL stays out of the repository.
+//! The deployment tint-web runs against, and the tokens it offers.
 
 use alloy_primitives::{Address, address};
+use serde::Deserialize;
 use tint_web_protocol::{PublicBalance, Sponsor};
+use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen_futures::JsFuture;
+use web_sys::Response;
+
+/// Where the page serves its [`Deployment`]: written by `just web` in
+/// development, and by the NixOS module in production.
+const DEPLOYMENT_URL: &str = "/config.json";
+
+/// The chain, contracts, and services tint-web uses, loaded at runtime so one
+/// build serves any deployment.
+#[derive(Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Deployment {
+    pub rpc_url: String,
+    /// The explorer transactions link to, as `{url}/tx/{hash}`.
+    pub explorer_url: Option<String>,
+    pub tint: Address,
+    pub paymaster: Address,
+    pub bundler_url: String,
+}
 
 /// A token the UI offers, and how much of it the faucet gives.
 pub struct Token {
@@ -29,24 +47,34 @@ pub const TOKENS: [Token; 2] = [
 /// The native balance, in wei, the faucet gives.
 pub const FAUCET_ETH: u128 = 250_000_000_000_000_000;
 
-pub fn rpc_url() -> Result<&'static str, String> {
-    built_with("RPC_URL", option_env!("RPC_URL"))
-}
+impl Deployment {
+    pub async fn fetch() -> Result<Self, String> {
+        let window = web_sys::window().ok_or("no window")?;
+        let response: Response = JsFuture::from(window.fetch_with_str(DEPLOYMENT_URL))
+            .await
+            .map_err(|e| js_error(&e))?
+            .dyn_into()
+            .map_err(|e| js_error(&e))?;
+        if !response.ok() {
+            return Err(format!(
+                "fetching {DEPLOYMENT_URL}: HTTP {}",
+                response.status()
+            ));
+        }
+        let text = JsFuture::from(response.text().map_err(|e| js_error(&e))?)
+            .await
+            .map_err(|e| js_error(&e))?
+            .as_string()
+            .ok_or("deployment isn't text")?;
+        serde_json::from_str(&text).map_err(|e| format!("invalid {DEPLOYMENT_URL}: {e}"))
+    }
 
-/// The explorer transactions link to, as `{url}/tx/{hash}`, if built with one.
-pub fn explorer_url() -> Option<&'static str> {
-    option_env!("EXPLORER_URL")
-}
-
-pub fn tint() -> Result<Address, String> {
-    parse_address("TINT_ADDRESS", option_env!("TINT_ADDRESS"))
-}
-
-pub fn sponsor() -> Result<Sponsor, String> {
-    Ok(Sponsor {
-        paymaster: parse_address("PAYMASTER_ADDRESS", option_env!("PAYMASTER_ADDRESS"))?,
-        bundler_url: built_with("BUNDLER_URL", option_env!("BUNDLER_URL"))?.to_string(),
-    })
+    pub fn sponsor(&self) -> Sponsor {
+        Sponsor {
+            paymaster: self.paymaster,
+            bundler_url: self.bundler_url.clone(),
+        }
+    }
 }
 
 /// The balances the faucet sets each token to.
@@ -65,12 +93,6 @@ pub fn symbol(token: Address) -> Option<&'static str> {
     TOKENS.iter().find(|t| t.address == token).map(|t| t.symbol)
 }
 
-fn parse_address(name: &str, value: Option<&'static str>) -> Result<Address, String> {
-    built_with(name, value)?
-        .parse()
-        .map_err(|_| format!("{name} isn't an address"))
-}
-
-fn built_with(name: &str, value: Option<&'static str>) -> Result<&'static str, String> {
-    value.ok_or_else(|| format!("tint-web was built without {name}; build it with `just web`"))
+fn js_error(value: &JsValue) -> String {
+    format!("{value:?}")
 }

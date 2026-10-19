@@ -4,9 +4,13 @@
 
 use alloy_primitives::Address;
 use dioxus::prelude::*;
-use tint_web_protocol::{AccountInfo, RequestKind, Sponsor};
+use tint_web_protocol::{AccountInfo, Connection, RequestKind};
 
-use crate::{config, storage::Settings};
+use crate::{
+    config::{self, Deployment},
+    storage::Settings,
+    worker::WorkerClient,
+};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Action {
@@ -35,12 +39,13 @@ pub fn DepositForm(
     close: Callback<()>,
 ) -> Element {
     let settings = use_context::<Signal<Settings>>();
+    let deployment = use_context::<Signal<Deployment>>();
     let token = use_first_token();
     let amount = use_signal(String::new);
 
     let request = move || -> Result<RequestKind, String> {
         Ok(RequestKind::Deposit {
-            conn: settings.read().connection()?,
+            conn: settings.read().connection(&deployment.read())?,
             account,
             token: parse_address(&token(), "token")?,
             amount: parse_amount(&amount())?,
@@ -51,6 +56,7 @@ pub fn DepositForm(
         table {
             tbody {
                 TokenRow { token }
+                PublicBalanceRow { token, busy: disabled }
                 AmountRow { amount }
             }
         }
@@ -72,6 +78,7 @@ pub fn TransferForm(
     close: Callback<()>,
 ) -> Element {
     let settings = use_context::<Signal<Settings>>();
+    let deployment = use_context::<Signal<Deployment>>();
     let mut to = use_signal(String::new);
     let token = use_first_token();
     let amount = use_signal(String::new);
@@ -84,12 +91,12 @@ pub fn TransferForm(
             return Err("choose an account to transfer to".to_string());
         }
         Ok(RequestKind::Transfer {
-            conn: settings.read().connection()?,
+            conn: settings.read().connection(&deployment.read())?,
             account: index,
             to,
             token: parse_address(&token(), "token")?,
             amount: parse_amount(&amount())?,
-            sponsor: sponsor(sponsored())?,
+            sponsor: sponsored().then(|| deployment.read().sponsor()),
         })
     };
 
@@ -137,6 +144,7 @@ pub fn WithdrawForm(
     close: Callback<()>,
 ) -> Element {
     let settings = use_context::<Signal<Settings>>();
+    let deployment = use_context::<Signal<Deployment>>();
     let mut to = use_signal(String::new);
     let token = use_first_token();
     let amount = use_signal(String::new);
@@ -144,12 +152,12 @@ pub fn WithdrawForm(
 
     let request = move || -> Result<RequestKind, String> {
         Ok(RequestKind::Withdraw {
-            conn: settings.read().connection()?,
+            conn: settings.read().connection(&deployment.read())?,
             account,
             to: parse_address(&to(), "recipient")?,
             token: parse_address(&token(), "token")?,
             amount: parse_amount(&amount())?,
-            sponsor: sponsor(sponsored())?,
+            sponsor: sponsored().then(|| deployment.read().sponsor()),
         })
     };
 
@@ -196,6 +204,42 @@ fn TokenRow(token: Signal<String>) -> Element {
     }
 }
 
+/// The signer's public balance of `token`, fetched again once a `busy`
+/// request finishes, since it may have changed it.
+#[component]
+fn PublicBalanceRow(token: Signal<String>, busy: bool) -> Element {
+    let client = use_context::<WorkerClient>();
+    let settings = use_context::<Signal<Settings>>();
+    let deployment = use_context::<Signal<Deployment>>();
+
+    let balance = use_resource(use_reactive!(|busy| {
+        let client = client.clone();
+        let conn = settings.read().connection(&deployment.read());
+        let token = parse_address(&token(), "token");
+        async move {
+            if busy {
+                return None;
+            }
+            Some(public_balance(&client, conn, token).await)
+        }
+    }));
+
+    rsx! {
+        tr {
+            th { "Public balance" }
+            td {
+                match balance().flatten() {
+                    Some(Ok(amount)) => rsx! { "{amount}" },
+                    Some(Err(e)) => rsx! {
+                        span { class: "error", "{e}" }
+                    },
+                    None => rsx! { "…" },
+                }
+            }
+        }
+    }
+}
+
 #[component]
 fn AmountRow(amount: Signal<String>) -> Element {
     rsx! {
@@ -234,11 +278,18 @@ fn use_first_token() -> Signal<String> {
     use_signal(|| config::TOKENS[0].address.to_string())
 }
 
-fn sponsor(sponsored: bool) -> Result<Option<Sponsor>, String> {
-    if !sponsored {
-        return Ok(None);
-    }
-    config::sponsor().map(Some)
+async fn public_balance(
+    client: &WorkerClient,
+    conn: Result<Connection, String>,
+    token: Result<Address, String>,
+) -> Result<u128, String> {
+    let state = client
+        .public(RequestKind::Public {
+            conn: conn?,
+            tokens: vec![token?],
+        })
+        .await?;
+    Ok(state.balances.first().map_or(0, |b| b.amount))
 }
 
 fn parse_address(value: &str, what: &str) -> Result<Address, String> {

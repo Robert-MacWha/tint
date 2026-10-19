@@ -2,15 +2,12 @@ use alloy_primitives::hex;
 use alloy_signer_local::PrivateKeySigner;
 use dioxus::prelude::*;
 
-use crate::{config, storage::Settings};
+use crate::storage::Settings;
 
 /// The private key every request signs with.
 #[component]
 pub fn SettingsPanel(settings: Signal<Settings>) -> Element {
     rsx! {
-        if let Err(e) = config::rpc_url().and(config::tint()) {
-            p { class: "error", "{e}" }
-        }
         label { "Private key" }
         input {
             value: "{settings.read().private_key}",

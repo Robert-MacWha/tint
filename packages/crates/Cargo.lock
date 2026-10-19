@@ -7111,6 +7111,7 @@ dependencies = [
  "serde_json",
  "tint-web-protocol",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 

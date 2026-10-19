@@ -16,6 +16,7 @@ use tint_web_protocol::AccountInfo;
 use crate::{
     account::AccountView,
     accounts::{Accounts, Selected},
+    config::Deployment,
     public::PublicView,
     settings::SettingsPanel,
     storage::{SETTINGS_KEY, Settings},
@@ -48,29 +49,43 @@ fn App() -> Element {
     let status = use_context_provider(|| Status(Signal::new(None)));
     let log = use_context_provider(|| Log(Signal::new(Vec::new())));
     let client = use_hook(|| WorkerClient::spawn(status.0, log.0));
+    let deployment = use_resource(Deployment::fetch);
 
-    match client {
-        Ok(client) => rsx! {
-            Wallet { client }
+    let client = match client {
+        Ok(client) => client,
+        Err(e) => {
+            return rsx! {
+                p { class: "error", "Failed to start the tint worker: {e}" }
+            };
+        }
+    };
+    match deployment() {
+        None => rsx! {
+            p { "Loading the deployment…" }
         },
-        Err(e) => rsx! {
-            p { class: "error", "Failed to start the tint worker: {e}" }
+        Some(Err(e)) => rsx! {
+            p { class: "error", "Failed to load the deployment: {e}" }
+        },
+        Some(Ok(deployment)) => rsx! {
+            Wallet { client, deployment }
         },
     }
 }
 
 #[component]
-fn Wallet(client: WorkerClient) -> Element {
+fn Wallet(client: WorkerClient, deployment: Deployment) -> Element {
     use_context_provider(|| client.clone());
+    let deployment = use_context_provider(|| Signal::new(deployment));
     let Status(status) = use_context();
     let ErrorMessage(mut error) = use_context_provider(|| ErrorMessage(Signal::new(None)));
     let ReloadAccounts(reload) = use_context_provider(|| ReloadAccounts(Signal::new(0)));
     let settings = use_context_provider(|| Signal::new(storage::load::<Settings>(SETTINGS_KEY)));
     let mut accounts = use_signal(Vec::<AccountInfo>::new);
-    let selected = use_signal(|| Selected::Account(0));
+    // New users start here, to fund their key.
+    let selected = use_signal(|| Selected::Public);
     // How many accounts to show, beyond those recovered as used.
     let min = use_signal(|| 1);
-    let conn = use_memo(move || settings.read().connection().ok());
+    let conn = use_memo(move || settings.read().connection(&deployment.read()).ok());
 
     use_effect(move || storage::save(SETTINGS_KEY, &*settings.read()));
     // Recovers the accounts whenever the connection changes.

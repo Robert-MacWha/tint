@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tint_web_protocol::Connection;
 use web_sys::Storage;
 
-use crate::config;
+use crate::config::Deployment;
 
 pub const SETTINGS_KEY: &str = "tint-web/settings";
 
@@ -24,10 +24,10 @@ impl Settings {
         Some(PrivateKeySigner::from_bytes(&key).ok()?.address())
     }
 
-    pub fn connection(&self) -> Result<Connection, String> {
+    pub fn connection(&self, deployment: &Deployment) -> Result<Connection, String> {
         Ok(Connection {
-            rpc_url: config::rpc_url()?.to_string(),
-            tint: config::tint()?,
+            rpc_url: deployment.rpc_url.clone(),
+            tint: deployment.tint,
             private_key: self
                 .private_key
                 .trim()

@@ -3,7 +3,7 @@
 
 use alloy::{
     primitives::B256,
-    providers::Provider,
+    providers::{DynProvider, Provider},
     rpc::{
         client::{ClientBuilder, RpcClient},
         types::state::StateOverride,
@@ -83,21 +83,13 @@ struct GasLimits {
 pub async fn send(
     id: u64,
     sponsor: &Sponsor,
+    paymaster: TintPaymaster,
     session: &Session,
     operation: OperationBuilder,
     mmr: &SkewMmr,
     artifacts: &Artifacts<Bn254>,
 ) -> anyhow::Result<()> {
     let provider = &session.provider;
-    let weth = ITintPaymaster::new(sponsor.paymaster, provider)
-        .WETH()
-        .call()
-        .await
-        .context("reading the paymaster's WETH")?;
-    let paymaster = TintPaymaster {
-        address: sponsor.paymaster,
-        weth,
-    };
     let bundler = Bundler::new(&sponsor.bundler_url)?;
 
     // A throwaway sender, so the userop isn't linked to anything else.
@@ -156,6 +148,19 @@ pub async fn send(
         );
     }
     Ok(())
+}
+
+/// `sponsor`'s paymaster, with the WETH it takes its fee in.
+pub async fn paymaster(provider: &DynProvider, sponsor: &Sponsor) -> anyhow::Result<TintPaymaster> {
+    let weth = ITintPaymaster::new(sponsor.paymaster, provider)
+        .WETH()
+        .call()
+        .await
+        .context("reading the paymaster's WETH")?;
+    Ok(TintPaymaster {
+        address: sponsor.paymaster,
+        weth,
+    })
 }
 
 impl Bundler {

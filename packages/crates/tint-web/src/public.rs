@@ -1,13 +1,21 @@
 use dioxus::prelude::*;
 use tint_web_protocol::{PublicState, RequestKind};
 
-use crate::{ErrorMessage, account::TokenSymbol, config, storage::Settings, worker::WorkerClient};
+use crate::{
+    ErrorMessage,
+    account::TokenSymbol,
+    config::{self, Deployment},
+    storage::Settings,
+    worker::WorkerClient,
+};
 
-/// The signer's public balances, with a faucet to top them up.
+/// The signer's public balances, with a faucet to top them up, which runs on
+/// its own while they're all empty.
 #[component]
 pub fn PublicView() -> Element {
     let client = use_context::<WorkerClient>();
     let settings = use_context::<Signal<Settings>>();
+    let deployment = use_context::<Signal<Deployment>>();
     let ErrorMessage(error) = use_context();
     let state = use_signal(|| None::<PublicState>);
     let busy = use_signal(|| false);
@@ -15,30 +23,38 @@ pub fn PublicView() -> Element {
     let run = use_callback(move |kind: Result<RequestKind, String>| {
         spawn(run_request(client.clone(), kind, state, busy, error));
     });
-    let refresh = move || {
-        run.call(
-            settings
-                .read()
-                .connection()
-                .map(|conn| RequestKind::Public {
+    let refresh =
+        move || {
+            run.call(settings.read().connection(&deployment.read()).map(|conn| {
+                RequestKind::Public {
                     conn,
                     tokens: config::TOKENS.iter().map(|t| t.address).collect(),
-                }),
-        );
-    };
+                }
+            }));
+        };
     use_hook(refresh);
-    let faucet = move |_| {
-        run.call(
-            settings
-                .read()
-                .connection()
-                .map(|conn| RequestKind::Faucet {
+    let faucet =
+        move || {
+            run.call(settings.read().connection(&deployment.read()).map(|conn| {
+                RequestKind::Faucet {
                     conn,
                     eth: config::FAUCET_ETH,
                     tokens: config::faucet_tokens(),
-                }),
-        );
-    };
+                }
+            }));
+        };
+    // New keys start empty, so fund them once without being asked.
+    let mut auto_funded = use_signal(|| false);
+    use_effect(move || {
+        let empty = state
+            .read()
+            .as_ref()
+            .is_some_and(|s| s.eth == 0 && s.balances.iter().all(|b| b.amount == 0));
+        if empty && !*auto_funded.peek() {
+            auto_funded.set(true);
+            faucet();
+        }
+    });
 
     let disabled = busy();
     rsx! {
@@ -46,7 +62,7 @@ pub fn PublicView() -> Element {
         p {
             button { disabled, onclick: move |_| refresh(), "Refresh" }
             " "
-            button { disabled, onclick: faucet, "Faucet" }
+            button { disabled, onclick: move |_| faucet(), "Faucet" }
             " Sets the balances below with Tenderly's cheatcodes."
         }
         if let Some(state) = state() {

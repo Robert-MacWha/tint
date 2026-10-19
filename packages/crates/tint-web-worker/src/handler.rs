@@ -28,6 +28,9 @@ use crate::{
     progress, public, sponsor, store,
 };
 
+/// How long after a sync another request reuses it instead of syncing again.
+const FRESH_SYNC_MS: f64 = 2_000.0;
+
 /// Handles requests, caching the proving artifacts and synced chain state
 /// between them.
 #[derive(Default)]
@@ -53,6 +56,11 @@ struct ChainState {
     rpc_url: String,
     snapshot: Snapshot,
     mmr: SkewMmr,
+    /// The MMR's leaf count when it last matched the on-chain frontier.
+    verified_leaves: u64,
+    /// When it was last synced, in milliseconds since the epoch, or `None` if
+    /// it needs syncing.
+    synced_at: Option<f64>,
 }
 
 impl Handler {
@@ -150,7 +158,7 @@ impl Handler {
         progress(id, "Depositing");
         session.send(deposit.transaction(&mut OsRng)?).await?;
 
-        self.sync(id, session).await?;
+        self.resync(id, session).await?;
         self.state(session)
     }
 
@@ -210,8 +218,16 @@ impl Handler {
             session.send(proven.transaction(session.tint)).await?;
         }
 
-        self.sync(id, session).await?;
+        self.resync(id, session).await?;
         self.state(session)
+    }
+
+    /// Syncs after sending a transaction, however recently it last synced.
+    async fn resync(&mut self, id: u64, session: &Session) -> anyhow::Result<()> {
+        if let Some(chain) = self.chain.as_mut() {
+            chain.synced_at = None;
+        }
+        self.sync(id, session).await
     }
 
     /// Syncs the chain state with `session`'s deployment, discarding it and
@@ -231,17 +247,24 @@ impl Handler {
     /// Fetches events since the last sync, overlapping its final block,
     /// checks the resulting MMR against the chain, and stores the result.
     async fn try_sync(&mut self, id: u64, session: &Session) -> anyhow::Result<()> {
+        let chain = self.chain_for(id, session).await;
+        let now = js_sys::Date::now();
+        // Requests often come in pairs, like recovering the accounts then
+        // syncing the selected one, so a sync that recent is still current.
+        if chain.synced_at.is_some_and(|at| now - at < FRESH_SYNC_MS) {
+            return Ok(());
+        }
+
         // Calls to an address without code return no data, which otherwise
         // surfaces as an opaque ABI decoding error.
-        if session.provider.get_code_at(session.tint).await?.is_empty() {
+        let first = chain.snapshot.range.end == 0;
+        if first && session.provider.get_code_at(session.tint).await?.is_empty() {
             anyhow::bail!(
                 "no contract at Tint address {} on {}",
                 session.tint,
                 session.rpc_url
             );
         }
-
-        let chain = self.chain_for(id, session).await;
 
         // Tint has no known deployment block to start from, so fetch everything
         // in a single `eth_getLogs` call rather than batching from genesis.
@@ -253,8 +276,11 @@ impl Handler {
         chain.snapshot.extend(next)?;
 
         // The contract pre-fills its frontier history to avoid cold writes, so an
-        // empty frontier never verifies. An empty MMR can't back any proofs anyway.
-        if chain.mmr.is_empty() {
+        // empty frontier never verifies. An empty MMR can't back any proofs
+        // anyway, and an unchanged one still matches.
+        let leaves = chain.mmr.state().count();
+        if chain.mmr.is_empty() || leaves == chain.verified_leaves {
+            chain.synced_at = Some(now);
             return Ok(());
         }
         let verified = session
@@ -265,6 +291,8 @@ impl Handler {
         if !verified {
             anyhow::bail!("local skew-MMR does not match the on-chain frontier");
         }
+        chain.verified_leaves = leaves;
+        chain.synced_at = Some(now);
 
         if let Err(e) = store::save(&session.rpc_url, &chain.snapshot).await {
             progress(id, &format!("Couldn't store synced events: {e:#}"));
@@ -302,6 +330,8 @@ impl ChainState {
             rpc_url: session.rpc_url.clone(),
             snapshot: Snapshot::new(session.tint, 0..0, Vec::new()),
             mmr: SkewMmr::new(),
+            verified_leaves: 0,
+            synced_at: None,
         }
     }
 
@@ -313,6 +343,8 @@ impl ChainState {
             rpc_url: session.rpc_url.clone(),
             snapshot,
             mmr,
+            verified_leaves: 0,
+            synced_at: None,
         })
     }
 }

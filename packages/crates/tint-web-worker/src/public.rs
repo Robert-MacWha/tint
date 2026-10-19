@@ -6,6 +6,7 @@ use alloy::{
     providers::{DynProvider, Provider},
     sol,
 };
+use futures::future::{try_join, try_join_all};
 use tint_web_protocol::{PublicBalance, PublicState};
 
 sol! {
@@ -21,15 +22,18 @@ pub async fn state(
     owner: Address,
     tokens: &[Address],
 ) -> anyhow::Result<PublicState> {
-    let eth = provider.get_balance(owner).await?;
-    let mut balances = Vec::with_capacity(tokens.len());
-    for &token in tokens {
+    let balances = try_join_all(tokens.iter().map(|&token| async move {
         let amount = IERC20::new(token, provider).balanceOf(owner).call().await?;
-        balances.push(PublicBalance {
+        anyhow::Ok(PublicBalance {
             token,
             amount: amount.saturating_to(),
-        });
-    }
+        })
+    }));
+    let (eth, balances) = try_join(
+        async { anyhow::Ok(provider.get_balance(owner).await?) },
+        balances,
+    )
+    .await?;
 
     Ok(PublicState {
         address: owner,
@@ -45,16 +49,21 @@ pub async fn fund(
     eth: u128,
     tokens: &[PublicBalance],
 ) -> anyhow::Result<()> {
-    let _: serde_json::Value = provider
-        .raw_request("tenderly_setBalance".into(), (owner, U256::from(eth)))
-        .await?;
-    for balance in tokens {
+    let set_eth = async {
+        let _: serde_json::Value = provider
+            .raw_request("tenderly_setBalance".into(), (owner, U256::from(eth)))
+            .await?;
+        anyhow::Ok(())
+    };
+    let set_tokens = try_join_all(tokens.iter().map(|balance| async move {
         let _: serde_json::Value = provider
             .raw_request(
                 "tenderly_setErc20Balance".into(),
                 (balance.token, owner, U256::from(balance.amount)),
             )
             .await?;
-    }
+        anyhow::Ok(())
+    }));
+    try_join(set_eth, set_tokens).await?;
     Ok(())
 }

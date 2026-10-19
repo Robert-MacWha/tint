@@ -67,6 +67,13 @@ impl<P: Provider> RpcSyncer<P> {
             return Ok(Snapshot::new(tint, range, Vec::new()));
         }
 
+        //? A range that fits in one batch needs no walking back through the
+        //? blocks Tint was active in.
+        if range.end - range.start <= self.batch_size {
+            let (events, _) = self.fetch_window(tint, range.start, range.end - 1).await?;
+            return Ok(Snapshot::new(tint, range, events));
+        }
+
         let mut windows = Vec::new();
         let mut cursor = self.head_block(tint, range.end - 1).await?;
 

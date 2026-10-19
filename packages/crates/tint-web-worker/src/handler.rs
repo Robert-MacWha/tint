@@ -179,11 +179,18 @@ impl Handler {
             Some(sponsor) => Some(sponsor::paymaster(&session.provider, sponsor).await?),
             None => None,
         };
-        // The paymaster's fee comes from WETH notes, alongside the spent asset's.
-        let fee_asset = paymaster
-            .map(|p| AssetId::from(p.weth))
-            .filter(|&weth| weth != asset);
-        let notes = pick_notes(&chain.snapshot, &session.account, asset, amount, fee_asset)?;
+
+        let mut unspent = chain.snapshot.unspent(&session.account);
+        let mut notes = Vec::new();
+        cover(&mut notes, &mut unspent, asset, amount)?;
+        // The paymaster's fee is only known once the operation is built, so
+        // make sure it spends some WETH to pay it with.
+        if let Some(paymaster) = paymaster {
+            cover(&mut notes, &mut unspent, AssetId::from(paymaster.weth), 1)?;
+        }
+        // Spending more notes now consolidates the account's notes, and costs
+        // no extra gas overall, since every note is nullified once eventually.
+        fill(&mut notes, unspent);
         let builder = notes
             .into_iter()
             .fold(OperationBuilder::new(), OperationBuilder::spend)
@@ -365,64 +372,43 @@ async fn load_chain(id: u64, session: &Session) -> ChainState {
     }
 }
 
-/// Picks as many of the account's spendable notes as an operation can spend,
-/// largest first, so spending them also consolidates the account's notes.
-/// Every note is nullified once eventually, so spending more now costs no
-/// extra gas overall.
-///
-/// The notes cover `amount` of `asset`. With a `fee_asset`, they also include
-/// as many of its notes as fit beside the fewest `asset` notes covering
-/// `amount`, to pay a fee in it.
-fn pick_notes(
-    snapshot: &Snapshot,
-    account: &Account,
+/// Moves the largest of `unspent`'s `asset` notes into `picked` until those
+/// cover `amount` of it.
+fn cover(
+    picked: &mut Vec<OwnedNote>,
+    unspent: &mut Vec<OwnedNote>,
     asset: AssetId,
     amount: u128,
-    fee_asset: Option<AssetId>,
-) -> anyhow::Result<Vec<OwnedNote>> {
-    let mut notes = largest_notes(snapshot, account, asset);
-    let Some(fee_asset) = fee_asset else {
-        notes.truncate(N_INPUTS);
-        let total: u128 = notes.iter().map(|note| note.note.amount).sum();
-        if total < amount {
-            anyhow::bail!(
-                "an operation can spend up to {N_INPUTS} notes, and the largest of this token only hold {total}"
-            );
+) -> anyhow::Result<()> {
+    unspent.sort_by_key(|note| std::cmp::Reverse(note.note.amount));
+    loop {
+        let total: u128 = picked
+            .iter()
+            .filter(|note| note.note.asset == asset)
+            .map(|note| note.note.amount)
+            .sum();
+        if total >= amount {
+            return Ok(());
         }
-        return Ok(notes);
-    };
-
-    let fee_notes = largest_notes(snapshot, account, fee_asset);
-    if fee_notes.is_empty() {
-        anyhow::bail!("paying the paymaster's fee needs a WETH note");
+        if picked.len() == N_INPUTS {
+            anyhow::bail!("an operation can spend up to {N_INPUTS} notes, and they don't cover it");
+        }
+        let next = unspent
+            .iter()
+            .position(|note| note.note.asset == asset)
+            .with_context(|| format!("not enough unspent {} notes", Address::from(asset)))?;
+        picked.push(unspent.remove(next));
     }
-    let mut total = 0;
-    let covering = notes
-        .iter()
-        .position(|note| {
-            total += note.note.amount;
-            total >= amount
-        })
-        .filter(|&i| i < N_INPUTS - 1)
-        .context(format!(
-            "an operation can spend up to {} notes of this token beside a WETH note for the fee, and they don't cover the amount",
-            N_INPUTS - 1
-        ))?;
-
-    let mut picked: Vec<_> = notes.drain(..=covering).collect();
-    picked.extend(fee_notes.into_iter().take(N_INPUTS - picked.len()));
-    // Fill any slots left with more of the asset's notes.
-    picked.extend(notes.into_iter().take(N_INPUTS - picked.len()));
-    Ok(picked)
 }
 
-/// The account's spendable `asset` notes, largest first.
-fn largest_notes(snapshot: &Snapshot, account: &Account, asset: AssetId) -> Vec<OwnedNote> {
-    let mut notes: Vec<_> = snapshot
-        .unspent(account)
+/// Moves the smallest of `unspent`'s notes in assets already in `picked` into
+/// it, until it holds as many as an operation can spend.
+fn fill(picked: &mut Vec<OwnedNote>, mut unspent: Vec<OwnedNote>) {
+    let assets: Vec<AssetId> = picked.iter().map(|note| note.note.asset).collect();
+    unspent.sort_by_key(|note| note.note.amount);
+    let extra = unspent
         .into_iter()
-        .filter(|note| note.note.asset == asset)
-        .collect();
-    notes.sort_by_key(|note| std::cmp::Reverse(note.note.amount));
-    notes
+        .filter(|note| assets.contains(&note.note.asset))
+        .take(N_INPUTS.saturating_sub(picked.len()));
+    picked.extend(extra);
 }

@@ -8,7 +8,6 @@ mod artifacts;
 mod handler;
 mod keys;
 mod public;
-mod revert;
 mod sponsor;
 mod store;
 

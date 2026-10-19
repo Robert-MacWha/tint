@@ -25,7 +25,7 @@ use crate::{
     account_state::account_state,
     artifacts::fetch_artifacts,
     keys::{account_root, derive_account, recover_accounts},
-    progress, public, revert, sponsor, store,
+    progress, public, sponsor, store,
 };
 
 /// Handles requests, caching the proving artifacts and synced chain state
@@ -325,8 +325,7 @@ impl Session {
         let receipt = self
             .provider
             .send_transaction(tx.with_from(self.from))
-            .await
-            .map_err(revert::describe)?
+            .await?
             .get_receipt()
             .await?;
         if !receipt.status() {

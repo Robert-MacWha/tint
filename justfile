@@ -66,8 +66,6 @@ bundler:
 web-worker:
     #!/usr/bin/env bash
     set -euo pipefail
-    # The worker embeds the contract ABIs to decode reverts.
-    (cd packages/contracts && forge build)
     cd packages/crates
     # Proving runs on a rayon thread pool (wasm-bindgen-rayon), which needs std
     # rebuilt with atomics, an unstable cargo feature. rustc doesn't link a
@@ -85,6 +83,11 @@ web-worker:
         -Z build-std=panic_abort,std
     wasm-bindgen --target web --out-dir tint-web/public/worker \
         target/wasm32-unknown-unknown/release/tint_web_worker.wasm
+    # Rust's default wasm features, plus threads for the shared memory.
+    wasm-opt -O3 --enable-threads --enable-bulk-memory --enable-mutable-globals \
+        --enable-nontrapping-float-to-int --enable-sign-ext --enable-reference-types \
+        --enable-multivalue tint-web/public/worker/tint_web_worker_bg.wasm \
+        -o tint-web/public/worker/tint_web_worker_bg.wasm
     mkdir -p tint-web/public/artifacts
     # Hard links, since dx doesn't copy symlinks into its build.
     for f in proving_key matrices verifying_key; do

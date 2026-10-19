@@ -7,7 +7,7 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-alloy = { workspace = true, features = ["dyn-abi", "json-abi", "json-rpc", "wasm-bindgen"] }
+alloy = { workspace = true, features = ["json-rpc", "wasm-bindgen"] }
 anyhow = { workspace = true }
 ark-bn254 = { workspace = true }
 ark-groth16 = { workspace = true }

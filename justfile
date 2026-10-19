@@ -47,7 +47,20 @@ web:
     # The worker embeds the contract ABIs to decode reverts.
     (cd packages/contracts && forge build)
     cd packages/crates
-    cargo build --release -p tint-web-worker --target wasm32-unknown-unknown
+    # Proving runs on a rayon thread pool (wasm-bindgen-rayon), which needs std
+    # rebuilt with atomics, an unstable cargo feature. rustc doesn't link a
+    # shared memory or export the TLS/heap symbols wasm-bindgen's thread
+    # support needs on its own, so pass them, with the memory's max at the
+    # wasm32 limit.
+    RUSTC_BOOTSTRAP=1 \
+    RUSTFLAGS="-C target-feature=+atomics,+bulk-memory \
+        -C link-arg=--shared-memory -C link-arg=--import-memory \
+        -C link-arg=--max-memory=4294967296 \
+        -C link-arg=--export=__wasm_init_tls -C link-arg=--export=__tls_size \
+        -C link-arg=--export=__tls_align -C link-arg=--export=__tls_base \
+        -C link-arg=--export=__heap_base" \
+        cargo build --release -p tint-web-worker --target wasm32-unknown-unknown \
+        -Z build-std=panic_abort,std
     wasm-bindgen --target web --out-dir tint-web/public/worker \
         target/wasm32-unknown-unknown/release/tint_web_worker.wasm
     mkdir -p tint-web/public/artifacts
@@ -55,4 +68,5 @@ web:
     for f in proving_key matrices verifying_key; do
         ln -f "tint/artifacts/$f.bin.br" "tint-web/public/artifacts/$f.bin"
     done
-    cd tint-web && dx serve
+    # Shared wasm memory needs the page to be cross-origin isolated.
+    cd tint-web && dx serve --cross-origin-policy

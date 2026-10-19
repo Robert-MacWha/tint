@@ -575,7 +575,7 @@ dependencies = [
  "alloy-serde",
  "alloy-sol-types",
  "alloy-trie",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "serde",
  "serde_json",
  "serde_with",
@@ -729,7 +729,7 @@ checksum = "df948f2f9530ed0325d789ad98aa08403aaeaf55ddd6eeaf0cda143e02afab39"
 dependencies = [
  "alloy-json-rpc",
  "alloy-transport",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "reqwest 0.13.4",
  "serde_json",
  "tower",
@@ -888,8 +888,7 @@ dependencies = [
 [[package]]
 name = "ark-ec"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8352a2b2aedf6ba2cc38f7520fc51191d518dde96175c729af19f2d059f191c4"
+source = "git+https://github.com/arkworks-rs/algebra?rev=d7f73154500ee45e52d87d43ca3584ad3f2072d4#d7f73154500ee45e52d87d43ca3584ad3f2072d4"
 dependencies = [
  "ahash",
  "ark-ff 0.6.0",
@@ -968,8 +967,7 @@ dependencies = [
 [[package]]
 name = "ark-ff"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7a806ac6c8307b929df4645776290a50ee2aac754ad09d8bdf73391309e43af"
+source = "git+https://github.com/arkworks-rs/algebra?rev=d7f73154500ee45e52d87d43ca3584ad3f2072d4#d7f73154500ee45e52d87d43ca3584ad3f2072d4"
 dependencies = [
  "ark-ff-asm 0.6.0",
  "ark-ff-macros 0.6.0",
@@ -1016,8 +1014,7 @@ dependencies = [
 [[package]]
 name = "ark-ff-asm"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1479009684adc073dff49a1025d3a7065b317a9ead25aaaca38cdc70058ba8a2"
+source = "git+https://github.com/arkworks-rs/algebra?rev=d7f73154500ee45e52d87d43ca3584ad3f2072d4#d7f73154500ee45e52d87d43ca3584ad3f2072d4"
 dependencies = [
  "quote",
  "syn 2.0.118",
@@ -1064,8 +1061,7 @@ dependencies = [
 [[package]]
 name = "ark-ff-macros"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a0691ed21ef00ef89c1e9bda832eba493dda3ec2f8d892fb25b705f73f06bb8"
+source = "git+https://github.com/arkworks-rs/algebra?rev=d7f73154500ee45e52d87d43ca3584ad3f2072d4#d7f73154500ee45e52d87d43ca3584ad3f2072d4"
 dependencies = [
  "num-bigint 0.4.8",
  "num-traits",
@@ -1108,8 +1104,7 @@ dependencies = [
 [[package]]
 name = "ark-poly"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75f55af10b672002b8d953e230282c51206842e20e5791a94432219b4201de5c"
+source = "git+https://github.com/arkworks-rs/algebra?rev=d7f73154500ee45e52d87d43ca3584ad3f2072d4#d7f73154500ee45e52d87d43ca3584ad3f2072d4"
 dependencies = [
  "ahash",
  "ark-ff 0.6.0",
@@ -1215,8 +1210,7 @@ dependencies = [
 [[package]]
 name = "ark-serialize"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a74dd304fd536fb95d0a328e72be759209cc496a9da094c5bc56e5fea4f9e86b"
+source = "git+https://github.com/arkworks-rs/algebra?rev=d7f73154500ee45e52d87d43ca3584ad3f2072d4#d7f73154500ee45e52d87d43ca3584ad3f2072d4"
 dependencies = [
  "ark-serialize-derive",
  "ark-std 0.6.0",
@@ -1229,8 +1223,7 @@ dependencies = [
 [[package]]
 name = "ark-serialize-derive"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f153690697a2b91e5e1251ff98411ee5371500a111a0fd317a70e588eb300f9"
+source = "git+https://github.com/arkworks-rs/algebra?rev=d7f73154500ee45e52d87d43ca3584ad3f2072d4#d7f73154500ee45e52d87d43ca3584ad3f2072d4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2390,6 +2383,15 @@ name = "critical-section"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
+
+[[package]]
+name = "crossbeam-channel"
+version = "0.5.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98b0cc327b5bc766e7fda9c9260cc0fa81b43a8e240440422dff70788e3f9ef1"
+dependencies = [
+ "crossbeam-utils",
+]
 
 [[package]]
 name = "crossbeam-deque"
@@ -5668,6 +5670,7 @@ checksum = "fb39b166781f92d482534ef4b4b1b2568f42613b53e5b6c160e24cfbfa30926d"
 dependencies = [
  "either",
  "rayon-core",
+ "wasm_sync",
 ]
 
 [[package]]
@@ -5678,6 +5681,7 @@ checksum = "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
+ "wasm_sync",
 ]
 
 [[package]]
@@ -6796,7 +6800,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -7124,6 +7128,7 @@ dependencies = [
  "tint-web-protocol",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wasm-bindgen-rayon",
  "web-sys",
 ]
 
@@ -7644,6 +7649,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-bindgen-rayon"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a16c60a56c81e4dc3b9c43d76ba5633e1c0278211d59a9cb07d61b6cd1c6583"
+dependencies = [
+ "crossbeam-channel",
+ "js-sys",
+ "rayon",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "wasm-bindgen-shared"
 version = "0.2.108"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7662,6 +7679,17 @@ dependencies = [
  "js-sys",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "wasm_sync"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cff360cade7fec41ff0e9d2cda57fe58258c5f16def0e21302394659e6bbb0ea"
+dependencies = [
+ "js-sys",
+ "wasm-bindgen",
  "web-sys",
 ]
 

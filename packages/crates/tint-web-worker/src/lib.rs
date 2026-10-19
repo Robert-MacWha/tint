@@ -12,6 +12,7 @@ mod revert;
 use futures::{StreamExt, channel::mpsc};
 use tint_web_protocol::{Request, WorkerMessage};
 use wasm_bindgen::{JsCast, JsValue, closure::Closure, prelude::wasm_bindgen};
+use wasm_bindgen_futures::JsFuture;
 use web_sys::{DedicatedWorkerGlobalScope, MessageEvent};
 
 use crate::handler::Handler;
@@ -36,8 +37,17 @@ pub fn start() {
     scope().set_onmessage(Some(on_message.as_ref().unchecked_ref()));
     on_message.forget();
 
-    wasm_bindgen_futures::spawn_local(run(rx));
-    post(&WorkerMessage::Ready);
+    wasm_bindgen_futures::spawn_local(async move {
+        let pool = wasm_bindgen_rayon::init_thread_pool(thread_count());
+        if let Err(e) = JsFuture::from(pool).await {
+            post(&WorkerMessage::Crashed {
+                message: format!("starting the proving thread pool: {e:?}"),
+            });
+            return;
+        }
+        post(&WorkerMessage::Ready);
+        run(rx).await;
+    });
 }
 
 async fn run(mut requests: mpsc::UnboundedReceiver<Request>) {
@@ -75,6 +85,15 @@ fn parse_request(event: &MessageEvent) -> Result<Request, String> {
         .as_string()
         .ok_or("worker request is not a string")?;
     serde_json::from_str(&json).map_err(|e| format!("invalid worker request: {e}"))
+}
+
+/// The number of rayon threads to prove with, one per logical core.
+#[expect(
+    clippy::cast_sign_loss,
+    reason = "hardwareConcurrency is a positive integer"
+)]
+fn thread_count() -> usize {
+    scope().navigator().hardware_concurrency() as usize
 }
 
 fn scope() -> DedicatedWorkerGlobalScope {

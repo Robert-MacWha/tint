@@ -1,13 +1,14 @@
 # Tint
 
-Tint is an EVM-focused utxo-based proof-of-concept privacy protocol.  It's designed with the following goals:
-- Optimized gas (sub-50k shields!).
-- Arbitrary note ownership rules (multisigs, timelocks, hardware wallets, ...).
-- Interop with 4337 & 8141 transaction sponsorship.
+Tint is an EVM-focused, UTXO-based proof-of-concept privacy protocol similar to tornadocash or railgun. It operates on ERC20s and proves with Groth16. It is designed with the following goals:
+
+- **Low gas**: one-hash note appends and a 3-input Groth16 verifier. See below benchmarks.
+- **Arbitrary note ownership rules**: multisigs, timelocks, hardware wallets, p2p swaps, p2p bridging, ...
+- **Sponsorship interop**: pay gas with shielded funds via ERC-4337 paymasters (EIP-8141 planned).
 
 ## Requirements
 
-**nix / nixos:** `nix develop`
+**nix / nixos:** `nix develop` (or direnv via `.envrc`)
 
 **manual:**
 - [just](https://just.systems/man/en/)
@@ -16,74 +17,84 @@ Tint is an EVM-focused utxo-based proof-of-concept privacy protocol.  It's desig
 
 ### Usage
 
-1. Ensure you have installed the above requirements.
-2. Run `just build` to build the contracts, artifacts, and CLI.
-3. Ask Robert to share the `RPC_URL` for the tenderly virtual testnet or add your key to the `.sops.yaml` file.
+1. Install the requirements above.
+2. Run `just build` to build the circuit artifacts, contracts, and CLI.
+3. Ask Robert to share the `RPC_URL` for the Tenderly virtual testnet, or add your key to `.sops.yaml`.
 4. Run `just run help` to see the available commands.
 
-The first run will take a while, since it builds the smart contracts, rust CLI, and arkworks circuits. Following runs will be much faster.
+The first build is slow, since it generates the arkworks circuit artifacts and compiles the contracts and Rust workspace. Later runs are much faster.
 
 ## Optimized Gas
 
-Tint is designed to be maximally gas efficient. It achieves this primarily by reducing the gas cost to commit notes to the merkle tree, which is generally the most expensive part of tornadocash/railgun/ppv1. Tint does this by deferring merkle tree updates to inside the circuit.
+Tint reduces the two costs that dominate existing privacy pools:
 
-When shielding, the note's commitment hash is added to a staging queue on-chain. When any user next performs a transfer or unshield, they will include a batch of staged notes in their proof, which atomically inserts up to 64 notes into the merkle tree. Doing this:
-- The gas cost of shielding is reduced to two poseidon2 hashes and a single storage write.
-- The gas cost of transfers and unshields are increased by ~35k gas (2 additional public inputs to the circuit and 1 additional storage write).
-
-So long as each transfer / unshield includes on average at least 0.14 shields, this results in a net gas savings.
+- **Note insertion.** The note set is a custom skew-MMR rather than a fixed-depth Merkle tree or LeanIMT. Appending a note costs a single Poseidon2 hash on-chain instead of a full path recomputation. This means insertions are xheap, and that the tree can be arbitrarily deep. See [efficient-inclusion-proofs](https://github.com/Robert-MacWha/efficient-inclusion-proofs).
+- **Proof verification.** Hybrid compression folds all of the join-split circuit's public signals into a fixed 3 public inputsl summary. This means additional public inputs essentially free. See [ark-hybrid-compression](https://github.com/Robert-MacWha/ark-hybrid-compression).
 
 ### Benchmarks
 
-All below gas costs are based on Ethereum Mainnet and include the cost of a mock ERC20 transfer (~14.7k gas).
+Measured with `forge test --match-path test/TintBenchmark.t.sol --gas-report` (run in CI by `.github/workflows/gas.yml`).
 
-**Shields:** 68k
+**Shields:** ~100k (median over 1,000 deposits)
 
-**Transfers / Unshields:**
+**Transfers / Unshields** (average over 100 operations):
 
-| Circuit | Gas Cost |
-| ------- | -------- |
-| 1x1x1   | 309k     |
-| 5x5x2   | 511k     |
+| Circuit (inputs × outputs × withdrawals) | Gas  |
+| ---------------------------------------- | ---- |
+| 1×1×1                                    | ~389k |
+| 5×5×2                                    | ~561k |
 
 ## Arbitrary Note Ownership Rules
 
-Tint allows for arbitrary note ownership rules. This means the conditions under which a note can be spent are decided by the note creator. Each note commits itself to some "policy address". When a note is spent, the contract calls the `requireAuthorized` function on the policy address, which determines whether the note can be spent.
+The conditions under which a note can be spent are chosen by its recipient. Each note commits to a `policyHash = poseidon2(policyAddress, policyWitness)`. When a note is spent, Tint calls `requireAuthorized` on the policy contract, which decides whether the operation is allowed. Policies authorize the operation's `signingHash`, which binds the notes, withdrawals, ciphertexts, and caller, so whoever submits the proof can't redirect funds.
 
-This allows for numerous policy rules, including:
-- Multi-sigs
-- Hardware wallet compatibility via `eth_signTypedData_v4`
+This enables policies such as:
+- Multisigs
+- Hardware wallets via `eth_signTypedData_v4`
 - Timelocks
 - Limit orders
+- P2P Cross-chain transfers
 
-By default users can use a nullifying key to spend notes (similar to railgun or privacy pools). Additional rules can increase security but will also increase gas (~300k per rule) and partially reduce privacy.
+By default notes are spent with a nullifying key (like Railgun or Privacy Pools). Additional rules add security but cost extra gas and reveal which policy contract a note uses.
 
-For more information, see the [Policy Docs](./docs/policy.md).
+See the [Policy Docs](./docs/policy.md) for details.
 
 ### Current Implementations
 
 **[tint-multisig-policy](./packages/crates/tint-multisig-policy/)**
 
-The multisig policy crate allows creating notes that can only be spent with a threshold number of ecdsa signatures from a set of public keys. This way multisigs can be implemented directly in-circuit, without revealing any information about the signers, threshold, or signatures to the outside world.
+Notes spendable only with a threshold of ECDSA signatures from a set of public keys. Verification is done in-circuit so signers, threshold, and signatures stay private.
 
-Current Limitations:
-- Only supports ECDSA secp256k1 signatures
-- Only supports 2-of-3 multisigs (can be extended via generic circuits)
-- Only supports blind signatures (can be extended to use either eth_signTypedData_v4 given a *very* expensive circuit, or a custom signature schema using a more circuit-friendly hash function like sha256).
+Current limitations:
+- ECDSA secp256k1 only.
+- 2-of-3 only (extensible with generic circuits).
+- Blind signatures only (could support `eth_signTypedData_v4` with a *very* expensive circuit, or a custom scheme using a circuit-friendlier hash, or maybe something smarter).
 
 **[tint-password-policy](./packages/crates/tint-password-policy/)**
 
-The password policy crate allows creating notes that can only be spent given knowledge of a password. This is mostly a toy example, useful for testing and demonstrating the policy interface. It does not offer any additional security since the default note policy rule is already knowledge of a secret (the nullifying key).
+Notes spendable only with knowledge of a password. Toy example for testing and demonstrating the policy interface.
 
-## Paymaster / Frame transaction compatibility
+## Paymaster Compatibility
 
-Tint prioritizes interoperability with permissionless 4337 and 8141 transaction sponsorship. This allows users to transact anonymously without needing to expose an EOA by paying for gas with shielded tokens. Tint achieves this through two mechanisms:
-1. Tint exposes two methods - `preVerify` and `executePreVerified`. `preVerify` verifies that an operation is valid, and `executePreVerified` executes an already-verified operation. Using halmos, we've formally verified that `executePreVerified` will never revert if `preVerify` has returned true, meaning paymasters can call the stateless `executePreVerified` and be guaranteed that the operation they are sponsoring is valid.
-2. Tint has highly optimized gas costs, which allows paymasters to sponsor transactions at a lower cost and, more importantly, refund excess fees directly to the user's shielded account.
+Tint supports permissionless transaction sponsorship, so users can pay gas with shielded tokens instead of exposing an EOA.
 
-Tint is currently designed to work with staked 4337 paymasters.
+- **Split verification.**: `preVerify` checks an operation and `executePreVerified` executes an already-verified one. `executePreVerified` is formally verified with [halmos](https://github.com/a16z/halmos) never to revert after a successful `preVerify`, so a paymaster knows the operation it sponsors will succeed.
+- **[TintPaymaster](./packages/contracts/src/TintPaymaster.sol)**: A standalone ERC-4337 paymaster that executes a Tint operation unshielding its WETH fee during validation. In `postOp` it refunds the unused fee, either as WETH or as a new shielded note. The proof is bound to the userop's sender and refund target, so it can't be front-run or redirected. Client support is in [tint-paymaster](./packages/crates/tint-paymaster/).
 
-TODO: Implement 8141 spender support on the hegota devnet using the same principles.
+Tint currently targets staked 4337 paymasters.
+
+TODO: EIP-8141 support on the Hegota devnet using the same approach. Same code should work, just different opcodes. Will either require keyed nonces or an alt mempool for storage writes in the verify frame.
+
+## Repository Layout
+
+- [`packages/contracts`](./packages/contracts/): Foundry contracts: the `Tint` pool, `TintPaymaster`, the generated Groth16 verifier, and example policies.
+- [`packages/crates`](./packages/crates/): Rust workspace:
+  - `tint`: core protocol: circuits, accounts, notes, encryption, event sync, and the operation builder.
+  - `cli`: minimal demo CLI (`tint-cli`).
+  - `tint-paymaster`: ERC-4337 client for `TintPaymaster`.
+  - `tint-multisig-policy`, `tint-password-policy`: example policies.
+  - `tint-groth16`, `tint-poseidon2`: Groth16 and Poseidon2 support crates.
+- [`docs`](./docs/): design notes ([policy](./docs/policy.md), [Picus verification](./docs/picus-verification.md)).
 
 ## CLI Examples
 

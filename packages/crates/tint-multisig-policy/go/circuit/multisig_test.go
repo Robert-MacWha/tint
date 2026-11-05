@@ -7,6 +7,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	frbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/secp256k1"
 	k1ecdsa "github.com/consensys/gnark-crypto/ecc/secp256k1/ecdsa"
 	"github.com/consensys/gnark/std/math/emulated"
 	stdecdsa "github.com/consensys/gnark/std/signature/ecdsa"
@@ -24,6 +25,22 @@ type keypair struct {
 func genKeypair(t testing.TB) keypair {
 	priv, err := k1ecdsa.GenerateKey(rand.Reader)
 	if err != nil {
+		t.Fatal(err)
+	}
+	x, y := new(big.Int), new(big.Int)
+	priv.PublicKey.A.X.BigInt(x)
+	priv.PublicKey.A.Y.BigInt(y)
+	return keypair{priv: priv, xy: PubKeyXY{X: x, Y: y}}
+}
+
+func generatorKeypair(t testing.TB) keypair {
+	_, g := secp256k1.Generators()
+	pub := g.RawBytes()
+	buf := append(pub[:], make([]byte, 32)...)
+	buf[len(buf)-1] = 1
+
+	priv := new(k1ecdsa.PrivateKey)
+	if _, err := priv.SetBytes(buf); err != nil {
 		t.Fatal(err)
 	}
 	x, y := new(big.Int), new(big.Int)
@@ -80,6 +97,13 @@ func buildAssignment(t testing.TB, nInputs, nValidSigs int) (*MultisigPolicyCirc
 	t.Helper()
 
 	keys := [NSigners]keypair{genKeypair(t), genKeypair(t), genKeypair(t)}
+	return buildAssignmentForKeys(t, keys, nInputs, nValidSigs)
+}
+
+// buildAssignmentForKeys is buildAssignment for a given key set.
+func buildAssignmentForKeys(t testing.TB, keys [NSigners]keypair, nInputs, nValidSigs int) (*MultisigPolicyCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr], [NSigners]keypair, frbn254.Element) {
+	t.Helper()
+
 	var pubKeysXY [NSigners]PubKeyXY
 	for i, k := range keys {
 		pubKeysXY[i] = k.xy
@@ -135,6 +159,23 @@ func TestInvalidSignatureCountFails(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&MultisigPolicyCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}, test.WithInvalidAssignment(assignment), test.WithCurves(ecc.BN254))
+}
+
+func TestOffCurvePubKeyFails(t *testing.T) {
+	keys := [NSigners]keypair{genKeypair(t), genKeypair(t), genKeypair(t)}
+	keys[NSigners-1].xy.Y = new(big.Int).Add(keys[NSigners-1].xy.Y, big.NewInt(1))
+	assignment, _, _ := buildAssignmentForKeys(t, keys, 1, Threshold)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&MultisigPolicyCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}, test.WithInvalidAssignment(assignment), test.WithCurves(ecc.BN254))
+}
+
+func TestGeneratorPubKeyValid(t *testing.T) {
+	keys := [NSigners]keypair{generatorKeypair(t), genKeypair(t), genKeypair(t)}
+	assignment, _, _ := buildAssignmentForKeys(t, keys, 1, Threshold)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&MultisigPolicyCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}, test.WithValidAssignment(assignment), test.WithCurves(ecc.BN254))
 }
 
 func TestInvalidSigningHashFails(t *testing.T) {

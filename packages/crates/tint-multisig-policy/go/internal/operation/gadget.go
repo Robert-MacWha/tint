@@ -6,6 +6,10 @@ import (
 	"github.com/Robert-MacWha/tint/packages/crates/tint-multisig-policy/go/internal/poseidon2"
 )
 
+func (c SpendableCommitmentVar) PolicyHashGadget(api frontend.API) frontend.Variable {
+	return poseidon2.CompressGadget2(api, [2]frontend.Variable{c.PolicyAddress, c.PolicyWitness})
+}
+
 func (c BaseCommitmentVar) PartialHashGadget(api frontend.API) frontend.Variable {
 	return poseidon2.CompressGadget3(api, [3]frontend.Variable{c.PolicyHash, c.NullifierPubKey, c.RandomFr})
 }

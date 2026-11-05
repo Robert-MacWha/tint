@@ -6,6 +6,11 @@ import (
 	"github.com/Robert-MacWha/tint/packages/crates/tint-multisig-policy/go/internal/poseidon2"
 )
 
+// PolicyHash mirrors Policy::hash
+func PolicyHash(address, witness frbn254.Element) frbn254.Element {
+	return poseidon2.Compress2([2]frbn254.Element{address, witness})
+}
+
 // PartialHash mirrors Commitment::partial_hash
 func (c BaseCommitment) PartialHash() frbn254.Element {
 	return poseidon2.Compress3([3]frbn254.Element{c.PolicyHash, c.NullifierPubKey, c.RandomFr})

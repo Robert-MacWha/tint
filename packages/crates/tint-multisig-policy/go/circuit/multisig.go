@@ -34,6 +34,7 @@ func (c *MultisigPolicyCircuit[Base, Scalar]) Define(api frontend.API) error {
 	if err := c.verifySigningHash(api); err != nil {
 		return err
 	}
+	c.verifyPolicyHashes(api)
 	if err := c.verifyPolicyWitness(api); err != nil {
 		return err
 	}
@@ -47,6 +48,15 @@ func (c *MultisigPolicyCircuit[Base, Scalar]) verifySigningHash(api frontend.API
 	signingHash := poseidon2.CompressGadget2(api, [2]frontend.Variable{operationHash, c.ContextHash})
 	api.AssertIsEqual(signingHash, c.SigningHash)
 	return nil
+}
+
+// verifyPolicyHashes binds each input's `PolicyHash` to its witnessed
+// `PolicyAddress` and `PolicyWitness`, mirroring `OwnedNoteVar::policy_hash`.
+func (c *MultisigPolicyCircuit[Base, Scalar]) verifyPolicyHashes(api frontend.API) {
+	for i := range c.Operation.Inputs {
+		input := &c.Operation.Inputs[i]
+		api.AssertIsEqual(input.Inner.PolicyHash, input.PolicyHashGadget(api))
+	}
 }
 
 // verifyPolicyWitness asserts for every operation input whose

@@ -56,15 +56,20 @@ func signSigningHash(t testing.TB, priv *k1ecdsa.PrivateKey, signingHash frbn254
 	}
 }
 
-// buildOperation returns a native Operation with nInputs slots populated.
+// buildOperation returns a native Operation with nInputs slots populated and the rest padded.
 func buildOperation(nInputs int, policyAddress frbn254.Element, witness frbn254.Element) operation.Operation {
 	var op operation.Operation
+	var zero frbn254.Element
+	for i := range op.Inputs {
+		op.Inputs[i].Inner.PolicyHash = operation.PolicyHash(zero, zero)
+	}
 	for i := range nInputs {
 		op.Inputs[i] = operation.SpendableCommitment{
 			Inner: operation.BaseCommitment{
-				AssetFr:  frbn254.NewElement(1),
-				AmountFr: frbn254.NewElement(100),
-				RandomFr: frbn254.NewElement(42),
+				AssetFr:    frbn254.NewElement(1),
+				AmountFr:   frbn254.NewElement(100),
+				PolicyHash: operation.PolicyHash(policyAddress, witness),
+				RandomFr:   frbn254.NewElement(42),
 			},
 			PolicyAddress: policyAddress,
 			PolicyWitness: witness,
@@ -116,6 +121,26 @@ func buildAssignment(t testing.TB, nInputs, nValidSigs int) (*MultisigPolicyCirc
 	}, keys, signingHash
 }
 
+func attackerSigns(t testing.TB, assignment *MultisigPolicyCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr], signingHash frbn254.Element) [NSigners]PubKeyXY {
+	t.Helper()
+
+	var xy [NSigners]PubKeyXY
+	for i := range NSigners {
+		key := genKeypair(t)
+		xy[i] = key.xy
+		assignment.PubKeys[i] = pubKeyVar(key.xy)
+		if i < Threshold {
+			assignment.Signatures[i] = signSigningHash(t, key.priv, signingHash)
+		} else {
+			assignment.Signatures[i] = stdecdsa.Signature[emulated.Secp256k1Fr]{
+				R: emulated.ValueOf[emulated.Secp256k1Fr](0),
+				S: emulated.ValueOf[emulated.Secp256k1Fr](0),
+			}
+		}
+	}
+	return xy
+}
+
 func TestValidCircuit(t *testing.T) {
 	assignment, _, _ := buildAssignment(t, 1, Threshold)
 
@@ -153,6 +178,33 @@ func TestWrongPubKeyHashFails(t *testing.T) {
 	otherKeys := [NSigners]PubKeyXY{genKeypair(t).xy, genKeypair(t).xy, genKeypair(t).xy}
 	wrongWitness := PubKeyHash(otherKeys[:])
 	assignment.Operation.Inputs[0].PolicyWitness = wrongWitness.String()
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&MultisigPolicyCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}, test.WithInvalidAssignment(assignment), test.WithCurves(ecc.BN254))
+}
+
+func TestZeroPolicyAddressFails(t *testing.T) {
+	assignment, _, signingHash := buildAssignment(t, 1, Threshold)
+	attackerSigns(t, assignment, signingHash)
+	assignment.Operation.Inputs[0].PolicyAddress = "0"
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&MultisigPolicyCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}, test.WithInvalidAssignment(assignment), test.WithCurves(ecc.BN254))
+}
+
+func TestAttackerPubKeyHashFails(t *testing.T) {
+	assignment, _, signingHash := buildAssignment(t, 1, Threshold)
+	attackerKeys := attackerSigns(t, assignment, signingHash)
+	attackerWitness := PubKeyHash(attackerKeys[:])
+	assignment.Operation.Inputs[0].PolicyWitness = attackerWitness.String()
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&MultisigPolicyCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}, test.WithInvalidAssignment(assignment), test.WithCurves(ecc.BN254))
+}
+
+func TestWrongPaddingPolicyHashFails(t *testing.T) {
+	assignment, _, _ := buildAssignment(t, 1, Threshold)
+	assignment.Operation.Inputs[operation.NInputs-1].Inner.PolicyHash = "0"
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&MultisigPolicyCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}, test.WithInvalidAssignment(assignment), test.WithCurves(ecc.BN254))

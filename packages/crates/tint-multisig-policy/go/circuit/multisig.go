@@ -2,7 +2,6 @@ package circuit
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	stdbits "github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -77,9 +76,14 @@ func (c *MultisigPolicyCircuit[Base, Scalar]) verifyThresholdSignatures(api fron
 	}
 
 	curveParams := sw_emulated.GetCurveParams[Base]()
+	curve, err := sw_emulated.New[Base, Scalar](api, curveParams)
+	if err != nil {
+		return err
+	}
 	var validCount frontend.Variable = 0
 	for i := range c.PubKeys {
-		valid := c.PubKeys[i].IsValid(api, curveParams, msg, &c.Signatures[i], algopts.WithIncompleteArithmetic())
+		curve.AssertIsOnCurve((*sw_emulated.AffinePoint[Base])(&c.PubKeys[i]))
+		valid := c.PubKeys[i].IsValid(api, curveParams, msg, &c.Signatures[i])
 		validCount = api.Add(validCount, valid)
 	}
 	api.AssertIsLessOrEqual(Threshold, validCount)

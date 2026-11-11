@@ -2,7 +2,7 @@ use ark_std::rand::Rng;
 use hkdf::Hkdf;
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+use sha2::Sha256;
 use x25519_dalek::{PublicKey, SharedSecret, StaticSecret};
 
 use crate::{
@@ -15,12 +15,9 @@ use crate::{
 /// Encryption is done in two steps:
 /// 1. The payload is encrypted with a random symmetric key.
 /// 2. The symmetric key is encrypted for each recipient's public key.
-///
-/// A commitment to the plaintext is included in the envelope to ensure that the decrypted payload is valid.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptedEnvelope {
     pub ephemeral_pub: [u8; 32],
-    pub commitment: [u8; 32],
     pub ct_keys: Vec<Vec<u8>>,
     pub ct_payload: Vec<u8>,
 }
@@ -35,7 +32,6 @@ impl EncryptedEnvelope {
         mut rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Self, EncryptionError> {
         let payload_key: [u8; 32] = rng.r#gen();
-        let commitment = Sha256::digest(plaintext).into();
         let ct_payload = aead_encrypt(&payload_key, plaintext, &mut rng)?;
 
         let ephemeral_secret = StaticSecret::random_from_rng(&mut rng);
@@ -55,7 +51,6 @@ impl EncryptedEnvelope {
         Ok(EncryptedEnvelope {
             ephemeral_pub: ephemeral_pub.to_bytes(),
             ct_keys,
-            commitment,
             ct_payload,
         })
     }
@@ -88,13 +83,7 @@ impl EncryptedEnvelope {
             .try_into()
             .map_err(|_| EncryptionError::Decryption)?;
 
-        let plaintext = aead_decrypt(&payload_key, &self.ct_payload)?;
-
-        let commitment: [u8; 32] = Sha256::digest(&plaintext).into();
-        if commitment != self.commitment {
-            return Err(EncryptionError::InvalidCommitment);
-        }
-        Ok(plaintext)
+        aead_decrypt(&payload_key, &self.ct_payload)
     }
 }
 

@@ -21,6 +21,7 @@ alloy-sol-macro = { workspace = true, features = ["json"] }
 anyhow = { workspace = true }
 ark-std = { workspace = true }
 kohaku-fork-kit = { workspace = true }
+kohaku-userop-kit = { workspace = true, features = ["bundler"] }
 tint-groth16 = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing = { workspace = true }

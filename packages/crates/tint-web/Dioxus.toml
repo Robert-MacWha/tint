@@ -1,0 +1,6 @@
+[application]
+name = "tint-web"
+asset_dir = "public"
+
+[web.app]
+title = "Tint"

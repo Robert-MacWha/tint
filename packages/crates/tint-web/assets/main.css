@@ -1,0 +1,21 @@
+body { font-family: sans-serif; margin: 0; }
+.container { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 1rem; padding: 1rem; }
+/* Fits the viewport, with only the worker log scrolling. */
+.sidebar {
+    flex: 1 1 320px;
+    max-width: 320px;
+    max-height: calc(100vh - 2rem);
+    position: sticky;
+    top: 1rem;
+    display: flex;
+    flex-direction: column;
+}
+.sidebar > * { flex-shrink: 0; }
+.sidebar .log { flex: 1 1 auto; flex-shrink: 1; min-height: 4rem; overflow-y: auto; }
+.content { flex: 1 1 30rem; min-width: 0; }
+.sidebar label { display: block; margin-top: 0.5rem; }
+.sidebar input, .sidebar textarea { width: 100%; box-sizing: border-box; }
+table { border-collapse: collapse; margin-bottom: 1rem; }
+th, td { border: 1px solid #999; padding: 2px 6px; text-align: left; vertical-align: top; }
+.mono { font-family: monospace; word-break: break-all; }
+.error { color: red; }

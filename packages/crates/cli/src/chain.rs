@@ -23,8 +23,8 @@ use tint_groth16::artifacts::Artifacts;
 
 use crate::{account::Authorizer, config};
 
-/// A signing provider connection plus the Tint state needed to shield,
-/// transfer, and unshield funds for a single local account.
+/// A signing provider connection plus the Tint state needed to deposit,
+/// transfer, and withdraw funds for a single local account.
 pub struct Session {
     provider: DynProvider,
     tint_address: Address,
@@ -37,7 +37,7 @@ pub struct Session {
 }
 
 /// Signs with a local private key and syncs Tint's state for `account`,
-/// mirroring the setup in `tint`'s shield/transfer/unshield integration tests.
+/// mirroring the setup in `tint`'s deposit/transfer/withdraw integration tests.
 pub async fn connect(
     account: Account,
     authorizer: Authorizer,
@@ -105,7 +105,7 @@ pub async fn set_erc20_balance(
 }
 
 /// Auto-approves `token` for `amount` and deposits it into Tint.
-pub async fn shield(session: &mut Session, token: Address, amount: u128) -> anyhow::Result<()> {
+pub async fn deposit(session: &mut Session, token: Address, amount: u128) -> anyhow::Result<()> {
     let deposit = Deposit::new(
         session.tint_address,
         session.account.pub_account(),
@@ -148,7 +148,7 @@ pub async fn transfer(
 
 /// Withdraws `amount` of `token` to the plain address `to`, sending any
 /// leftover change back to `account`.
-pub async fn unshield(
+pub async fn withdraw(
     session: &mut Session,
     to: Address,
     token: Address,
@@ -162,7 +162,7 @@ pub async fn unshield(
         .change_to(session.account.pub_account())
         .build(&mut OsRng)?;
 
-    tracing::info!("Building unshield proof...");
+    tracing::info!("Building withdraw proof...");
     operate(session, op).await
 }
 

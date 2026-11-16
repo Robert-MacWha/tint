@@ -22,7 +22,7 @@ rustls = { version = "0.23", features = ["ring"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 signature = { workspace = true }
-tint = { workspace = true }
+tint = { workspace = true, features = ["parallel", "asm"] }
 tint-groth16 = { workspace = true }
 tint-multisig-policy = { workspace = true }
 tint-password-policy = { workspace = true }

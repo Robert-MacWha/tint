@@ -171,7 +171,7 @@ contract Tint is IPrivacyPool, NullifierRegistry, BlockCheckpoints, SkewMmrWithH
         }
 
         // Append the non-sentinel output notes.
-        bool appended;
+        bool appended = false;
         for (uint256 i; i < N_OUTPUTS; ++i) {
             bytes32 commitment = op.commitmentOut(i);
             if (commitment == 0) continue;

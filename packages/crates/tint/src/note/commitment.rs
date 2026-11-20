@@ -2,7 +2,8 @@ use alloy_primitives::B256;
 use ark_bn254::Fr;
 use ark_ff::AdditiveGroup;
 use rand_core::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_with::{DeserializeAs, SerializeAs};
 use tint_poseidon2::poseidon2_compress;
 
 use crate::{
@@ -17,6 +18,7 @@ use crate::{
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Commitment {
     pub asset: AssetId,
+    #[serde_as(as = "U128AsBytes")]
     pub amount: u128,
     #[serde_as(as = "tint_groth16::serde::field::FieldAsBytes")]
     pub policy_hash: Fr,
@@ -31,6 +33,29 @@ pub struct PartialCommitment {
     pub policy_hash: Fr,
     pub random: B256,
     pub nullifier_pub_key: NullifierPubKey,
+}
+
+/// Serializes a `u128` as fixed-width big-endian bytes, so an encrypted note's
+/// length doesn't reveal its amount.
+struct U128AsBytes;
+
+impl SerializeAs<u128> for U128AsBytes {
+    fn serialize_as<S>(source: &u128, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        source.to_be_bytes().serialize(serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, u128> for U128AsBytes {
+    fn deserialize_as<D>(deserializer: D) -> Result<u128, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes = <[u8; 16]>::deserialize(deserializer)?;
+        Ok(u128::from_be_bytes(bytes))
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, thiserror::Error)]
@@ -192,6 +217,25 @@ mod tests {
         let decrypted = Commitment::from_encrypted(&encrypted, &keys.encryption_key).unwrap();
 
         assert_eq!(decrypted, commitment);
+    }
+
+    #[test]
+    fn commitment_encryption_fixed_length() {
+        let keys = Account::from_seed(&[1; 32], Policy::NONE);
+
+        let mut rng = rand_core::OsRng;
+        let mut encrypted_len = |amount| {
+            let commitment = Commitment {
+                amount,
+                ..test_commitment()
+            };
+            commitment
+                .encrypt(&[keys.encryption_key.public_key()], &mut rng)
+                .unwrap()
+                .len()
+        };
+
+        assert_eq!(encrypted_len(1), encrypted_len(u128::MAX));
     }
 
     fn test_commitment() -> Commitment {

@@ -9,8 +9,6 @@ pub enum EncryptionError {
     InvalidNonce,
     #[error("decryption failed")]
     Decryption,
-    #[error("invalid commitment")]
-    InvalidCommitment,
 }
 
 /// Encrypts the given plaintext using the given key and a random nonce.

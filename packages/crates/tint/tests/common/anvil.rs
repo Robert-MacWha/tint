@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use alloy_node_bindings::{Anvil, AnvilInstance};
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, B256, U256};
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_macro::sol;
@@ -11,9 +11,9 @@ use tint::{
     abis::tint::SIMULATION_SLOT,
     account::pub_account::PubAccount,
     deposit::Deposit,
-    note::asset::AssetId,
-    skew_mmr::{SkewMmr, SkewMmrExt},
-    syncer::{Snapshot, Syncer, rpc::RpcSyncer},
+    fr::fr_to_b256,
+    note::{asset::AssetId, commitment::Commitment},
+    skew_mmr::SkewMmr,
 };
 use tracing::info;
 
@@ -87,26 +87,36 @@ impl Instance {
     }
 
     /// Deposits `amount` of the mock ERC20 into Tint as a note for `receiver`.
+    ///
+    /// Returns the deposited note and the deposit's receipt.
     pub async fn deposit<R: RngCore + CryptoRng>(
         &self,
         receiver: PubAccount,
         amount: u128,
         rng: &mut R,
-    ) -> anyhow::Result<alloy_rpc_types_eth::TransactionReceipt> {
+    ) -> anyhow::Result<(Commitment, alloy_rpc_types_eth::TransactionReceipt)> {
         let tint = *self.tint.address();
         let deposit = Deposit::new(tint, receiver, self.asset(), amount, rng);
         send(&self.provider, deposit.approval()).await?;
-        send(&self.provider, deposit.transaction(rng)?).await
+        let receipt = send(&self.provider, deposit.transaction(rng)?).await?;
+        Ok((deposit.note(), receipt))
     }
 
-    /// Syncs every Tint event and builds the note set's MMR from them.
-    pub async fn sync(&self) -> anyhow::Result<(Snapshot, SkewMmr)> {
-        let snapshot = RpcSyncer::new(self.provider.clone())
-            .sync(*self.tint.address(), ..)
+    /// Returns whether `mmr` matches the note set Tint holds on-chain.
+    pub async fn verify_mmr(&self, mmr: &SkewMmr) -> anyhow::Result<bool> {
+        let state = mmr.state();
+        let frontier = mmr.roots().into_iter().flatten().map(fr_to_b256).collect();
+        let verified = self
+            .tint
+            .verifyFrontier(
+                U256::from_le_bytes(*state.packed_ranks()),
+                U256::from(state.depth()),
+                U256::from(state.count()),
+                frontier,
+            )
+            .call()
             .await?;
-        let mut mmr = SkewMmr::new();
-        mmr.append_events(&snapshot.events)?;
-        Ok((snapshot, mmr))
+        Ok(verified)
     }
 }
 

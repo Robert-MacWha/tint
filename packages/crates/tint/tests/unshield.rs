@@ -2,19 +2,15 @@ use alloy_primitives::{Address, U256};
 use ark_std::rand::{Rng, rngs::StdRng};
 use rand_core::SeedableRng;
 use tint::{
-    account::Account,
-    circuit::join_split::JoinSplitCircuit,
-    operation::OperationBuilder,
-    policy::Policy,
-    skew_mmr::{SkewMmr, SkewMmrExt},
-    syncer::{Syncer, rpc::RpcSyncer},
+    account::Account, circuit::join_split::JoinSplitCircuit, fr::fr_to_b256,
+    note::owned::OwnedNote, operation::OperationBuilder, policy::Policy, skew_mmr::SkewMmr,
 };
 use tint_groth16::artifacts::Artifacts;
 use tracing::info;
 
 use crate::common::{
     anvil::{Instance, send},
-    util::{assert_unspent, init_tracing},
+    util::{init_tracing, owned},
 };
 
 mod common;
@@ -39,22 +35,18 @@ async fn unshield() -> Result<(), Box<dyn std::error::Error>> {
     let unshield_address = Address::new(rng.r#gen());
 
     let amount = 1_000u128;
-    instance
+    let (deposited, _) = instance
         .deposit(account_1.pub_account(), amount, &mut rng)
         .await?;
 
-    info!("Syncing");
-    let syncer = RpcSyncer::new(provider.clone());
-    let snapshot = syncer.sync(tint, ..).await?;
     let mut mmr = SkewMmr::new();
-    mmr.append_events(&snapshot.events)?;
+    mmr.append(deposited.hash());
+    let note = OwnedNote::new(deposited, &account_1)?;
 
     // Unshield
     info!("Unshielding");
-    let notes = snapshot.unspent(&account_1);
-
     let proven = OperationBuilder::new()
-        .spend(notes[0].clone())
+        .spend(note)
         .output(account_1.pub_account(), asset, 100)
         .withdraw(unshield_address, asset, amount - 100)
         .build(&mut rng)?
@@ -62,12 +54,20 @@ async fn unshield() -> Result<(), Box<dyn std::error::Error>> {
     let unshield_receipt = send(&provider, proven.transaction(tint)).await?;
     info!("Unshielded for {} gas", unshield_receipt.gas_used);
 
-    info!("Syncing");
-    let snapshot = syncer.sync(tint, ..).await?;
-
-    // Verify balances
-    info!("Verifying balances");
-    assert_unspent(&snapshot, &account_1, &[(asset, 100)]);
+    // Verify the note set and balances
+    info!("Verifying note set and balances");
+    for output in proven.outputs() {
+        mmr.append(output.hash());
+    }
+    assert!(instance.verify_mmr(&mmr).await?);
+    assert!(
+        instance
+            .tint
+            .isSpent(fr_to_b256(proven.nullifiers()[0]))
+            .call()
+            .await?
+    );
+    assert_eq!(owned(proven.outputs(), &account_1), [(asset, 100)]);
     assert_eq!(
         instance.token.balanceOf(unshield_address).call().await?,
         U256::from(amount - 100)

@@ -1,7 +1,6 @@
 use std::{array::repeat, iter::repeat_n};
 
 use alloy_primitives::{Address, B256, Bytes, keccak256};
-use alloy_provider::network::TransactionBuilder;
 use alloy_rpc_types_eth::TransactionRequest;
 use alloy_sol_types::{SolCall, SolValue};
 use ark_bn254::{Bn254, Fr};
@@ -555,8 +554,8 @@ impl ProvenOperation {
     #[must_use]
     pub fn transaction(&self, instance: Address) -> TransactionRequest {
         TransactionRequest::default()
-            .with_to(instance)
-            .with_input(self.call().abi_encode())
+            .to(instance)
+            .input(self.call().abi_encode().into())
     }
 }
 

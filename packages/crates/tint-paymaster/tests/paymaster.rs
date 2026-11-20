@@ -13,15 +13,17 @@ use kohaku_userop_kit::{
 };
 use tint::{
     account::Account, circuit::join_split::JoinSplitCircuit, operation::OperationBuilder,
-    policy::Policy, provider_ext::TintProviderExt,
+    policy::Policy,
 };
 use tint_groth16::artifacts::Artifacts;
 use tint_paymaster::{OperationBuilderPaymasterExt, Refund, UserOperationPaymasterExt};
+use tint_provider::TintProviderExt;
 use tracing::info;
 
 use crate::common::{
     anvil::{Instance, MockToken},
     paymaster,
+    sync::sync,
 };
 
 mod common;
@@ -53,7 +55,7 @@ async fn tint_paymaster_transfer_refund() -> anyhow::Result<()> {
     instance
         .deposit(account.pub_account(), NOTE_AMOUNT, &mut rng)
         .await?;
-    let (snapshot, mmr) = instance.sync().await?;
+    let (snapshot, mmr) = sync(&instance).await?;
     let notes = snapshot.unspent(&account);
 
     // Sponsor a UserOp with the note
@@ -159,7 +161,7 @@ async fn tint_paymaster_deposit_refund() -> anyhow::Result<()> {
     instance
         .deposit(account.pub_account(), NOTE_AMOUNT, &mut rng)
         .await?;
-    let (snapshot, mmr) = instance.sync().await?;
+    let (snapshot, mmr) = sync(&instance).await?;
     let notes = snapshot.unspent(&account);
 
     // Sponsor a UserOp with the note
@@ -236,7 +238,7 @@ async fn tint_paymaster_deposit_refund() -> anyhow::Result<()> {
     let refunded = payment.fee - u128::try_from(kept)?;
     assert!(refunded > 0, "account should be refunded");
 
-    let (snapshot, _) = instance.sync().await?;
+    let (snapshot, _) = sync(&instance).await?;
     let notes = snapshot.unspent(&account);
     assert!(
         notes

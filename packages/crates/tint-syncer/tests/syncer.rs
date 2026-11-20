@@ -2,11 +2,8 @@ use alloy_primitives::U64;
 use alloy_provider::Provider;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
-use tint::{
-    account::Account,
-    policy::Policy,
-    syncer::{Snapshot, Syncer, rpc::RpcSyncer},
-};
+use tint::{account::Account, policy::Policy};
+use tint_syncer::{Snapshot, Syncer, rpc::RpcSyncer};
 use tracing::info;
 
 use crate::common::{anvil::Instance, util::init_tracing};
@@ -34,7 +31,7 @@ async fn syncer() -> Result<(), Box<dyn std::error::Error>> {
         let _: () = provider
             .raw_request("anvil_mine".into(), (U64::from(20),))
             .await?;
-        let receipt = instance
+        let (_, receipt) = instance
             .deposit(account.pub_account(), 1_000, &mut rng)
             .await?;
         blocks.push(receipt.block_number.ok_or("receipt missing block number")?);
@@ -69,6 +66,6 @@ fn deposit_blocks(snapshot: &Snapshot) -> Vec<u64> {
         .events
         .iter()
         .filter(|e| e.commitment().is_some())
-        .map(tint::syncer::SyncEvent::block_number)
+        .map(tint_syncer::SyncEvent::block_number)
         .collect()
 }

@@ -8,6 +8,4 @@ pub mod fr;
 pub mod note;
 pub mod operation;
 pub mod policy;
-pub mod provider_ext;
 pub mod skew_mmr;
-pub mod syncer;

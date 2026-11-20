@@ -1,0 +1,16 @@
+[package]
+name = "tint-provider"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+alloy-primitives = { workspace = true }
+alloy-provider = { workspace = true }
+alloy-rpc-types-eth = { workspace = true }
+alloy-sol-types = { workspace = true }
+ark-bn254 = { workspace = true }
+async-trait = { workspace = true }
+tint = { workspace = true }
+
+[lints]
+workspace = true

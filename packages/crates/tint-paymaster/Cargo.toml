@@ -22,6 +22,8 @@ anyhow = { workspace = true }
 ark-std = { workspace = true }
 kohaku-fork-kit = { workspace = true }
 tint-groth16 = { workspace = true }
+tint-provider = { workspace = true }
+tint-syncer = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }

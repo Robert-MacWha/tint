@@ -3,8 +3,7 @@ use alloy_provider::Provider;
 use alloy_rpc_types_eth::TransactionRequest;
 use alloy_sol_types::SolCall;
 use ark_bn254::Fr;
-
-use crate::{abis::tint::Tint, fr::fr_to_b256, skew_mmr::SkewMmr};
+use tint::{abis::tint::Tint, fr::fr_to_b256, skew_mmr::SkewMmr};
 
 type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
 

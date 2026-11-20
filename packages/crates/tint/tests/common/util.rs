@@ -1,6 +1,9 @@
 #![allow(dead_code)]
 
-use tint::{account::Account, note::asset::AssetId, syncer::Snapshot};
+use tint::{
+    account::Account,
+    note::{asset::AssetId, commitment::Commitment, owned::OwnedNote},
+};
 
 /// Logs at `RUST_LOG` (default `info`), silencing the constraint system.
 pub fn init_tracing() {
@@ -9,14 +12,11 @@ pub fn init_tracing() {
     let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
 }
 
-/// Asserts `account`'s unspent notes in `snapshot` are exactly `expected`.
-///
-/// `expected` is in leaf order.
-pub fn assert_unspent(snapshot: &Snapshot, account: &Account, expected: &[(AssetId, u128)]) {
-    let unspent: Vec<_> = snapshot
-        .unspent(account)
+/// The asset and amount of each note in `notes` that `account` can spend.
+pub fn owned(notes: &[Commitment], account: &Account) -> Vec<(AssetId, u128)> {
+    notes
         .iter()
-        .map(|note| (note.note.asset, note.note.amount))
-        .collect();
-    assert_eq!(unspent, expected);
+        .filter(|note| OwnedNote::new(**note, account).is_ok())
+        .map(|note| (note.asset, note.amount))
+        .collect()
 }

@@ -7,6 +7,8 @@ members = [
     "tint-paymaster",
     "tint-password-policy",
     "tint-poseidon2",
+    "tint-provider",
+    "tint-syncer",
 ]
 resolver = "3"
 
@@ -76,6 +78,8 @@ tint-groth16 = { path = "./tint-groth16" }
 tint-multisig-policy = { path = "./tint-multisig-policy" }
 tint-password-policy = { path = "./tint-password-policy" }
 tint-poseidon2 = { path = "./tint-poseidon2" }
+tint-provider = { path = "./tint-provider" }
+tint-syncer = { path = "./tint-syncer" }
 tokio = { version = "1" }
 tracing = "0.1.44"
 tracing-subscriber = "0.3"

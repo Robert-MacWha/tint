@@ -1,5 +1,4 @@
 use alloy_primitives::{Address, B256, U256};
-use alloy_provider::network::TransactionBuilder;
 use alloy_rpc_types_eth::TransactionRequest;
 use alloy_sol_types::SolCall;
 use ark_std::rand::Rng;
@@ -63,7 +62,7 @@ impl Deposit {
         };
 
         TransactionRequest::default()
-            .with_to(self.asset.into())
+            .to(self.asset.into())
             .input(approval_call.abi_encode().into())
     }
 
@@ -85,7 +84,7 @@ impl Deposit {
         };
 
         Ok(TransactionRequest::default()
-            .with_to(self.instance)
+            .to(self.instance)
             .input(deposit_call.abi_encode().into()))
     }
 }

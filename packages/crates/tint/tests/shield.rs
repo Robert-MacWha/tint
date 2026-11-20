@@ -1,12 +1,7 @@
 use alloy_primitives::U256;
 use ark_std::rand::rngs::StdRng;
 use rand_core::SeedableRng;
-use tint::{
-    account::Account,
-    deposit::Deposit,
-    policy::Policy,
-    syncer::{Syncer, rpc::RpcSyncer},
-};
+use tint::{account::Account, deposit::Deposit, policy::Policy, skew_mmr::SkewMmr};
 use tracing::info;
 
 use crate::common::{
@@ -39,19 +34,15 @@ async fn shield() -> Result<(), Box<dyn std::error::Error>> {
     let shield_receipt = send(&provider, deposit.transaction(&mut rng)?).await?;
     info!("Shielded for {} gas", shield_receipt.gas_used);
 
-    info!("Syncing");
-    let snapshot = RpcSyncer::new(provider).sync(tint, ..).await?;
-
-    // Verify balances
-    info!("Verifying balances");
+    // Verify the note set and balances
+    info!("Verifying note set and balances");
+    let mut mmr = SkewMmr::new();
+    mmr.append(deposit.note().hash());
+    assert!(instance.verify_mmr(&mmr).await?);
     assert_eq!(
         instance.token.balanceOf(tint).call().await?,
         U256::from(amount)
     );
-
-    let notes = snapshot.unspent(&account);
-    assert_eq!(notes.len(), 1);
-    assert_eq!(notes[0].note, deposit.note());
 
     Ok(())
 }

@@ -1956,6 +1956,8 @@ dependencies = [
  "tint-groth16",
  "tint-multisig-policy",
  "tint-password-policy",
+ "tint-provider",
+ "tint-syncer",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -5666,7 +5668,6 @@ dependencies = [
  "ark-relations",
  "ark-snark",
  "ark-std 0.6.0",
- "async-trait",
  "chacha20poly1305",
  "criterion",
  "getrandom 0.2.17",
@@ -5741,6 +5742,7 @@ dependencies = [
  "tint",
  "tint-groth16",
  "tint-poseidon2",
+ "tint-syncer",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -5772,6 +5774,7 @@ dependencies = [
  "tint",
  "tint-groth16",
  "tint-poseidon2",
+ "tint-syncer",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -5797,6 +5800,8 @@ dependencies = [
  "thiserror",
  "tint",
  "tint-groth16",
+ "tint-provider",
+ "tint-syncer",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -5821,6 +5826,46 @@ dependencies = [
  "ark-std 0.6.0",
  "skew-mmr",
  "taceo-poseidon2",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "tint-provider"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-types-eth",
+ "alloy-sol-types",
+ "ark-bn254",
+ "async-trait",
+ "tint",
+]
+
+[[package]]
+name = "tint-syncer"
+version = "0.1.0"
+dependencies = [
+ "alloy-contract",
+ "alloy-node-bindings",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-types-eth",
+ "alloy-signer-local",
+ "alloy-sol-macro",
+ "alloy-sol-types",
+ "anyhow",
+ "ark-bn254",
+ "ark-std 0.6.0",
+ "async-trait",
+ "rand_core 0.6.4",
+ "serde",
+ "serde_with",
+ "thiserror",
+ "tint",
+ "tint-groth16",
  "tokio",
  "tracing",
  "tracing-subscriber",

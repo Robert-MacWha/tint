@@ -1,17 +1,14 @@
 use alloy_primitives::Address;
 use ark_std::rand::{Rng, rngs::StdRng};
 use rand_core::SeedableRng;
-use tint::{
-    account::Account,
-    operation::OperationBuilder,
-    policy::Policy,
-    syncer::{Committed, Nullified, SyncEvent, Withdrawn},
-};
+use tint::{account::Account, operation::OperationBuilder, policy::Policy};
+use tint_syncer::{Committed, Nullified, SyncEvent, Withdrawn};
 use tracing::info;
 
 use crate::common::{
     anvil::{Instance, enable_simulation, send},
-    util::{assert_unspent, init_tracing},
+    sync::{assert_unspent, sync},
+    util::init_tracing,
 };
 
 mod common;
@@ -43,7 +40,7 @@ async fn events() -> Result<(), Box<dyn std::error::Error>> {
             .await?;
     }
 
-    let (snapshot, mmr) = instance.sync().await?;
+    let (snapshot, mmr) = sync(&instance).await?;
     assert_unspent(&snapshot, &account_1, &[(asset, amount), (asset, amount)]);
     let notes = snapshot.unspent(&account_1);
 

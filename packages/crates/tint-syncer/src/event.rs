@@ -5,8 +5,7 @@ use alloy_rpc_types_eth::Log;
 use alloy_sol_types::SolEvent;
 use ark_bn254::Fr;
 use serde::{Deserialize, Serialize};
-
-use crate::{
+use tint::{
     abis::tint::Tint,
     account::{Account, keys::EncryptionKey},
     fr::b256_to_fr,

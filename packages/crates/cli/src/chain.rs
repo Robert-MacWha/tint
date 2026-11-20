@@ -15,11 +15,11 @@ use tint::{
     deposit::Deposit,
     note::{asset::AssetId, owned::OwnedNote},
     operation::{Operation, OperationBuilder},
-    provider_ext::TintProviderExt,
-    skew_mmr::{SkewMmr, SkewMmrExt},
-    syncer::{Snapshot, Syncer, rpc::RpcSyncer},
+    skew_mmr::SkewMmr,
 };
 use tint_groth16::artifacts::Artifacts;
+use tint_provider::TintProviderExt;
+use tint_syncer::{SkewMmrExt, Snapshot, Syncer, rpc::RpcSyncer};
 
 use crate::{account::Authorizer, config};
 

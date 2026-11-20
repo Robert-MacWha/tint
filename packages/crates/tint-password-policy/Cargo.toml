@@ -41,6 +41,7 @@ alloy-signer-local = { workspace = true }
 anyhow = { workspace = true }
 ark-ff = { workspace = true }
 ark-relations = { workspace = true, features = ["std"] }
+tint-syncer = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 

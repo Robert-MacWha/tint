@@ -15,7 +15,8 @@ use tracing::info;
 use crate::common::{
     anvil::{Instance, send},
     policy::deploy_policy,
-    util::{assert_unspent, init_tracing},
+    sync::{assert_unspent, sync},
+    util::init_tracing,
 };
 
 /// Test that we can spend a note using the `PasswordPolicyCircuit`.
@@ -47,7 +48,7 @@ async fn password() -> Result<(), Box<dyn std::error::Error>> {
         .deposit(account_1.pub_account(), amount, &mut rng)
         .await?;
 
-    let (snapshot, mmr) = instance.sync().await?;
+    let (snapshot, mmr) = sync(&instance).await?;
     let notes = snapshot.unspent(&account_1);
 
     // Spend the note, which is only spendable using the `PasswordPolicy` contract / circuit.
@@ -64,7 +65,7 @@ async fn password() -> Result<(), Box<dyn std::error::Error>> {
 
     // Verify balances
     info!("Verifying balances");
-    let (snapshot, _) = instance.sync().await?;
+    let (snapshot, _) = sync(&instance).await?;
     assert_unspent(&snapshot, &account_1, &[(asset, amount - 150)]);
     assert_unspent(&snapshot, &account_2, &[(asset, 100)]);
 

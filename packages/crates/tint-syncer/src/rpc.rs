@@ -2,12 +2,10 @@ use alloy_primitives::{Address, U256};
 use alloy_provider::Provider;
 use alloy_rpc_types_eth::{BlockId, Filter, Log, TransactionRequest};
 use alloy_sol_types::{SolCall, SolEvent};
+use tint::abis::tint::Tint;
 use tracing::{info, warn};
 
-use crate::{
-    abis::tint::Tint,
-    syncer::{Snapshot, SyncEvent, Syncer, SyncerError},
-};
+use crate::{Snapshot, SyncEvent, Syncer, SyncerError};
 
 type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
 

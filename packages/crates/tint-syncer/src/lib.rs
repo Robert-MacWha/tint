@@ -10,8 +10,10 @@ use thiserror::Error;
 
 mod event;
 pub mod rpc;
+mod skew_mmr;
 
 pub use event::{Committed, Deposited, Nullified, Snapshot, SnapshotError, SyncEvent, Withdrawn};
+pub use skew_mmr::{AppendEventsError, SkewMmrExt};
 
 /// Fetches a Tint deployment's events from some source.
 #[async_trait::async_trait]

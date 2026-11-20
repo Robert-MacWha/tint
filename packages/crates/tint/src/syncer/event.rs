@@ -110,10 +110,15 @@ impl Snapshot {
             .collect()
     }
 
-    /// Returns the notes decryptable by `key` within this snapshot.
+    /// Returns the notes decryptable by `key` within this snapshot, deduplicated by commitment.
     #[must_use]
     pub fn notes(&self, key: &EncryptionKey) -> Vec<Commitment> {
-        self.events.iter().filter_map(|e| e.decrypt(key)).collect()
+        let mut seen = HashSet::new();
+        self.events
+            .iter()
+            .filter_map(|e| e.decrypt(key))
+            .filter(|note| seen.insert(note.hash()))
+            .collect()
     }
 
     #[must_use]
@@ -228,16 +233,129 @@ impl SyncEvent {
         }
     }
 
-    /// Decrypts the note carried by this event, if it's addressed to `key`.
+    /// Decrypts the note carried by this event, if it's addressed to `key` and
+    /// hashes to the event's on-chain commitment.
     #[must_use]
     pub fn decrypt(&self, key: &EncryptionKey) -> Option<Commitment> {
-        match self {
+        let (note, commitment) = match self {
             SyncEvent::Deposited(d) => {
                 let partial = PartialCommitment::from_encrypted(&d.encrypted_partial, key).ok()?;
-                Some(Commitment::from_partial(d.asset, d.amount, partial))
+                (
+                    Commitment::from_partial(d.asset, d.amount, partial),
+                    d.commitment,
+                )
             }
-            SyncEvent::Committed(c) => Commitment::from_encrypted(&c.encrypted_note, key).ok(),
-            SyncEvent::Nullified(_) | SyncEvent::Withdrawn(_) => None,
-        }
+            SyncEvent::Committed(c) => (
+                Commitment::from_encrypted(&c.encrypted_note, key).ok()?,
+                c.commitment,
+            ),
+            SyncEvent::Nullified(_) | SyncEvent::Withdrawn(_) => return None,
+        };
+        (note.hash() == commitment).then_some(note)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::{Address, B256};
+    use ark_bn254::Fr;
+    use ark_std::rand::{SeedableRng, rngs::StdRng};
+
+    use super::*;
+    use crate::{note::asset::AssetId, policy::Policy};
+
+    const ASSET: AssetId = AssetId(Address::repeat_byte(0xaa));
+
+    fn account() -> Account {
+        Account::from_seed(&[7u8; 32], Policy::NONE)
+    }
+
+    fn note(account: &Account, amount: u128) -> Commitment {
+        account
+            .pub_account()
+            .commitment(ASSET, amount, B256::repeat_byte(0x42))
+    }
+
+    fn committed(account: &Account, note: &Commitment, commitment: Fr) -> SyncEvent {
+        let mut rng = StdRng::seed_from_u64(1);
+        let encrypted_note = note
+            .encrypt(&[account.pub_account().encryption_pub_key], &mut rng)
+            .unwrap()
+            .into();
+        SyncEvent::Committed(Committed {
+            commitment,
+            leaf_index: 0,
+            encrypted_note,
+            block_number: 1,
+        })
+    }
+
+    fn deposited(account: &Account, note: &Commitment, commitment: Fr) -> SyncEvent {
+        let mut rng = StdRng::seed_from_u64(2);
+        let encrypted_partial = note
+            .partial()
+            .encrypt(&[account.pub_account().encryption_pub_key], &mut rng)
+            .unwrap()
+            .into();
+        SyncEvent::Deposited(Deposited {
+            commitment,
+            leaf_index: 0,
+            asset: note.asset,
+            amount: note.amount,
+            encrypted_partial,
+            block_number: 1,
+        })
+    }
+
+    fn snapshot(events: Vec<SyncEvent>) -> Snapshot {
+        Snapshot::new(Address::ZERO, 0..2, events)
+    }
+
+    #[test]
+    fn matching_notes_are_found() {
+        let account = account();
+        let note = note(&account, 1_000);
+        let snapshot = snapshot(vec![
+            committed(&account, &note, note.hash()),
+            deposited(&account, &note, note.hash()),
+        ]);
+
+        let unspent = snapshot.unspent(&account);
+        assert_eq!(unspent.len(), 1, "the same commitment twice is one note");
+        assert_eq!(unspent[0].note, note);
+    }
+
+    #[test]
+    fn mismatched_committed_note_is_dropped() {
+        let account = account();
+        let claimed = note(&account, 1_000_000);
+        let event = committed(&account, &claimed, Fr::from(12345u64));
+
+        assert!(event.decrypt(&account.encryption_key).is_none());
+        assert!(snapshot(vec![event]).unspent(&account).is_empty());
+    }
+
+    #[test]
+    fn mismatched_deposited_note_is_dropped() {
+        let account = account();
+        let claimed = note(&account, 5_000_000);
+        let event = deposited(&account, &claimed, Fr::from(999u64));
+
+        assert!(event.decrypt(&account.encryption_key).is_none());
+        assert!(snapshot(vec![event]).unspent(&account).is_empty());
+    }
+
+    #[test]
+    fn zero_amount_deposit_is_dropped() {
+        let account = account();
+        let zero = note(&account, 0);
+        let on_chain = tint_poseidon2::poseidon2_compress(&[
+            zero.asset_fr(),
+            zero.amount_fr(),
+            zero.partial_hash(),
+        ]);
+        let event = deposited(&account, &zero, on_chain);
+
+        assert!(event.decrypt(&account.encryption_key).is_none());
     }
 }

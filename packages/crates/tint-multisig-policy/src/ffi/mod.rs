@@ -1,5 +1,6 @@
 //! FFI bindings into Go/gnark's multisig-policy circuit library.
 
+use alloy_primitives::B256;
 use ark_bn254::Fr;
 use k256::ecdsa::{Signature, VerifyingKey};
 use tint::{
@@ -31,8 +32,9 @@ mod bindings {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 use bindings::{
-    Bytes32, FreeBytes, TintBaseCommitment, TintOperation, TintProve, TintProveInput, TintPubKeyXY,
-    TintSignatureRS, TintSpendableCommitment, TintWithdrawal,
+    Bytes32, FreeBytes, TintBaseCommitment, TintHardwareWalletProve, TintHardwareWalletProveInput,
+    TintOperation, TintProve, TintProveInput, TintPubKeyXY, TintSignatureRS,
+    TintSpendableCommitment, TintWithdrawal,
 };
 
 #[derive(Clone, Debug, thiserror::Error)]
@@ -64,22 +66,77 @@ pub fn prove_via_go(
         signatures: std::array::from_fn(|i| signatures[i].as_ref().into()),
     };
 
+    call_prove(artifacts, |ccs, pk, vk, proof_ptr, proof_len| unsafe {
+        TintProve(
+            ccs.0,
+            ccs.1,
+            pk.0,
+            pk.1,
+            vk.0,
+            vk.1,
+            &raw mut input,
+            proof_ptr,
+            proof_len,
+        )
+    })
+}
+
+/// Generates a proof for the hardware-wallet-policy circuit using gnark,
+/// for `signature` by `pub_key` over the EIP-712 `digest`.
+///
+/// Returns the proof as solidity-verifier-compatible bytes on success or
+/// the status code on failure.
+pub fn prove_hardware_wallet_via_go(
+    artifacts: &Artifacts,
+    policy_address: Fr,
+    operation: &OperationWitness<N_INPUTS, N_OUTPUTS, N_WITHDRAWALS>,
+    context_hash: Fr,
+    digest: B256,
+    pub_key: &VerifyingKey,
+    signature: &Signature,
+) -> Result<Vec<u8>, FfiError> {
+    let mut input = TintHardwareWalletProveInput {
+        policy_address: policy_address.into(),
+        operation: operation.into(),
+        context_hash: context_hash.into(),
+        digest: Bytes32 { data: digest.0 },
+        pub_key: TintPubKeyXY::try_from(pub_key)?,
+        signature: Some(signature).into(),
+    };
+
+    call_prove(artifacts, |ccs, pk, vk, proof_ptr, proof_len| unsafe {
+        TintHardwareWalletProve(
+            ccs.0,
+            ccs.1,
+            pk.0,
+            pk.1,
+            vk.0,
+            vk.1,
+            &raw mut input,
+            proof_ptr,
+            proof_len,
+        )
+    })
+}
+
+type RawBuf = (*mut u8, usize);
+
+/// Calls a Go prove function with `artifacts`, taking ownership of its proof.
+fn call_prove(
+    artifacts: &Artifacts,
+    prove: impl FnOnce(RawBuf, RawBuf, RawBuf, *mut *mut u8, *mut usize) -> u8,
+) -> Result<Vec<u8>, FfiError> {
+    let raw = |buf: &Vec<u8>| (buf.as_ptr().cast_mut(), buf.len());
     let mut proof_ptr: *mut u8 = std::ptr::null_mut();
     let mut proof_len: usize = 0;
 
-    let status = unsafe {
-        TintProve(
-            artifacts.ccs.as_ptr().cast_mut(),
-            artifacts.ccs.len(),
-            artifacts.pk.as_ptr().cast_mut(),
-            artifacts.pk.len(),
-            artifacts.vk.as_ptr().cast_mut(),
-            artifacts.vk.len(),
-            &raw mut input,
-            &raw mut proof_ptr,
-            &raw mut proof_len,
-        )
-    };
+    let status = prove(
+        raw(&artifacts.ccs),
+        raw(&artifacts.pk),
+        raw(&artifacts.vk),
+        &raw mut proof_ptr,
+        &raw mut proof_len,
+    );
 
     if status != 0 {
         return Err(FfiError::ProveFailed(status));

@@ -8,7 +8,6 @@ import (
 	stdecdsa "github.com/consensys/gnark/std/signature/ecdsa"
 
 	"github.com/Robert-MacWha/tint/packages/crates/tint-multisig-policy/go/internal/operation"
-	"github.com/Robert-MacWha/tint/packages/crates/tint-multisig-policy/go/internal/poseidon2"
 )
 
 // MultisigPolicyCircuit proves that an operation is spendable under an
@@ -30,32 +29,12 @@ type MultisigPolicyCircuit[Base, Scalar emulated.FieldParams] struct {
 }
 
 func (c *MultisigPolicyCircuit[Base, Scalar]) Define(api frontend.API) error {
-	if err := c.verifySigningHash(api); err != nil {
-		return err
-	}
-	c.verifyPolicyHashes(api)
+	assertSigningHash(api, &c.Operation, c.ContextHash, c.SigningHash)
+	assertPolicyHashes(api, &c.Operation)
 	if err := c.verifyPolicyWitness(api); err != nil {
 		return err
 	}
 	return c.verifyThresholdSignatures(api)
-}
-
-// verifySigningHash derives the signing hash from the witnessed `Operation`
-// and `ContextHash` and binds it to the public `signing_hash`.
-func (c *MultisigPolicyCircuit[Base, Scalar]) verifySigningHash(api frontend.API) error {
-	operationHash := c.Operation.HashGadget(api)
-	signingHash := poseidon2.CompressGadget2(api, [2]frontend.Variable{operationHash, c.ContextHash})
-	api.AssertIsEqual(signingHash, c.SigningHash)
-	return nil
-}
-
-// verifyPolicyHashes binds each input's `PolicyHash` to its witnessed
-// `PolicyAddress` and `PolicyWitness`, mirroring `OwnedNoteVar::policy_hash`.
-func (c *MultisigPolicyCircuit[Base, Scalar]) verifyPolicyHashes(api frontend.API) {
-	for i := range c.Operation.Inputs {
-		input := &c.Operation.Inputs[i]
-		api.AssertIsEqual(input.Inner.PolicyHash, input.PolicyHashGadget(api))
-	}
 }
 
 // verifyPolicyWitness asserts for every operation input whose
@@ -68,12 +47,7 @@ func (c *MultisigPolicyCircuit[Base, Scalar]) verifyPolicyWitness(api frontend.A
 		return err
 	}
 	expectedWitness := PubKeyHashGadget(api, baseField, c.PubKeys[:])
-
-	for i := range c.Operation.Inputs {
-		addressesEq := api.IsZero(api.Sub(c.Operation.Inputs[i].PolicyAddress, c.PolicyAddress))
-		diff := api.Sub(c.Operation.Inputs[i].PolicyWitness, expectedWitness)
-		api.AssertIsEqual(api.Select(addressesEq, diff, 0), 0)
-	}
+	assertPolicyWitness(api, &c.Operation, c.PolicyAddress, expectedWitness)
 	return nil
 }
 

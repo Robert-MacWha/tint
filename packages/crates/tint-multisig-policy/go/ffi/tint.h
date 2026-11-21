@@ -68,4 +68,15 @@ typedef struct
 	TintSignatureRS signatures[N_SIGNERS];
 } TintProveInput;
 
+typedef struct
+{
+	Bytes32 policy_address;
+	TintOperation operation;
+	Bytes32 context_hash;
+	/* The EIP-712 digest the signer signed, as 32 big-endian bytes. */
+	Bytes32 digest;
+	TintPubKeyXY pub_key;
+	TintSignatureRS signature;
+} TintHardwareWalletProveInput;
+
 #endif

@@ -1,5 +1,5 @@
-// Command gen_solidity_verifier generates a Solidity verifier contract from the
-// verifying key produced by the gnark circuit.
+// Command gen_solidity_verifier generates a Solidity verifier contract from
+// each verifying key produced by the gnark circuits.
 package main
 
 import (
@@ -12,17 +12,18 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 )
 
-const artifactsDir = "../artifacts/"
+var artifactsDirs = []string{"../artifacts/", "../artifacts/hardware_wallet/"}
 
 func main() {
-	err := genSolidityVerifier()
-	if err != nil {
-		log.Fatal(err)
+	for _, dir := range artifactsDirs {
+		if err := genSolidityVerifier(dir); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
-func genSolidityVerifier() error {
-	fmt.Println("Generating Solidity verifier")
+func genSolidityVerifier(artifactsDir string) error {
+	fmt.Println("Generating Solidity verifier in", artifactsDir)
 
 	// Load the verifying key from file
 	vk := groth16.NewVerifyingKey(ecc.BN254)

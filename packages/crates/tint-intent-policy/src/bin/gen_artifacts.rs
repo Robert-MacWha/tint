@@ -1,0 +1,44 @@
+#![expect(clippy::expect_used)]
+//! Generates groth16 proving & verifying artifacts for the `IntentPolicy`
+//! circuit, compresses them, and writes them to disk.
+
+use tint_groth16::{
+    artifacts::Artifacts,
+    serde::{serialize_matrices, serialize_pk, serialize_vk},
+};
+use tint_intent_policy::circuit::IntentPolicyCircuit;
+
+const ARTIFACTS_DIR: &str = "artifacts/";
+
+fn main() {
+    println!("Generating artifacts");
+    let artifacts = Artifacts::generate_deterministic::<IntentPolicyCircuit>()
+        .expect("failed to generate IntentPolicy artifacts");
+
+    println!("Serializing artifacts");
+    let pk_bytes = serialize_pk(&artifacts.pk).expect("failed to serialize proving key");
+    let vk_bytes = serialize_vk(&artifacts.vk).expect("failed to serialize verifying key");
+    let matrices_bytes =
+        serialize_matrices(&artifacts.matrices).expect("failed to serialize matrices");
+
+    std::fs::create_dir_all(ARTIFACTS_DIR).expect("failed to create artifacts directory");
+    write_to_file(
+        format!("{ARTIFACTS_DIR}proving_key.bin.br").as_str(),
+        &pk_bytes,
+    );
+    write_to_file(
+        format!("{ARTIFACTS_DIR}verifying_key.bin.br").as_str(),
+        &vk_bytes,
+    );
+    write_to_file(
+        format!("{ARTIFACTS_DIR}matrices.bin.br").as_str(),
+        &matrices_bytes,
+    );
+
+    println!("Done generating artifacts");
+}
+
+fn write_to_file(path: &str, data: &[u8]) {
+    println!("Writing compressed data to {path}");
+    std::fs::write(path, data).expect("failed to write compressed data to file");
+}

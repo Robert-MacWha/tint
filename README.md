@@ -70,6 +70,8 @@ Current limitations:
 - 2-of-3 only (extensible with generic circuits).
 - Blind signatures only (could support `eth_signTypedData_v4` with a *very* expensive circuit, or a custom scheme using a circuit-friendlier hash, or maybe something smarter).
 
+The same crate provides a hardware wallet policy: notes spendable only with an `eth_signTypedData_v4` signature over the operation's `signingHash` from one private secp256k1 key, signed via any `alloy` signer (Ledger, Trezor, ...). The device still can't show amounts or recipients.
+
 **[tint-intent-policy](./packages/crates/tint-intent-policy/)**
 
 Shielded offers (limit orders, p2p swaps) that any counterparty can fill by creating the note the owner wants, without either side leaving the pool. Intents are discovered through an off-chain relay; [tint-intent-relay](./packages/crates/tint-intent-relay/) has the relay, its client, and a reference maker. See the [Intent Docs](./docs/intents.md).

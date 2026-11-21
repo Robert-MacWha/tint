@@ -66,23 +66,28 @@ assert(privateKey == policyWitness)
 
 #### eth_signTypedData_v4
 
-Requires a signature from the right `signer` to spend the note.
+Requires a signature from the right `signer` to spend the note. Implemented by `HardwareWalletPolicy` (see [tint-multisig-policy](../packages/crates/tint-multisig-policy/README.md#hardware-wallet-policy)).
+
+The signer signs the EIP-712 message `TintOperation(bytes32 signingHash)`. Since `signingHash` is public, the contract computes the digest itself and passes it in, split into 128-bit halves, rather than the circuit computing keccak. The circuit still recomputes `signingHash` from the witnessed operation, so the digest is bound to the operation.
 
 ```
 public:
-    field policyHash
-    field operationDigest
-private:
     field policyAddress
-    field policyWitness
-    field signer
-    field signature[:65]
+    field signingHash
+    field digestHi, digestLo  // contract: eip712Digest(TintOperation(signingHash))
+private:
+    operation, contextHash
+    point pubKey
+    field signature[r, s]
 
-assert(policyHash == poseidon2(policyAddress, policyWitness))
-assert(signer == policyWitness)
+assert(signingHash == poseidon2(operation.hash(), contextHash))
+for input in operation.inputs where input.policyAddress == policyAddress:
+    assert(input.policyWitness == pubKeyHash(pubKey))
 
-assert(recoverSigner(signature, operationDigest) == signer)
+assert(ecdsaVerify(pubKey, digestHi * 2^128 + digestLo, signature))
 ```
+
+Hardware wallets show the domain and `signingHash` rather than the operation's amounts and recipients: displaying those would mean keccak-hashing the private note fields in-circuit.
 
 #### Time Lock
 

@@ -29,11 +29,13 @@ build-artifacts:
     cd packages/crates/tint && just build-artifacts
     cd packages/crates/tint-password-policy && just build-artifacts
     cd packages/crates/tint-multisig-policy && just build-artifacts
+    cd packages/crates/tint-intent-policy && just build-artifacts
 
 build-solidity:
     cd packages/crates/tint && just build-solidity
     cd packages/crates/tint-password-policy && just build-solidity
     cd packages/crates/tint-multisig-policy && just build-solidity
+    cd packages/crates/tint-intent-policy && just build-solidity
 
 run *ARGS:
     set -euo pipefail

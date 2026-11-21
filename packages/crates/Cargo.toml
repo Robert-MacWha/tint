@@ -4,6 +4,7 @@ members = [
     "tint",
     "tint-adapter",
     "tint-groth16",
+    "tint-intent-policy",
     "tint-multisig-policy",
     "tint-paymaster",
     "tint-password-policy",
@@ -75,6 +76,7 @@ taceo-poseidon2 = { git = "https://github.com/Robert-MacWha/eddsa-babyjubjub" }
 thiserror = "2.0.18"
 tint = { path = "./tint", default-features = false }
 tint-groth16 = { path = "./tint-groth16" }
+tint-intent-policy = { path = "./tint-intent-policy" }
 tint-multisig-policy = { path = "./tint-multisig-policy" }
 tint-password-policy = { path = "./tint-password-policy" }
 tint-poseidon2 = { path = "./tint-poseidon2" }

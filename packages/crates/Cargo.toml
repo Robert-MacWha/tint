@@ -66,6 +66,7 @@ ruint = "1.19.0"
 serde = "1.0.228"
 serde_json = "1.0"
 serde_with = "3.21.0"
+shake = "0.1.0"
 sha2 = "0.10.9"
 signature = "3"
 skew-mmr = { git = "https://github.com/Robert-MacWha/efficient-inclusion-proofs" }
@@ -79,4 +80,5 @@ tint-poseidon2 = { path = "./tint-poseidon2" }
 tokio = { version = "1" }
 tracing = "0.1.44"
 tracing-subscriber = "0.3"
-x25519-dalek = "2.0.1"
+x-wing = "0.1.1"
+x25519-dalek = "3.0.0"

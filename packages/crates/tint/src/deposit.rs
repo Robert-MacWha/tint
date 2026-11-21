@@ -75,7 +75,7 @@ impl Deposit {
         let commitment = self.note();
         let encrypted = commitment
             .partial()
-            .encrypt(&[self.receiver.encryption_pub_key], rng)?;
+            .encrypt(&self.receiver.encryption_pub_key, rng)?;
 
         let deposit_call = crate::abis::tint::Tint::depositCall {
             asset: self.asset.into(),

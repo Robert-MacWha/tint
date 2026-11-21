@@ -53,7 +53,7 @@ async fn transfer() -> Result<(), Box<dyn std::error::Error>> {
     info!("Transferring to another account");
     let notes = snapshot.unspent(&account_1);
 
-    let proven = OperationBuilder::new()
+    let proven = OperationBuilder::new(&account_1.encryption_key)
         .spend(notes[0].clone())
         .output(account_1.pub_account(), asset, 100)
         .output(account_2.pub_account(), asset, amount - 100)

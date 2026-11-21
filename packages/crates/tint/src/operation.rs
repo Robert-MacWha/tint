@@ -20,14 +20,17 @@ use tracing::info;
 
 use crate::{
     abis::tint::{IPrivacyPool, Tint},
-    account::pub_account::PubAccount,
+    account::{
+        keys::{EncryptionKey, EncryptionPubKey},
+        pub_account::PubAccount,
+    },
     circuit::join_split::{
         FRONTIER_OFFSET, JoinSplit, JoinSplitCircuit, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS,
     },
     fr::{fr_to_b256, fr_to_u256},
     note::{
         asset::AssetId,
-        commitment::Commitment,
+        commitment::{Commitment, CommitmentError},
         owned::{OwnedNote, SpendableNote},
         withdrawal::Withdrawal,
     },
@@ -36,8 +39,10 @@ use crate::{
 };
 
 /// Collects the inputs, outputs, and withdrawals of an operation.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct OperationBuilder {
+    /// Encrypts the outputs the sender sends itself, without a KEM.
+    sender: EncryptionKey,
     inputs: Vec<OwnedNote>,
     outputs: Vec<(PubAccount, AssetId, u128)>,
     withdrawals: Vec<Withdrawal>,
@@ -95,6 +100,8 @@ pub enum OperationError {
     Unauthorized(Policy),
     #[error("an operation needs at least one input")]
     NoInputs,
+    #[error("outputs go to more than one receiver besides the sender")]
+    TooManyReceivers,
     #[error("input {0} is not in the skew-MMR")]
     InputNotFound(usize),
     #[error("expected {expected} inclusion proofs, got {got}")]
@@ -114,9 +121,18 @@ pub enum OperationError {
 }
 
 impl OperationBuilder {
+    /// Starts an operation sent by the holder of `sender`.
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(sender: &EncryptionKey) -> Self {
+        Self {
+            sender: sender.clone(),
+            inputs: Vec::new(),
+            outputs: Vec::new(),
+            withdrawals: Vec::new(),
+            change: None,
+            caller: Address::ZERO,
+            binding: B256::ZERO,
+        }
     }
 
     /// Spends `note` as an input.
@@ -186,17 +202,15 @@ impl OperationBuilder {
             return Err(OperationError::TooManyWithdrawals);
         }
 
-        let mut commitments = Vec::with_capacity(outputs.len());
-        let mut ciphertexts = Vec::with_capacity(outputs.len());
-        for (receiver, asset, amount) in outputs {
-            let commitment = receiver.commitment(asset, amount, B256::new(rng.r#gen()));
-            ciphertexts.push(
-                commitment
-                    .encrypt(&[receiver.encryption_pub_key], rng)?
-                    .into(),
-            );
-            commitments.push(commitment);
-        }
+        let notes: Vec<_> = outputs
+            .into_iter()
+            .map(|(receiver, asset, amount)| {
+                let commitment = receiver.commitment(asset, amount, B256::new(rng.r#gen()));
+                (receiver.encryption_pub_key, commitment)
+            })
+            .collect();
+        let ciphertexts = encrypt_outputs(&self.sender, &notes, rng)?;
+        let commitments = notes.into_iter().map(|(_, commitment)| commitment);
 
         let inputs = self
             .inputs
@@ -246,7 +260,10 @@ impl OperationBuilder {
                 continue;
             }
 
-            let receiver = self.change.ok_or(OperationError::Unbalanced(asset))?;
+            let receiver = self
+                .change
+                .clone()
+                .ok_or(OperationError::Unbalanced(asset))?;
             change.push((receiver, asset, remainder));
         }
 
@@ -588,6 +605,46 @@ fn check_proofs<'a>(
     Ok(())
 }
 
+/// Encrypts each output note, carrying one shared KEM header on the first.
+///
+/// Notes to the sender are sealed under its self-secret. The rest must share a
+/// single receiver, whom the header encapsulates to (the sender if there's none),
+/// so every operation carries exactly one header whoever it pays.
+fn encrypt_outputs<R: RngCore + CryptoRng>(
+    sender: &EncryptionKey,
+    notes: &[(EncryptionPubKey, Commitment)],
+    rng: &mut R,
+) -> Result<Vec<Bytes>, OperationError> {
+    if notes.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let sender_pub = sender.public_key();
+    let mut others = notes.iter().map(|(r, _)| r).filter(|r| **r != sender_pub);
+    let receiver = others.next().unwrap_or(&sender_pub);
+    if others.any(|r| r != receiver) {
+        return Err(OperationError::TooManyReceivers);
+    }
+
+    let (shared, header) = receiver
+        .encapsulate(rng)
+        .map_err(CommitmentError::from)?;
+    notes
+        .iter()
+        .enumerate()
+        .map(|(i, (receiver, note))| {
+            let secret = if *receiver == sender_pub {
+                sender.self_secret()
+            } else {
+                &shared
+            };
+            let mut ciphertext = if i == 0 { header.to_vec() } else { Vec::new() };
+            ciphertext.extend(note.encrypt(secret)?);
+            Ok(ciphertext.into())
+        })
+        .collect()
+}
+
 /// Pads `items` with defaults up to the circuit's slot count `N`. Slot counts
 /// are checked in [`OperationBuilder::build`];
 fn pad<T: Default, const N: usize>(items: impl IntoIterator<Item = T>) -> [T; N] {
@@ -649,6 +706,52 @@ mod tests {
         op.simulate_with_mmr(&mmr).unwrap();
     }
 
+    /// Should encrypt a transfer's outputs for the receiver and the sender, with
+    /// one encapsulation header on the first output only.
+    #[test]
+    fn test_encrypts_outputs() {
+        let (sender, note) = funded(1);
+        let receiver = Account::from_seed(&[2; 32], Policy::NONE);
+
+        let op = OperationBuilder::new(&sender.encryption_key)
+            .spend(note)
+            .output(receiver.pub_account(), AssetId::default(), 30)
+            .change_to(sender.pub_account())
+            .build(&mut StdRng::seed_from_u64(1))
+            .unwrap();
+
+        let witness = op.witness();
+        let (header, paid) = witness.ciphertexts[0].split_first_chunk().unwrap();
+        let shared = receiver.encryption_key.decapsulate(header).unwrap();
+        let paid = Commitment::decrypt(paid, witness.outputs[0].hash(), &shared).unwrap();
+        let change = Commitment::decrypt(
+            &witness.ciphertexts[1],
+            witness.outputs[1].hash(),
+            sender.encryption_key.self_secret(),
+        )
+        .unwrap();
+        assert_eq!(paid, witness.outputs[0]);
+        assert_eq!(change, witness.outputs[1]);
+    }
+
+    /// Should refuse outputs to more than one receiver besides the sender.
+    #[test]
+    fn test_too_many_receivers() {
+        let (sender, note) = funded(1);
+        let receiver_1 = Account::from_seed(&[2; 32], Policy::NONE);
+        let receiver_2 = Account::from_seed(&[3; 32], Policy::NONE);
+
+        let err = OperationBuilder::new(&sender.encryption_key)
+            .spend(note)
+            .output(receiver_1.pub_account(), AssetId::default(), 30)
+            .output(receiver_2.pub_account(), AssetId::default(), 70)
+            .build(&mut StdRng::seed_from_u64(1))
+            .err()
+            .unwrap();
+
+        assert!(matches!(err, OperationError::TooManyReceivers));
+    }
+
     fn policy() -> Policy {
         Policy::new(Address::repeat_byte(1), Fr::from(7))
     }
@@ -664,11 +767,21 @@ mod tests {
         let mut mmr = SkewMmr::new();
         mmr.append(note.commitment());
 
-        let op = OperationBuilder::new()
+        let op = OperationBuilder::new(&account.encryption_key)
             .spend(note)
             .change_to(account.pub_account())
             .build(&mut StdRng::seed_from_u64(1))
             .unwrap();
         (op, mmr)
+    }
+
+    /// An account holding a note of 100 under no policy.
+    fn funded(seed: u8) -> (Account, OwnedNote) {
+        let account = Account::from_seed(&[seed; 32], Policy::NONE);
+        let note = account
+            .pub_account()
+            .commitment(AssetId::default(), 100, B256::ZERO);
+        let note = OwnedNote::new(note, &account).unwrap();
+        (account, note)
     }
 }

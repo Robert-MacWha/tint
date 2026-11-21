@@ -53,7 +53,7 @@ async fn unshield() -> Result<(), Box<dyn std::error::Error>> {
     info!("Unshielding");
     let notes = snapshot.unspent(&account_1);
 
-    let proven = OperationBuilder::new()
+    let proven = OperationBuilder::new(&account_1.encryption_key)
         .spend(notes[0].clone())
         .output(account_1.pub_account(), asset, 100)
         .withdraw(unshield_address, asset, amount - 100)

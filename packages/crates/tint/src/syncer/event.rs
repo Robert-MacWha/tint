@@ -8,7 +8,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     abis::tint::Tint,
-    account::{Account, keys::EncryptionKey},
+    account::{
+        Account,
+        keys::{EncryptionKey, HEADER_LEN},
+    },
+    crypto::secret::NoteSecret,
     fr::b256_to_fr,
     note::{
         asset::AssetId,
@@ -82,6 +86,13 @@ pub struct Withdrawn {
     pub block_number: u64,
 }
 
+/// Decrypts events in emission order, tracking the current operation's secret.
+struct Scanner<'a> {
+    key: &'a EncryptionKey,
+    /// The secret the current operation's header encapsulates to `key`, if any.
+    shared: Option<NoteSecret>,
+}
+
 impl Snapshot {
     #[must_use]
     pub fn new(tint: Address, range: Range<u64>, events: Vec<SyncEvent>) -> Self {
@@ -113,10 +124,11 @@ impl Snapshot {
     /// Returns the notes decryptable by `key` within this snapshot, deduplicated by commitment.
     #[must_use]
     pub fn notes(&self, key: &EncryptionKey) -> Vec<Commitment> {
+        let mut scanner = Scanner { key, shared: None };
         let mut seen = HashSet::new();
         self.events
             .iter()
-            .filter_map(|e| e.decrypt(key))
+            .filter_map(|e| scanner.scan(e))
             .filter(|note| seen.insert(note.hash()))
             .collect()
     }
@@ -233,25 +245,44 @@ impl SyncEvent {
         }
     }
 
-    /// Decrypts the note carried by this event, if it's addressed to `key` and
+}
+
+impl Scanner<'_> {
+    /// Decrypts the note `event` carries, if it's addressed to the key and
     /// hashes to the event's on-chain commitment.
-    #[must_use]
-    pub fn decrypt(&self, key: &EncryptionKey) -> Option<Commitment> {
-        let (note, commitment) = match self {
-            SyncEvent::Deposited(d) => {
-                let partial = PartialCommitment::from_encrypted(&d.encrypted_partial, key).ok()?;
-                (
-                    Commitment::from_partial(d.asset, d.amount, partial),
-                    d.commitment,
-                )
+    fn scan(&mut self, event: &SyncEvent) -> Option<Commitment> {
+        let (note, commitment) = match event {
+            SyncEvent::Deposited(d) => (self.deposited(d)?, d.commitment),
+            SyncEvent::Committed(c) => (self.committed(c)?, c.commitment),
+            SyncEvent::Nullified(_) | SyncEvent::Withdrawn(_) => {
+                self.shared = None;
+                return None;
             }
-            SyncEvent::Committed(c) => (
-                Commitment::from_encrypted(&c.encrypted_note, key).ok()?,
-                c.commitment,
-            ),
-            SyncEvent::Nullified(_) | SyncEvent::Withdrawn(_) => return None,
         };
         (note.hash() == commitment).then_some(note)
+    }
+
+    fn deposited(&mut self, deposited: &Deposited) -> Option<Commitment> {
+        self.shared = None;
+        let partial = PartialCommitment::decrypt(&deposited.encrypted_partial, self.key).ok()?;
+        Some(Commitment::from_partial(
+            deposited.asset,
+            deposited.amount,
+            partial,
+        ))
+    }
+
+    /// An operation's first output carries its header; the outputs after it
+    /// are sealed under the header's secret or their sender's self-secret.
+    fn committed(&mut self, committed: &Committed) -> Option<Commitment> {
+        let mut body = &committed.encrypted_note[..];
+        if let Some((header, rest)) = body.split_first_chunk::<HEADER_LEN>() {
+            self.shared = self.key.decapsulate(header);
+            body = rest;
+        }
+
+        let decrypt = |secret| Commitment::decrypt(body, committed.commitment, secret).ok();
+        decrypt(self.key.self_secret()).or_else(|| self.shared.as_ref().and_then(decrypt))
     }
 }
 
@@ -273,15 +304,33 @@ mod tests {
     fn note(account: &Account, amount: u128) -> Commitment {
         account
             .pub_account()
-            .commitment(ASSET, amount, B256::repeat_byte(0x42))
+            .commitment(ASSET, amount, B256::new([amount as u8; 32]))
     }
 
-    fn committed(account: &Account, note: &Commitment, commitment: Fr) -> SyncEvent {
+    /// A header encapsulating a fresh secret to `account`.
+    fn header(account: &Account) -> (NoteSecret, [u8; HEADER_LEN]) {
         let mut rng = StdRng::seed_from_u64(1);
-        let encrypted_note = note
-            .encrypt(&[account.pub_account().encryption_pub_key], &mut rng)
+        account
+            .encryption_key
+            .public_key()
+            .encapsulate(&mut rng)
             .unwrap()
-            .into();
+    }
+
+    /// `plaintext` sealed under `secret` for `commitment`, after `header` if given.
+    fn ciphertext(
+        header: Option<&[u8; HEADER_LEN]>,
+        secret: &NoteSecret,
+        commitment: Fr,
+        plaintext: &impl Serialize,
+    ) -> Bytes {
+        let plaintext = postcard::to_stdvec(plaintext).unwrap();
+        let mut ciphertext = header.map(|h| h.to_vec()).unwrap_or_default();
+        ciphertext.extend(secret.seal(commitment, &plaintext).unwrap());
+        ciphertext.into()
+    }
+
+    fn committed(commitment: Fr, encrypted_note: Bytes) -> SyncEvent {
         SyncEvent::Committed(Committed {
             commitment,
             leaf_index: 0,
@@ -294,7 +343,7 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(2);
         let encrypted_partial = note
             .partial()
-            .encrypt(&[account.pub_account().encryption_pub_key], &mut rng)
+            .encrypt(&account.encryption_key.public_key(), &mut rng)
             .unwrap()
             .into();
         SyncEvent::Deposited(Deposited {
@@ -307,6 +356,13 @@ mod tests {
         })
     }
 
+    fn nullified() -> SyncEvent {
+        SyncEvent::Nullified(Nullified {
+            nullifier: Fr::from(1u64),
+            block_number: 1,
+        })
+    }
+
     fn snapshot(events: Vec<SyncEvent>) -> Snapshot {
         Snapshot::new(Address::ZERO, 0..2, events)
     }
@@ -315,8 +371,12 @@ mod tests {
     fn matching_notes_are_found() {
         let account = account();
         let note = note(&account, 1_000);
+        let (secret, header) = header(&account);
         let snapshot = snapshot(vec![
-            committed(&account, &note, note.hash()),
+            committed(
+                note.hash(),
+                ciphertext(Some(&header), &secret, note.hash(), &note),
+            ),
             deposited(&account, &note, note.hash()),
         ]);
 
@@ -326,12 +386,96 @@ mod tests {
     }
 
     #[test]
+    fn outputs_after_a_header_share_its_secret() {
+        let account = account();
+        let (first, second) = (note(&account, 1), note(&account, 2));
+        let (secret, header) = header(&account);
+        let snapshot = snapshot(vec![
+            committed(
+                first.hash(),
+                ciphertext(Some(&header), &secret, first.hash(), &first),
+            ),
+            committed(
+                second.hash(),
+                ciphertext(None, &secret, second.hash(), &second),
+            ),
+        ]);
+
+        assert_eq!(snapshot.notes(&account.encryption_key), [first, second]);
+    }
+
+    #[test]
+    fn self_sealed_outputs_are_found() {
+        let account = account();
+        let receiver = Account::from_seed(&[8u8; 32], Policy::NONE);
+        let (paid, change) = (note(&receiver, 1), note(&account, 2));
+        let (secret, header) = header(&receiver);
+        let snapshot = snapshot(vec![
+            committed(
+                paid.hash(),
+                ciphertext(Some(&header), &secret, paid.hash(), &paid),
+            ),
+            committed(
+                change.hash(),
+                ciphertext(
+                    None,
+                    account.encryption_key.self_secret(),
+                    change.hash(),
+                    &change,
+                ),
+            ),
+        ]);
+
+        assert_eq!(snapshot.notes(&account.encryption_key), [change]);
+        assert_eq!(snapshot.notes(&receiver.encryption_key), [paid]);
+    }
+
+    #[test]
+    fn header_secret_ends_with_its_operation() {
+        let account = account();
+        let (first, second) = (note(&account, 1), note(&account, 2));
+        let (secret, header) = header(&account);
+        let snapshot = snapshot(vec![
+            committed(
+                first.hash(),
+                ciphertext(Some(&header), &secret, first.hash(), &first),
+            ),
+            nullified(),
+            committed(
+                second.hash(),
+                ciphertext(None, &secret, second.hash(), &second),
+            ),
+        ]);
+
+        assert_eq!(snapshot.notes(&account.encryption_key), [first]);
+    }
+
+    /// The view tag alone rejects a header, even one that would decapsulate.
+    #[test]
+    fn wrong_view_tag_is_skipped() {
+        let account = account();
+        let note = note(&account, 1_000);
+        let (secret, mut header) = header(&account);
+        header[0] ^= 1;
+        let event = committed(
+            note.hash(),
+            ciphertext(Some(&header), &secret, note.hash(), &note),
+        );
+
+        assert!(snapshot(vec![event]).notes(&account.encryption_key).is_empty());
+    }
+
+    #[test]
     fn mismatched_committed_note_is_dropped() {
         let account = account();
         let claimed = note(&account, 1_000_000);
-        let event = committed(&account, &claimed, Fr::from(12345u64));
+        let on_chain = Fr::from(12345u64);
+        let (secret, header) = header(&account);
+        let event = committed(
+            on_chain,
+            ciphertext(Some(&header), &secret, on_chain, &claimed),
+        );
 
-        assert!(event.decrypt(&account.encryption_key).is_none());
         assert!(snapshot(vec![event]).unspent(&account).is_empty());
     }
 
@@ -341,7 +485,6 @@ mod tests {
         let claimed = note(&account, 5_000_000);
         let event = deposited(&account, &claimed, Fr::from(999u64));
 
-        assert!(event.decrypt(&account.encryption_key).is_none());
         assert!(snapshot(vec![event]).unspent(&account).is_empty());
     }
 
@@ -356,6 +499,7 @@ mod tests {
         ]);
         let event = deposited(&account, &zero, on_chain);
 
-        assert!(event.decrypt(&account.encryption_key).is_none());
+        assert!(snapshot(vec![event]).notes(&account.encryption_key).is_empty());
     }
 }
+

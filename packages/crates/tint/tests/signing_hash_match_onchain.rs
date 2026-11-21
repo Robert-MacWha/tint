@@ -49,7 +49,7 @@ async fn signing_hash_match_onchain() -> Result<(), Box<dyn std::error::Error>> 
     let mut mmr = SkewMmr::new();
     mmr.append(note.commitment());
 
-    let op = OperationBuilder::new()
+    let op = OperationBuilder::new(&account.encryption_key)
         .spend(note)
         .output(account.pub_account(), asset, 60)
         .withdraw(Address::repeat_byte(2), asset, 40)

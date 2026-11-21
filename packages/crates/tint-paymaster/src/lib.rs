@@ -165,7 +165,7 @@ impl Refund {
         let commitment = receiver.commitment(AssetId::default(), 0, random);
         let encrypted = commitment
             .partial()
-            .encrypt(&[receiver.encryption_pub_key], rng)?;
+            .encrypt(&receiver.encryption_pub_key, rng)?;
 
         Ok(Self::Deposit {
             partial_commitment: fr_to_b256(commitment.partial_hash()),

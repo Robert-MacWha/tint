@@ -2,7 +2,6 @@ use ark_bn254::Fr;
 use ark_ff::PrimeField;
 use hkdf::Hkdf;
 use sha2::Sha256;
-use x25519_dalek::StaticSecret;
 
 use crate::{
     account::{
@@ -27,7 +26,7 @@ pub struct Account {
 
 // Info strings used for HKDF key derivation.
 const NULLIFIER_KEY_INFO: &[u8] = b"tint/nullifier-key/v1";
-const ENCRYPTION_KEY_INFO: &[u8] = b"tint/encryption-key/v1";
+const ENCRYPTION_KEY_INFO: &[u8] = b"tint/encryption-key/v2";
 
 impl Account {
     #[must_use]
@@ -56,7 +55,7 @@ impl Account {
         let mut encryption_bytes = [0u8; 32];
         hkdf.expand(ENCRYPTION_KEY_INFO, &mut encryption_bytes)
             .expect("32 bytes is a valid HKDF-SHA256 output length");
-        let encryption_key = EncryptionKey(StaticSecret::from(encryption_bytes));
+        let encryption_key = EncryptionKey::from_seed(encryption_bytes);
 
         Self::new(nullifier_key, encryption_key, policy)
     }

@@ -41,6 +41,7 @@ rand_core = { workspace = true, features = ["getrandom"] }
 ruint = { workspace = true, features = ["ark-ff-06"] }
 serde = { workspace = true }
 serde_with = { workspace = true }
+shake = { workspace = true }
 sha2 = { workspace = true }
 skew-mmr = { workspace = true }
 taceo-groth16-sol = { version = "0.4.2", optional = true }
@@ -49,7 +50,8 @@ tint-groth16 = { workspace = true }
 tint-poseidon2 = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing = { workspace = true }
-x25519-dalek = { workspace = true, features = ["static_secrets", "serde"] }
+x-wing = { workspace = true, features = ["hazmat"] }
+x25519-dalek = { workspace = true, features = ["static_secrets"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }

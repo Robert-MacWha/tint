@@ -2,6 +2,7 @@
 members = [
     "cli",
     "tint",
+    "tint-adapter",
     "tint-groth16",
     "tint-multisig-policy",
     "tint-paymaster",

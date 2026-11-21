@@ -85,13 +85,25 @@ Tint currently targets staked 4337 paymasters.
 
 TODO: EIP-8141 support on the Hegota devnet using the same approach. Same code should work, just different opcodes. Will either require keyed nonces or an alt mempool for storage writes in the verify frame.
 
+## Dapp Interactions
+
+**[TintAdapter](./packages/contracts/src/TintAdapter.sol)** lets a shielded operation interact with dapps (swaps, lending, staking) atomically, without the user holding public funds. An operation unshields to the adapter, which makes a list of calls (e.g. a Uniswap swap or an Aave supply) and then shields its resulting balances back into Tint as new notes. The notes' partial commitments are chosen up front, since a deposit's amount is only bound when it lands. The operation names the adapter as its `caller` and binds the calls and shields, so anyone can submit the relay but no one can alter it. If any call fails the whole relay reverts, leaving the notes unspent. Client support is in [tint-adapter](./packages/crates/tint-adapter/).
+
+- **Leftovers.** The adapter holds nothing between relays, and any balance left in it goes to the next relay that shields that asset. Shield every asset a relay may leave behind.
+- **Allowances.** Calls run as the adapter, so allowances they grant persist. Approve exactly what the dapp pulls.
+- **Slippage.** Minimum outputs are the dapp call's job (e.g. Uniswap's `amountOutMinimum`).
+- **Native ETH.** Calls may unwrap WETH to spend ETH, but must wrap any ETH they receive themselves.
+- **Rebasing tokens.** A shielded note's amount is fixed, so yield a rebasing token (e.g. an Aave aToken) accrues inside Tint isn't credited to the note. Prefer non-rebasing wrappers.
+- **Paymaster.** An operation has one `caller`, so it can't be both relayed and pay a `TintPaymaster`. Pay gas with a second operation through the paymaster, and relay from the userop's call.
+
 ## Repository Layout
 
-- [`packages/contracts`](./packages/contracts/): Foundry contracts: the `Tint` pool, `TintPaymaster`, the generated Groth16 verifier, and example policies.
+- [`packages/contracts`](./packages/contracts/): Foundry contracts: the `Tint` pool, `TintPaymaster`, `TintAdapter`, the generated Groth16 verifier, and example policies.
 - [`packages/crates`](./packages/crates/): Rust workspace:
   - `tint`: core protocol: circuits, accounts, notes, encryption, event sync, and the operation builder.
   - `cli`: minimal demo CLI (`tint-cli`).
   - `tint-paymaster`: ERC-4337 client for `TintPaymaster`.
+  - `tint-adapter`: client for relaying operations to dapps through `TintAdapter`.
   - `tint-multisig-policy`, `tint-password-policy`: example policies.
   - `tint-groth16`, `tint-poseidon2`: Groth16 and Poseidon2 support crates.
 - [`docs`](./docs/): design notes ([policy](./docs/policy.md), [note encryption](./docs/note-encryption.md), [Picus verification](./docs/picus-verification.md)).

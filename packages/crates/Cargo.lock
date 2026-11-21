@@ -5756,6 +5756,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "tint-adapter"
+version = "0.1.0"
+dependencies = [
+ "alloy-contract",
+ "alloy-node-bindings",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-types-eth",
+ "alloy-signer-local",
+ "alloy-sol-macro",
+ "alloy-sol-types",
+ "anyhow",
+ "ark-std 0.6.0",
+ "rand_core 0.6.4",
+ "thiserror",
+ "tint",
+ "tint-groth16",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "tint-groth16"
 version = "0.1.0"
 dependencies = [

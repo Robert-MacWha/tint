@@ -78,7 +78,7 @@ tint-cli transfer alice bob $TOKEN 500 --sponsor   # --max-fee caps the WETH set
 
 The fee is estimated with a simulated operation first. Password and timelock accounts simulate with placeholder proofs, but multisig and hardware-wallet accounts sign twice.
 
-The bundler and `kohaku-userop-kit` expect the canonical v0.8 EntryPoint (`0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108`) and `Simple7702Account` (`0xe6Cae83BdE06E4c305530e199D7217f42808555B`). The paymaster also needs an EntryPoint deposit and stake. `just deploy-local` deploys its own EntryPoint instead, so for a local paymaster deploy both through the CREATE2 deployer and run `DeployTestnet.s.sol` without `ENTRY_POINT_ADDRESS`.
+The bundler and `kohaku-userop-kit` expect the canonical v0.8 EntryPoint (`0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108`) and `Simple7702Account` (`0xe6Cae83BdE06E4c305530e199D7217f42808555B`). `just deploy-local` deploys both if missing and funds and stakes the paymaster. Locally, run `alto` (in the dev shell) against the anvil, as the comment on `deploy-local` in the root `justfile` shows.
 
 ## Dapp Relays
 

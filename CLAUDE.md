@@ -29,6 +29,8 @@ Use `nix develop` (or direnv, via `.envrc`) to get `just`, `pnpm`, `foundry`, an
 just run <cli-args>       # builds contracts (forge build) then `cargo run --release` for tint-cli
 just setup                 # forge build only (contracts)
 just env                   # prints RPC_URL/PRIVATE_KEY etc. decrypted from secrets/secrets.yaml via sops
+just deploy-local          # deploys every contract (DeployTestnet.s.sol) to a running anvil, with the canonical EntryPoint, mock WETH and a staked paymaster
+just deploy                # same, to RPC_URL with PRIVATE_KEY from `just env`; needs WETH_ADDRESS (ENTRY_POINT_ADDRESS defaults to v0.8)
 ```
 
 Rust (run from `packages/crates/`):

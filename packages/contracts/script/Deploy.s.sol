@@ -13,9 +13,8 @@ contract Deploy is Script {
     function run() external returns (TintVerifier verifier, Tint tint) {
         vm.startBroadcast();
 
-        verifier = new TintVerifier();
         Poseidon2T3 poseidon = new Poseidon2T3();
-        tint = new Tint(verifier, poseidon);
+        (verifier, tint) = deployTint(poseidon);
 
         vm.stopBroadcast();
 
@@ -23,4 +22,10 @@ contract Deploy is Script {
         console.log("Poseidon2T3 deployed to", address(poseidon));
         console.log("Tint deployed to", address(tint));
     }
+}
+
+/// Deploys Tint with its verifier, over an existing Poseidon2-T3.
+function deployTint(Poseidon2T3 poseidon) returns (TintVerifier verifier, Tint tint) {
+    verifier = new TintVerifier();
+    tint = new Tint(verifier, poseidon);
 }

@@ -12,9 +12,8 @@ contract DeployIntentPolicy is Script {
     function run() external returns (Verifier verifier, IntentPolicy policy) {
         vm.startBroadcast();
 
-        verifier = new Verifier();
         Poseidon2T2 poseidon = new Poseidon2T2();
-        policy = new IntentPolicy(verifier, poseidon);
+        (verifier, policy) = deployIntentPolicy(poseidon);
 
         vm.stopBroadcast();
 
@@ -22,4 +21,10 @@ contract DeployIntentPolicy is Script {
         console.log("Poseidon2T2 deployed to", address(poseidon));
         console.log("IntentPolicy deployed to", address(policy));
     }
+}
+
+/// Deploys the IntentPolicy contract with its verifier, over an existing Poseidon2-T2.
+function deployIntentPolicy(Poseidon2T2 poseidon) returns (Verifier verifier, IntentPolicy policy) {
+    verifier = new Verifier();
+    policy = new IntentPolicy(verifier, poseidon);
 }

@@ -12,9 +12,8 @@ contract DeployPasswordPolicy is Script {
     function run() external returns (Verifier verifier, PasswordPolicy policy) {
         vm.startBroadcast();
 
-        verifier = new Verifier();
         Poseidon2T2 poseidon = new Poseidon2T2();
-        policy = new PasswordPolicy(verifier, poseidon);
+        (verifier, policy) = deployPasswordPolicy(poseidon);
 
         vm.stopBroadcast();
 
@@ -22,4 +21,10 @@ contract DeployPasswordPolicy is Script {
         console.log("Poseidon2T2 deployed to", address(poseidon));
         console.log("PasswordPolicy deployed to", address(policy));
     }
+}
+
+/// Deploys the PasswordPolicy contract with its verifier, over an existing Poseidon2-T2.
+function deployPasswordPolicy(Poseidon2T2 poseidon) returns (Verifier verifier, PasswordPolicy policy) {
+    verifier = new Verifier();
+    policy = new PasswordPolicy(verifier, poseidon);
 }

@@ -3,27 +3,26 @@ use std::io::{self, Write};
 use alloy::primitives::{Address, keccak256};
 use ark_bn254::Fr;
 use ark_ff::PrimeField;
+use tint::policy::Policy;
 use tint_password_policy::{circuit::PasswordPolicyCircuit, policy::PasswordPolicy};
 
-use crate::{
-    account::{Authorizer, resolve_policy_address},
-    config::{PolicyState, load_circuit},
-};
+use crate::{account::Authorizer, config::load_circuit};
 
-const POLICY_ADDRESS_ENV_VAR: &str = "PASSWORD_POLICY_ADDRESS";
-
-pub fn create_password_account(name: &str) -> anyhow::Result<(Authorizer, PolicyState)> {
-    let address = resolve_policy_address(POLICY_ADDRESS_ENV_VAR, name)?;
-    let authorizer = load_password_authorizer(address)?;
-    Ok((authorizer, PolicyState::Password { address }))
+/// Prompts for a new account's password, returning its policy.
+pub fn create(contract_address: Address) -> anyhow::Result<Policy> {
+    Ok(password_policy(contract_address)?.policy())
 }
 
-pub fn load_password_authorizer(contract_address: Address) -> anyhow::Result<Authorizer> {
-    let artifacts = load_circuit::<PasswordPolicyCircuit>("password")?;
+pub fn load(contract_address: Address) -> anyhow::Result<Authorizer> {
+    Ok(Authorizer::Password(Box::new(password_policy(
+        contract_address,
+    )?)))
+}
 
+fn password_policy(contract_address: Address) -> anyhow::Result<PasswordPolicy> {
+    let artifacts = load_circuit::<PasswordPolicyCircuit>("password")?;
     let password = prompt_password()?;
-    let policy = PasswordPolicy::new(contract_address, password, artifacts);
-    Ok(Authorizer::Password(Box::new(policy)))
+    Ok(PasswordPolicy::new(contract_address, password, artifacts))
 }
 
 fn prompt_password() -> io::Result<Fr> {

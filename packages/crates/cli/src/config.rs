@@ -3,12 +3,17 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use alloy::primitives::{Address, hex};
+use alloy::primitives::{Address, B256};
 use anyhow::Context;
 use ark_bn254::{Bn254, Fr};
 use ark_relations::gr1cs::ConstraintSynthesizer;
 use serde::{Deserialize, Serialize};
-use tint::account::{Account, pub_account::PubAccount};
+use tint::{
+    account::Account,
+    fr::{b256_to_fr, fr_to_b256},
+    policy::Policy,
+    syncer::Snapshot,
+};
 use tint_groth16::{
     artifacts::Artifacts,
     serde::{
@@ -16,40 +21,74 @@ use tint_groth16::{
         serialize_vk,
     },
 };
+use tint_intent_policy::intent::{CancelKey, Intent};
 use tint_multisig_policy::N_SIGNERS;
 use tracing::info;
 
-use crate::account::{
-    Authorizer,
-    multisig::{create_multisig_account, load_multisig_authorizer},
-    password::{create_password_account, load_password_authorizer},
-};
+/// A local account: its seed, its notes' policy, and how to authorize spends.
+#[derive(Serialize, Deserialize)]
+pub struct StoredAccount {
+    pub seed: B256,
+    pub policy_address: Address,
+    pub policy_witness: B256,
+    pub spend: SpendPolicy,
+}
 
-#[derive(Clone, clap::ValueEnum)]
-pub enum AccountPolicy {
-    Noop,
+/// An intent this wallet posted, with the secrets needed to claim or cancel it.
+#[derive(Serialize, Deserialize)]
+pub struct StoredIntent {
+    pub intent: Intent,
+    pub cancel_key: B256,
+    /// Seed of the one-time account that receives the intent's wanted note.
+    pub receiver_seed: B256,
+}
+
+/// Policy-specific state needed to authorize spends.
+#[derive(Serialize, Deserialize)]
+pub enum SpendPolicy {
+    None,
     Password,
-    Multisig,
+    Multisig { signers: [String; N_SIGNERS] },
+    HardwareWallet(HardwareSigner),
+    Timelock { unlock_time: u64, salt: B256 },
 }
 
+/// The signer behind a hardware-wallet account.
 #[derive(Serialize, Deserialize)]
-struct StoredAccount {
-    seed: String,
-    receiver: PubAccount,
-    policy: PolicyState,
+pub enum HardwareSigner {
+    /// A Ledger's Ledger Live account at this index.
+    Ledger { index: usize },
+    /// A local private key, signing through the same path as a device.
+    PrivateKey(B256),
 }
 
-/// Policy-specific persistent state.
-#[derive(Serialize, Deserialize)]
-pub(crate) enum PolicyState {
-    Noop,
-    Password {
-        address: Address,
-    },
-    Multisig {
-        address: Address,
-        signers: [String; N_SIGNERS],
-    },
+impl StoredAccount {
+    pub fn new(seed: B256, policy: Policy, spend: SpendPolicy) -> Self {
+        Self {
+            seed,
+            policy_address: policy.address,
+            policy_witness: fr_to_b256(policy.witness),
+            spend,
+        }
+    }
+
+    pub fn policy(&self) -> Policy {
+        Policy::new(self.policy_address, b256_to_fr(self.policy_witness))
+    }
+
+    pub fn account(&self) -> Account {
+        Account::from_seed(&self.seed.0, self.policy())
+    }
+}
+
+impl StoredIntent {
+    pub fn cancel_key(&self) -> CancelKey {
+        CancelKey(b256_to_fr(self.cancel_key))
+    }
+
+    pub fn receiver(&self) -> Account {
+        Account::from_seed(&self.receiver_seed.0, Policy::NONE)
+    }
 }
 
 /// Lists all local account names, returning an empty list if none exist.
@@ -74,66 +113,22 @@ pub fn list_accounts() -> anyhow::Result<Vec<String>> {
         })?;
         accounts.push(name);
     }
+    accounts.sort();
     Ok(accounts)
 }
 
-/// Creates a new named account, failing if one with this name already exists.
-pub fn create_account(name: &str, policy: AccountPolicy) -> anyhow::Result<()> {
+/// Saves a new named account, failing if one with this name already exists.
+pub fn save_new_account(name: &str, account: &StoredAccount) -> anyhow::Result<()> {
     let dir = account_dir(name);
     if dir.exists() {
         anyhow::bail!("account \"{name}\" already exists at {}", dir.display());
     }
     fs::create_dir_all(&dir)?;
-
-    let mut seed = [0u8; 32];
-    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut seed);
-
-    let (authorizer, state) = match policy {
-        AccountPolicy::Noop => (Authorizer::Noop, PolicyState::Noop),
-        AccountPolicy::Password => create_password_account(name)?,
-        AccountPolicy::Multisig => create_multisig_account(name)?,
-    };
-    let account = Account::from_seed(&seed, authorizer.policy());
-
-    let stored = StoredAccount {
-        seed: hex::encode_prefixed(seed),
-        receiver: account.pub_account(),
-        policy: state,
-    };
-    fs::write(account_file(name), serde_json::to_string_pretty(&stored)?)
-        .with_context(|| format!("writing account file for \"{name}\""))?;
-
-    Ok(())
+    fs::write(account_file(name), serde_json::to_string_pretty(account)?)
+        .with_context(|| format!("writing account file for \"{name}\""))
 }
 
-/// Loads a previously created named account and its policy's authorizer.
-pub fn load_account(name: &str) -> anyhow::Result<(Account, Authorizer)> {
-    let stored = read_stored_account(name)?;
-    let seed = decode_seed(name, &stored.seed)?;
-
-    let authorizer = match stored.policy {
-        PolicyState::Noop => Authorizer::Noop,
-        PolicyState::Password { address } => load_password_authorizer(address)?,
-        PolicyState::Multisig { address, signers } => {
-            load_multisig_authorizer(address, &signers)?
-        }
-    };
-    Ok((Account::from_seed(&seed, authorizer.policy()), authorizer))
-}
-
-/// Loads a previously created named account's public account.
-pub fn load_pub_account(name: &str) -> anyhow::Result<PubAccount> {
-    Ok(read_stored_account(name)?.receiver)
-}
-
-fn decode_seed(name: &str, seed: &str) -> anyhow::Result<[u8; 32]> {
-    let seed_bytes = hex::decode(seed)?;
-    seed_bytes
-        .try_into()
-        .map_err(|_| anyhow::anyhow!("corrupt account file for \"{name}\": seed is not 32 bytes"))
-}
-
-fn read_stored_account(name: &str) -> anyhow::Result<StoredAccount> {
+pub fn load_account(name: &str) -> anyhow::Result<StoredAccount> {
     let path = account_file(name);
     let contents = fs::read_to_string(&path).with_context(|| {
         format!(
@@ -141,7 +136,40 @@ fn read_stored_account(name: &str) -> anyhow::Result<StoredAccount> {
             path.display()
         )
     })?;
-    Ok(serde_json::from_str(&contents)?)
+    serde_json::from_str(&contents).with_context(|| format!("corrupt account file for \"{name}\""))
+}
+
+/// Loads a snapshot of the Tint deployment at `tint` on `chain_id`, if one was saved.
+pub fn load_snapshot(chain_id: u64, tint: Address) -> anyhow::Result<Option<Snapshot>> {
+    let path = snapshot_file(chain_id, tint);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let contents = fs::read(&path).context("reading snapshot")?;
+    Ok(Some(
+        serde_json::from_slice(&contents).context("corrupt snapshot")?,
+    ))
+}
+
+pub fn save_snapshot(chain_id: u64, snapshot: &Snapshot) -> anyhow::Result<()> {
+    let path = snapshot_file(chain_id, snapshot.tint);
+    fs::create_dir_all(base_dir().join("snapshots"))?;
+    fs::write(path, serde_json::to_vec(snapshot)?).context("writing snapshot")
+}
+
+/// Loads the intents `name` posted, returning an empty list if none exist.
+pub fn load_intents(name: &str) -> anyhow::Result<Vec<StoredIntent>> {
+    let path = account_dir(name).join("intents.json");
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let contents = fs::read_to_string(&path).context("reading intents")?;
+    serde_json::from_str(&contents).context("corrupt intents file")
+}
+
+pub fn save_intents(name: &str, intents: &[StoredIntent]) -> anyhow::Result<()> {
+    let path = account_dir(name).join("intents.json");
+    fs::write(path, serde_json::to_string_pretty(intents)?).context("writing intents")
 }
 
 /// Loads the cached Groth16 proving/verifying keys from disk, generating and
@@ -195,4 +223,37 @@ fn account_dir(name: &str) -> PathBuf {
 
 fn account_file(name: &str) -> PathBuf {
     account_dir(name).join("account.json")
+}
+
+fn snapshot_file(chain_id: u64, tint: Address) -> PathBuf {
+    base_dir()
+        .join("snapshots")
+        .join(format!("{chain_id}-{tint}.json"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stored_account_round_trips_its_account() {
+        let policy = Policy::new(Address::repeat_byte(1), Fr::from(42u64));
+        let stored = StoredAccount::new(
+            B256::repeat_byte(7),
+            policy,
+            SpendPolicy::Timelock {
+                unlock_time: 1_000,
+                salt: B256::repeat_byte(2),
+            },
+        );
+
+        let json = serde_json::to_string(&stored).unwrap();
+        let decoded: StoredAccount = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(decoded.policy(), policy);
+        assert_eq!(
+            decoded.account().pub_account(),
+            stored.account().pub_account()
+        );
+    }
 }

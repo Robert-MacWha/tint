@@ -107,7 +107,7 @@ TODO: EIP-8141 support on the Hegota devnet using the same approach. Same code s
 - [`packages/contracts`](./packages/contracts/): Foundry contracts: the `Tint` pool, `TintPaymaster`, `TintAdapter`, the generated Groth16 verifier, and example policies.
 - [`packages/crates`](./packages/crates/): Rust workspace:
   - `tint`: core protocol: circuits, accounts, notes, encryption, event sync, and the operation builder.
-  - `cli`: minimal demo CLI (`tint-cli`).
+  - `cli`: command-line wallet (`tint-cli`). See its [README](./packages/crates/cli/README.md).
   - `tint-paymaster`: ERC-4337 client for `TintPaymaster`.
   - `tint-adapter`: client for relaying operations to dapps through `TintAdapter`.
   - `tint-multisig-policy`, `tint-password-policy`: example policies.
@@ -115,6 +115,8 @@ TODO: EIP-8141 support on the Hegota devnet using the same approach. Same code s
 - [`docs`](./docs/): design notes ([policy](./docs/policy.md), [note encryption](./docs/note-encryption.md), [Picus verification](./docs/picus-verification.md)).
 
 ## CLI Examples
+
+See the [CLI README](./packages/crates/cli/README.md) for every command.
 
 **Environment Variables**
 
@@ -135,8 +137,8 @@ just run set-balance 100000000000000000000
 just run set-erc20-balance $TOKEN 100000000000000000000
 
 # Create tint accounts
-just run create alice
-just run create bob
+just run account create alice
+just run account create bob
 
 # Shield into alice's account
 just run shield alice $TOKEN 1000
@@ -161,7 +163,7 @@ just run balance alice
 
 **Password Policy**
 ```bash
-just run create charlie --policy password
+just run account create charlie --policy password
 # > enter password when prompted
 
 just run shield charlie $TOKEN 1000
@@ -171,7 +173,7 @@ just run transfer charlie alice $TOKEN 500
 
 **ECDSA Multisig Policy**
 ```bash
-just run create dave --policy multisig
+just run account create dave --policy multisig
 # > Enter public keys for multisig as prompted
 
 just run shield dave $TOKEN 1000

@@ -230,6 +230,8 @@ enum IntentCommand {
         account: String,
         id: B256,
         #[command(flatten)]
+        intent: IntentArgs,
+        #[command(flatten)]
         chain: ChainArgs,
     },
     /// Reclaim an unfilled intent's note and remove it from the relay
@@ -459,9 +461,14 @@ async fn run_intent(command: IntentCommand) -> anyhow::Result<()> {
             let chain = Chain::connect(&chain).await?;
             intent::status(&chain, &account).await
         }
-        IntentCommand::Claim { account, id, chain } => {
+        IntentCommand::Claim {
+            account,
+            id,
+            intent,
+            chain,
+        } => {
             let mut chain = Chain::connect(&chain).await?;
-            intent::claim(&mut chain, &account, id).await
+            intent::claim(&mut chain, &account, &intent, id).await
         }
         IntentCommand::Cancel {
             account,

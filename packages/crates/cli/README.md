@@ -104,7 +104,7 @@ MAKER_SEED=0x... PRIVATE_KEY=0x... cargo run --release --bin tint-intent-maker -
 tint-cli intent post alice --offer $TOKEN=1000 --want $TOKB=600 --expires-in 3600   # prints the id
 tint-cli intent list --want-asset $TOKB
 tint-cli intent status alice     # open, filled, expired, ...
-tint-cli intent claim alice $ID
+tint-cli intent claim alice $ID  # also removes it from the relay
 tint-cli intent fill bob $ID     # fill someone else's intent from bob's notes
 tint-cli intent cancel alice $ID # reclaim the note and remove it from the relay
 ```

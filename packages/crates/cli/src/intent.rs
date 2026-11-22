@@ -143,7 +143,12 @@ pub async fn status(chain: &Chain, name: &str) -> anyhow::Result<()> {
 }
 
 /// Moves a filled intent's received note into `name`'s account.
-pub async fn claim(chain: &mut Chain, name: &str, id: B256) -> anyhow::Result<()> {
+pub async fn claim(
+    chain: &mut Chain,
+    name: &str,
+    args: &IntentArgs,
+    id: B256,
+) -> anyhow::Result<()> {
     let account = config::load_account(name)?.account();
     let (index, stored) = find_intent(name, id)?;
     let receiver = stored.receiver();
@@ -159,6 +164,7 @@ pub async fn claim(chain: &mut Chain, name: &str, id: B256) -> anyhow::Result<()
         .build(&mut OsRng)?;
     let proven = chain::prove_authorized(chain, op)?;
     chain.send(proven.transaction(chain.tint)).await?;
+    remove_from_relay(args, &stored).await;
     remove_intent(name, index)?;
     chain.sync().await
 }
@@ -190,10 +196,7 @@ pub async fn cancel(
     )?;
     let proven = chain::prove_authorized(chain, op)?;
     chain.send(proven.transaction(chain.tint)).await?;
-
-    if let Err(err) = args.relay().cancel(id, &stored.cancel_key()).await {
-        warn!("Couldn't remove the intent from the relay: {err}");
-    }
+    remove_from_relay(args, &stored).await;
     remove_intent(name, index)?;
     chain.sync().await
 }
@@ -261,6 +264,14 @@ fn intent_status(chain: &Chain, stored: &StoredIntent, now: u64) -> &'static str
         return "expired, cancel to reclaim";
     }
     "open"
+}
+
+/// Removes a settled intent from the relay, which keeps listing it otherwise.
+async fn remove_from_relay(args: &IntentArgs, stored: &StoredIntent) {
+    let id = stored.intent.id();
+    if let Err(err) = args.relay().cancel(id, &stored.cancel_key()).await {
+        warn!("Couldn't remove the intent from the relay: {err}");
+    }
 }
 
 fn find_intent(name: &str, id: B256) -> anyhow::Result<(usize, StoredIntent)> {

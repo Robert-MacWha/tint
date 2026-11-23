@@ -1,4 +1,5 @@
 pub mod ffi;
+pub mod hardware_wallet;
 pub mod policy;
 pub mod pubkey_hash;
 

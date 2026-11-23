@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use alloy_primitives::Address;
 use alloy_provider::DynProvider;
 use alloy_sol_macro::sol;

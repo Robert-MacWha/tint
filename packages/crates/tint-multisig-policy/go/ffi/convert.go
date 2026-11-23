@@ -49,6 +49,34 @@ func fromCProveInput(input *C.TintProveInput) circuit.MultisigPolicyCircuit[emul
 	}
 }
 
+func fromCHardwareWalletProveInput(input *C.TintHardwareWalletProveInput) circuit.HardwareWalletPolicyCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr] {
+	operation := fromCOperation(&input.operation)
+	key := fromCPubKeyXY(input.pub_key)
+	sig := fromCSignatureRS(input.signature)
+
+	policyAddress := fromCFr(input.policy_address)
+	contextHash := fromCFr(input.context_hash)
+	signingHash := poseidon2.Compress2([2]frbn254.Element{operation.Hash(), contextHash})
+	digestHi, digestLo := circuit.DigestLimbs(fromCBytes32(input.digest))
+
+	return circuit.HardwareWalletPolicyCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		PolicyAddress: policyAddress.String(),
+		SigningHash:   signingHash.String(),
+		DigestHi:      digestHi,
+		DigestLo:      digestLo,
+		Operation:     operation.ToVar(),
+		ContextHash:   contextHash.String(),
+		PubKey: stdecdsa.PublicKey[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](key.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](key.Y),
+		},
+		Signature: stdecdsa.Signature[emulated.Secp256k1Fr]{
+			R: emulated.ValueOf[emulated.Secp256k1Fr](sig.R),
+			S: emulated.ValueOf[emulated.Secp256k1Fr](sig.S),
+		},
+	}
+}
+
 func fromCOperation(op *C.TintOperation) operation.Operation {
 	var result operation.Operation
 	for i := range result.Inputs {

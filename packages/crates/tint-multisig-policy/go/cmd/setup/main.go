@@ -1,5 +1,6 @@
-// Command setup generates the MultisigPolicyCircuit's Groth16 setup
-// artifacts and writes them to ../artifacts.
+// Command setup generates the MultisigPolicyCircuit's and
+// HardwareWalletPolicyCircuit's Groth16 setup artifacts and writes them to
+// ../artifacts and ../artifacts/hardware_wallet respectively.
 package main
 
 import (
@@ -17,20 +18,26 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-const artifactsDir = "../artifacts/"
+const (
+	multisigDir       = "../artifacts/"
+	hardwareWalletDir = "../artifacts/hardware_wallet/"
+)
 
 func main() {
-	err := generateArtifacts()
-	if err != nil {
+	var multisig circuit.MultisigPolicyCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]
+	if err := generateArtifacts(&multisig, multisigDir); err != nil {
+		log.Fatal(err)
+	}
+	var hardwareWallet circuit.HardwareWalletPolicyCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]
+	if err := generateArtifacts(&hardwareWallet, hardwareWalletDir); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func generateArtifacts() error {
-	fmt.Println("Generating setup artifacts")
+func generateArtifacts(c frontend.Circuit, artifactsDir string) error {
+	fmt.Println("Generating setup artifacts in", artifactsDir)
 
-	var c circuit.MultisigPolicyCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]
-	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &c)
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, c)
 	if err != nil {
 		return fmt.Errorf("compiling circuit: %w", err)
 	}

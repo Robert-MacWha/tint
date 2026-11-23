@@ -13,6 +13,15 @@ pub fn load_artifacts() -> std::io::Result<Artifacts> {
     })
 }
 
+/// Loads the hardware-wallet circuit's artifacts.
+pub fn load_hardware_wallet_artifacts() -> std::io::Result<Artifacts> {
+    Ok(Artifacts {
+        ccs: read_artifact("hardware_wallet/ccs.bin")?,
+        pk: read_artifact("hardware_wallet/proving_key.bin")?,
+        vk: read_artifact("hardware_wallet/verifying_key.bin")?,
+    })
+}
+
 pub fn load_ccs() -> std::io::Result<Vec<u8>> {
     read_artifact("ccs.bin")
 }

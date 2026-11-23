@@ -37,6 +37,34 @@ func TintProve(
 	input *C.TintProveInput,
 	outProof **C.uint8_t, outProofLen *C.size_t,
 ) C.uint8_t {
+	assignment := fromCProveInput(input)
+	return prove(ccsPtr, ccsLen, pkPtr, pkLen, vkPtr, vkLen, &assignment, outProof, outProofLen)
+}
+
+// TintHardwareWalletProve is TintProve for the hardware-wallet policy
+// circuit.
+//
+//export TintHardwareWalletProve
+func TintHardwareWalletProve(
+	ccsPtr *C.uint8_t, ccsLen C.size_t,
+	pkPtr *C.uint8_t, pkLen C.size_t,
+	vkPtr *C.uint8_t, vkLen C.size_t,
+	input *C.TintHardwareWalletProveInput,
+	outProof **C.uint8_t, outProofLen *C.size_t,
+) C.uint8_t {
+	assignment := fromCHardwareWalletProveInput(input)
+	return prove(ccsPtr, ccsLen, pkPtr, pkLen, vkPtr, vkLen, &assignment, outProof, outProofLen)
+}
+
+// prove proves assignment against the given artifacts, as TintProve
+// describes.
+func prove(
+	ccsPtr *C.uint8_t, ccsLen C.size_t,
+	pkPtr *C.uint8_t, pkLen C.size_t,
+	vkPtr *C.uint8_t, vkLen C.size_t,
+	assignment frontend.Circuit,
+	outProof **C.uint8_t, outProofLen *C.size_t,
+) C.uint8_t {
 	// Load inputs from C
 	var ccs bn254cs.R1CS
 	if err := fromC(&ccs, ccsPtr, ccsLen); err != nil {
@@ -54,8 +82,7 @@ func TintProve(
 	}
 
 	// Build witness
-	assignment := fromCProveInput(input)
-	fullWitness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	fullWitness, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
 	if err != nil {
 		return 4
 	}

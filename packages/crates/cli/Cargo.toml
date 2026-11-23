@@ -7,25 +7,41 @@ edition = "2024"
 name = "tint-cli"
 path = "src/main.rs"
 
+[features]
+# Signs hardware-wallet accounts with a USB Ledger device.
+ledger = ["dep:alloy-signer-ledger", "tint-multisig-policy/ledger"]
+
 [dependencies]
 alloy = { workspace = true }
 alloy-provider = { workspace = true, features = ["tenderly-admin-api"] }
+alloy-signer-ledger = { workspace = true, optional = true }
 alloy-signer-local = { workspace = true }
 anyhow = { workspace = true }
 ark-bn254 = { workspace = true }
 ark-ff = { workspace = true }
 ark-relations = { workspace = true }
+base64 = "0.22"
 clap = { workspace = true, features = ["env"] }
 k256 = { workspace = true }
+kohaku-userop-kit = { workspace = true }
 rand_core = { workspace = true, features = ["getrandom"] }
+reqwest = { workspace = true }
 rustls = { version = "0.23", features = ["ring"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 signature = { workspace = true }
 tint = { workspace = true }
+tint-adapter = { workspace = true }
 tint-groth16 = { workspace = true }
+tint-intent-policy = { workspace = true }
+tint-intent-relay = { workspace = true }
 tint-multisig-policy = { workspace = true }
 tint-password-policy = { workspace = true }
+tint-paymaster = { workspace = true }
+tint-timelock-policy = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
+[lints]
+workspace = true

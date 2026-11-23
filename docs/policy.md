@@ -91,22 +91,26 @@ Hardware wallets show the domain and `signingHash` rather than the operation's a
 
 #### Time Lock
 
-Requires the current timestamp be greater than or equal to the `unlockTimestamp` to spend the note.
+Requires the current timestamp be greater than or equal to the `unlockTimestamp` to spend the note. Implemented by [`tint-timelock-policy`](../packages/crates/tint-timelock-policy) and `TimelockPolicy.sol`.
 
 ```
 public:
-    field policyHash
-    field signingHash
-    field operationTimestamp
-private:
     field policyAddress
-    field policyWitness
+    field signingHash
+    field bound
+private:
+    field policyWitness   // per input bound to policyAddress
     field unlockTimestamp
+    field salt
 
-assert(policyHash == poseidon2(policyAddress, policyWitness))
-assert(policyWitness == unlockTimestamp)
-assert(operationTimestamp >= unlockTimestamp)
+assert(policyWitness == poseidon2(unlockTimestamp, salt))
+assert(unlockTimestamp < 2^64)
+assert(bound - unlockTimestamp < 2^64)   // unlockTimestamp <= bound
 ```
+
+The policy input is `abi.encode(proof, bound)` and the contract requires `bound <= block.timestamp`. Proving against a public `bound` rather than the timestamp lets the prover reveal a coarse bound (e.g. the next whole day) instead of the exact unlock time. The `salt` hides the unlock time from anyone holding the account's policy hash. The contract verifies the proof before checking `bound`, so a placeholder input spends a valid input's gas before reverting.
+
+A timelock only adds a restriction: spending still needs the note's nullifying key. Since each note has one policy, it can't be combined with another rule such as a multisig.
 
 #### Limit Order
 

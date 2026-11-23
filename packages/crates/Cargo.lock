@@ -6203,6 +6203,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "tint-timelock-policy"
+version = "0.1.0"
+dependencies = [
+ "alloy-contract",
+ "alloy-node-bindings",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-types-eth",
+ "alloy-signer-local",
+ "alloy-sol-macro",
+ "alloy-sol-types",
+ "anyhow",
+ "ark-bn254",
+ "ark-groth16",
+ "ark-r1cs-std",
+ "ark-relations",
+ "ark-snark",
+ "ark-std 0.6.0",
+ "rand_core 0.6.4",
+ "taceo-groth16-sol",
+ "thiserror 2.0.21",
+ "tint",
+ "tint-groth16",
+ "tint-poseidon2",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "tinystr"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

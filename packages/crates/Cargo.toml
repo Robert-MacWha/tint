@@ -10,6 +10,7 @@ members = [
     "tint-paymaster",
     "tint-password-policy",
     "tint-poseidon2",
+    "tint-timelock-policy",
 ]
 resolver = "3"
 

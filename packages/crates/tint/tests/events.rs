@@ -67,6 +67,7 @@ async fn events() -> Result<(), Box<dyn std::error::Error>> {
     // Verify emitted events
     info!("Verifying events");
     let block_number = receipt.block_number.ok_or("receipt missing block number")?;
+    let tx_hash = receipt.transaction_hash;
     let emitted: Vec<SyncEvent> = receipt
         .inner
         .logs()
@@ -79,6 +80,7 @@ async fn events() -> Result<(), Box<dyn std::error::Error>> {
         SyncEvent::Nullified(Nullified {
             nullifier,
             block_number,
+            tx_hash,
         })
     });
 
@@ -90,6 +92,7 @@ async fn events() -> Result<(), Box<dyn std::error::Error>> {
                 leaf_index,
                 encrypted_note: ciphertext.clone(),
                 block_number,
+                tx_hash,
             })
         },
     );
@@ -98,6 +101,7 @@ async fn events() -> Result<(), Box<dyn std::error::Error>> {
         amount: 2 * amount - 800,
         recipient: unshield_address,
         block_number,
+        tx_hash,
     });
     let expected: Vec<SyncEvent> = nullified
         .chain(committed)

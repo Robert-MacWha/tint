@@ -34,13 +34,13 @@ enum Command {
         #[arg(long, env = "PRIVATE_KEY")]
         private_key: B256,
     },
-    /// Shield (deposit) ERC20 funds into a shielded account, auto-approving the transfer
-    Shield {
-        /// The local account name to shield into
+    /// Deposit ERC20 funds into a shielded account, auto-approving the transfer
+    Deposit {
+        /// The local account name to deposit into
         to: String,
-        /// The ERC20 token address to shield
+        /// The ERC20 token address to deposit
         token: Address,
-        /// The amount of the token to shield
+        /// The amount of the token to deposit
         amount: u128,
         #[arg(long, env = "TINT_ADDRESS")]
         tint_address: Address,
@@ -66,15 +66,15 @@ enum Command {
         #[arg(long, env = "PRIVATE_KEY")]
         private_key: B256,
     },
-    /// Unshield (withdraw) funds to a plain Ethereum address
-    Unshield {
-        /// The local account name to unshield from
+    /// Withdraw funds to a plain Ethereum address
+    Withdraw {
+        /// The local account name to withdraw from
         from: String,
-        /// The Ethereum address to unshield to
+        /// The Ethereum address to withdraw to
         to: Address,
-        /// The ERC20 token address to unshield
+        /// The ERC20 token address to withdraw
         token: Address,
-        /// The amount of the token to unshield
+        /// The amount of the token to withdraw
         amount: u128,
         #[arg(long, env = "TINT_ADDRESS")]
         tint_address: Address,
@@ -151,7 +151,7 @@ async fn main() -> anyhow::Result<()> {
                 chain::connect(account, authorizer, tint_address, &rpc_url, private_key).await?;
             chain::print_balance(&session);
         }
-        Command::Shield {
+        Command::Deposit {
             to,
             token,
             amount,
@@ -162,7 +162,7 @@ async fn main() -> anyhow::Result<()> {
             let (to, authorizer) = config::load_account(&to)?;
             let mut session =
                 chain::connect(to, authorizer, tint_address, &rpc_url, private_key).await?;
-            chain::shield(&mut session, token, amount).await?;
+            chain::deposit(&mut session, token, amount).await?;
         }
         Command::Transfer {
             from,
@@ -178,7 +178,7 @@ async fn main() -> anyhow::Result<()> {
                 chain::connect(from, authorizer, tint_address, &rpc_url, private_key).await?;
             chain::transfer(&mut session, &to, token, amount).await?;
         }
-        Command::Unshield {
+        Command::Withdraw {
             from,
             to,
             token,
@@ -190,7 +190,7 @@ async fn main() -> anyhow::Result<()> {
             let (from, authorizer) = config::load_account(&from)?;
             let mut session =
                 chain::connect(from, authorizer, tint_address, &rpc_url, private_key).await?;
-            chain::unshield(&mut session, to, token, amount).await?;
+            chain::withdraw(&mut session, to, token, amount).await?;
         }
         Command::Address { private_key } => {
             let address = chain::eth_address(private_key)?;

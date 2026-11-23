@@ -12,9 +12,8 @@ contract DeployMultisigPolicy is Script {
     function run() external returns (Verifier verifier, MultisigPolicy policy) {
         vm.startBroadcast();
 
-        verifier = new Verifier();
         Poseidon2T2 poseidon = new Poseidon2T2();
-        policy = new MultisigPolicy(verifier, poseidon);
+        (verifier, policy) = deployMultisigPolicy(poseidon);
 
         vm.stopBroadcast();
 
@@ -22,4 +21,10 @@ contract DeployMultisigPolicy is Script {
         console.log("Poseidon2T2 deployed to", address(poseidon));
         console.log("MultisigPolicy deployed to", address(policy));
     }
+}
+
+/// Deploys the MultisigPolicy contract with its verifier, over an existing Poseidon2-T2.
+function deployMultisigPolicy(Poseidon2T2 poseidon) returns (Verifier verifier, MultisigPolicy policy) {
+    verifier = new Verifier();
+    policy = new MultisigPolicy(verifier, poseidon);
 }

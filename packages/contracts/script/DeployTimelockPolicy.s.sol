@@ -12,9 +12,8 @@ contract DeployTimelockPolicy is Script {
     function run() external returns (Verifier verifier, TimelockPolicy policy) {
         vm.startBroadcast();
 
-        verifier = new Verifier();
         Poseidon2T2 poseidon = new Poseidon2T2();
-        policy = new TimelockPolicy(verifier, poseidon);
+        (verifier, policy) = deployTimelockPolicy(poseidon);
 
         vm.stopBroadcast();
 
@@ -22,4 +21,10 @@ contract DeployTimelockPolicy is Script {
         console.log("Poseidon2T2 deployed to", address(poseidon));
         console.log("TimelockPolicy deployed to", address(policy));
     }
+}
+
+/// Deploys the TimelockPolicy contract with its verifier, over an existing Poseidon2-T2.
+function deployTimelockPolicy(Poseidon2T2 poseidon) returns (Verifier verifier, TimelockPolicy policy) {
+    verifier = new Verifier();
+    policy = new TimelockPolicy(verifier, poseidon);
 }

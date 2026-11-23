@@ -12,9 +12,8 @@ contract DeployHardwareWalletPolicy is Script {
     function run() external returns (Verifier verifier, HardwareWalletPolicy policy) {
         vm.startBroadcast();
 
-        verifier = new Verifier();
         Poseidon2T2 poseidon = new Poseidon2T2();
-        policy = new HardwareWalletPolicy(verifier, poseidon);
+        (verifier, policy) = deployHardwareWalletPolicy(poseidon);
 
         vm.stopBroadcast();
 
@@ -22,4 +21,10 @@ contract DeployHardwareWalletPolicy is Script {
         console.log("Poseidon2T2 deployed to", address(poseidon));
         console.log("HardwareWalletPolicy deployed to", address(policy));
     }
+}
+
+/// Deploys the HardwareWalletPolicy contract with its verifier, over an existing Poseidon2-T2.
+function deployHardwareWalletPolicy(Poseidon2T2 poseidon) returns (Verifier verifier, HardwareWalletPolicy policy) {
+    verifier = new Verifier();
+    policy = new HardwareWalletPolicy(verifier, poseidon);
 }

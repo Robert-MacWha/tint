@@ -2,7 +2,7 @@ pub mod abis;
 pub mod account;
 pub mod array;
 pub mod circuit;
-mod crypto;
+pub mod crypto;
 pub mod deposit;
 pub mod fr;
 pub mod note;

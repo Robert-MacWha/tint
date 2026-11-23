@@ -54,7 +54,7 @@ async fn events() -> Result<(), Box<dyn std::error::Error>> {
     // Spend 2 inputs into 2 outputs and 1 withdrawal, leaving the rest of
     // the slots as sentinels.
     info!("Operating");
-    let simulated = OperationBuilder::new()
+    let simulated = OperationBuilder::new(&account_1.encryption_key)
         .spend(notes[0].clone())
         .spend(notes[1].clone())
         .output(account_1.pub_account(), asset, 300)

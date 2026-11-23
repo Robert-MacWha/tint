@@ -94,7 +94,7 @@ TODO: EIP-8141 support on the Hegota devnet using the same approach. Same code s
   - `tint-paymaster`: ERC-4337 client for `TintPaymaster`.
   - `tint-multisig-policy`, `tint-password-policy`: example policies.
   - `tint-groth16`, `tint-poseidon2`: Groth16 and Poseidon2 support crates.
-- [`docs`](./docs/): design notes ([policy](./docs/policy.md), [Picus verification](./docs/picus-verification.md)).
+- [`docs`](./docs/): design notes ([policy](./docs/policy.md), [note encryption](./docs/note-encryption.md), [Picus verification](./docs/picus-verification.md)).
 
 ## CLI Examples
 

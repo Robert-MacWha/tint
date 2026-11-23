@@ -45,7 +45,7 @@ async fn public_signals_match_onchain() -> Result<(), Box<dyn std::error::Error>
 
     //? The public signals don't depend on the proof, so simulating computes
     //? them without proving.
-    let simulated = OperationBuilder::new()
+    let simulated = OperationBuilder::new(&account.encryption_key)
         .spend(note)
         .output(account.pub_account(), asset, 900)
         .withdraw(Address::repeat_byte(2), asset, 100)

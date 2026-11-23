@@ -186,7 +186,7 @@ mod tests {
         let note = account
             .pub_account()
             .commitment(AssetId::default(), 100, B256::ZERO);
-        let op = OperationBuilder::new()
+        let op = OperationBuilder::new(&account.encryption_key)
             .spend(OwnedNote::new(note, &account).unwrap())
             .change_to(account.pub_account())
             .build(&mut StdRng::seed_from_u64(1))

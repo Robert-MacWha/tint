@@ -1,2 +1,2 @@
 pub mod aaed;
-pub mod envelope;
+pub mod secret;

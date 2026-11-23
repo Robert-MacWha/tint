@@ -61,7 +61,7 @@ async fn multisig() -> Result<(), Box<dyn std::error::Error>> {
 
     // Spend the note, which is only spendable using the `MultisigPolicy` contract / circuit.
     info!("Spending note");
-    let mut op = OperationBuilder::new()
+    let mut op = OperationBuilder::new(&account_1.encryption_key)
         .spend(notes[0].clone())
         .output(account_1.pub_account(), asset, amount - 100)
         .output(account_2.pub_account(), asset, 100)

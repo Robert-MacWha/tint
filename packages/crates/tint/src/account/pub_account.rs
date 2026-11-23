@@ -2,7 +2,7 @@ use alloy_primitives::B256;
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 use serde::{Deserialize, Serialize};
-use x25519_dalek::PublicKey;
+use x_wing::{ENCAPSULATION_KEY_SIZE, TryKeyInit};
 
 use crate::{
     account::keys::{EncryptionPubKey, NullifierPubKey},
@@ -13,7 +13,7 @@ use crate::{
 ///
 /// Primarily used to send notes to another user's account.
 #[serde_with::serde_as]
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PubAccount {
     pub nullifier_pub_key: NullifierPubKey,
     pub encryption_pub_key: EncryptionPubKey,
@@ -25,6 +25,8 @@ pub struct PubAccount {
 pub enum PubAccountBytesError {
     #[error("invalid length")]
     InvalidLength,
+    #[error("invalid encryption key")]
+    InvalidEncryptionKey,
 }
 
 impl PubAccount {
@@ -47,19 +49,24 @@ impl PubAccount {
     ///
     /// Errors if `bytes` cannot be parsed.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, PubAccountBytesError> {
+        const POLICY_OFFSET: usize = 32 + ENCAPSULATION_KEY_SIZE;
+
         let nullifier_pub_key_bytes = bytes.get(..32).ok_or(PubAccountBytesError::InvalidLength)?;
-        let encryption_pub_key_bytes: [u8; 32] = bytes
-            .get(32..64)
+        let encryption_pub_key_bytes: [u8; ENCAPSULATION_KEY_SIZE] = bytes
+            .get(32..POLICY_OFFSET)
             .ok_or(PubAccountBytesError::InvalidLength)?
             .try_into()
             .map_err(|_| PubAccountBytesError::InvalidLength)?;
         let policy_hash = bytes
-            .get(64..96)
+            .get(POLICY_OFFSET..POLICY_OFFSET + 32)
             .ok_or(PubAccountBytesError::InvalidLength)?;
+
+        x_wing::EncapsulationKey::new_from_slice(&encryption_pub_key_bytes)
+            .map_err(|_| PubAccountBytesError::InvalidEncryptionKey)?;
 
         let nullifier_pub_key =
             NullifierPubKey(Fr::from_be_bytes_mod_order(nullifier_pub_key_bytes));
-        let encryption_pub_key = EncryptionPubKey(PublicKey::from(encryption_pub_key_bytes));
+        let encryption_pub_key = EncryptionPubKey(encryption_pub_key_bytes);
         let policy_hash = Fr::from_be_bytes_mod_order(policy_hash);
         Ok(Self {
             nullifier_pub_key,
@@ -84,7 +91,7 @@ impl PubAccount {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = Vec::new();
         buf.extend_from_slice(&self.nullifier_pub_key.0.into_bigint().to_bytes_be());
-        buf.extend_from_slice(self.encryption_pub_key.0.as_bytes());
+        buf.extend_from_slice(&self.encryption_pub_key.0);
         buf.extend_from_slice(&self.policy_hash.into_bigint().to_bytes_be());
         buf
     }

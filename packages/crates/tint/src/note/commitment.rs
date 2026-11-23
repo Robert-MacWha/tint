@@ -7,8 +7,8 @@ use serde_with::{DeserializeAs, SerializeAs};
 use tint_poseidon2::poseidon2_compress;
 
 use crate::{
-    account::keys::{EncryptionKey, EncryptionPubKey, NullifierKey, NullifierPubKey},
-    crypto::envelope::EncryptedEnvelope,
+    account::keys::{EncryptionKey, EncryptionPubKey, HEADER_LEN, NullifierKey, NullifierPubKey},
+    crypto::{aaed::EncryptionError, secret::NoteSecret},
     fr::b256_to_fr,
     note::asset::AssetId,
 };
@@ -61,7 +61,7 @@ impl<'de> DeserializeAs<'de, u128> for U128AsBytes {
 #[derive(Debug, Clone, Eq, PartialEq, thiserror::Error)]
 pub enum CommitmentError {
     #[error("encryption error")]
-    Encryption(#[from] crate::crypto::aaed::EncryptionError),
+    Encryption(#[from] EncryptionError),
     #[error("serialization error")]
     Serialization(#[from] postcard::Error),
 }
@@ -84,12 +84,13 @@ impl Commitment {
         }
     }
 
-    pub fn from_encrypted(
-        encrypted: &[u8],
-        my_priv: &EncryptionKey,
+    /// Decrypts a note [`Self::encrypt`] encrypted for `commitment` under `secret`.
+    pub fn decrypt(
+        ciphertext: &[u8],
+        commitment: Fr,
+        secret: &NoteSecret,
     ) -> Result<Self, CommitmentError> {
-        let encrypted: EncryptedEnvelope = postcard::from_bytes(encrypted)?;
-        let plaintext = encrypted.decrypt(my_priv)?;
+        let plaintext = secret.open(commitment, ciphertext)?;
         Ok(postcard::from_bytes(&plaintext)?)
     }
 
@@ -149,14 +150,10 @@ impl Commitment {
         poseidon2_compress(&[nullifier_key.0, self.hash()])
     }
 
-    pub fn encrypt<R: RngCore + CryptoRng>(
-        &self,
-        keys: &[EncryptionPubKey],
-        rng: &mut R,
-    ) -> Result<Vec<u8>, CommitmentError> {
+    /// Encrypts this note under `secret`, bound to its commitment.
+    pub fn encrypt(&self, secret: &NoteSecret) -> Result<Vec<u8>, CommitmentError> {
         let plaintext = postcard::to_stdvec(&self)?;
-        let encrypted = EncryptedEnvelope::encrypt(&plaintext, keys, rng)?;
-        Ok(postcard::to_stdvec(&encrypted)?)
+        Ok(secret.seal(self.hash(), &plaintext)?)
     }
 }
 
@@ -170,23 +167,31 @@ impl PartialCommitment {
         }
     }
 
-    pub fn from_encrypted(
-        encrypted: &[u8],
-        my_priv: &EncryptionKey,
-    ) -> Result<Self, CommitmentError> {
-        let encrypted: EncryptedEnvelope = postcard::from_bytes(encrypted)?;
-        let plaintext = encrypted.decrypt(my_priv)?;
+    /// Decrypts a partial [`Self::encrypt`] encrypted to `key`.
+    pub fn decrypt(ciphertext: &[u8], key: &EncryptionKey) -> Result<Self, CommitmentError> {
+        let (header, body) = ciphertext
+            .split_first_chunk::<HEADER_LEN>()
+            .ok_or(EncryptionError::Decryption)?;
+        let secret = key.decapsulate(header).ok_or(EncryptionError::Decryption)?;
+        let plaintext = secret.open(Fr::ZERO, body)?;
         Ok(postcard::from_bytes(&plaintext)?)
     }
 
+    /// Encrypts this partial commitment to `receiver`, as a deposit does.
+    ///
+    /// The ciphertext is an encapsulation header followed by the sealed partial.
+    /// The deposit's amount may not be known yet, so it's sealed for commitment
+    /// zero; its secret is fresh and seals nothing else.
     pub fn encrypt<R: RngCore + CryptoRng>(
         &self,
-        keys: &[EncryptionPubKey],
+        receiver: &EncryptionPubKey,
         rng: &mut R,
     ) -> Result<Vec<u8>, CommitmentError> {
+        let (secret, header) = receiver.encapsulate(rng)?;
         let plaintext = postcard::to_stdvec(&self)?;
-        let encrypted = EncryptedEnvelope::encrypt(&plaintext, keys, rng)?;
-        Ok(postcard::to_stdvec(&encrypted)?)
+        let mut ciphertext = header.to_vec();
+        ciphertext.extend(secret.seal(Fr::ZERO, &plaintext)?);
+        Ok(ciphertext)
     }
 }
 
@@ -207,35 +212,42 @@ mod tests {
 
     #[test]
     fn commitment_encryption_decryption() {
-        let keys = Account::from_seed(&[1; 32], Policy::NONE);
+        let secret = NoteSecret::new([1; 32]);
         let commitment = test_commitment();
 
-        let mut rng = rand_core::OsRng;
-        let encrypted = commitment
-            .encrypt(&[keys.encryption_key.public_key()], &mut rng)
-            .unwrap();
-        let decrypted = Commitment::from_encrypted(&encrypted, &keys.encryption_key).unwrap();
+        let encrypted = commitment.encrypt(&secret).unwrap();
+        let decrypted = Commitment::decrypt(&encrypted, commitment.hash(), &secret).unwrap();
 
         assert_eq!(decrypted, commitment);
     }
 
     #[test]
     fn commitment_encryption_fixed_length() {
-        let keys = Account::from_seed(&[1; 32], Policy::NONE);
+        let secret = NoteSecret::new([1; 32]);
 
-        let mut rng = rand_core::OsRng;
-        let mut encrypted_len = |amount| {
+        let encrypted_len = |amount| {
             let commitment = Commitment {
                 amount,
                 ..test_commitment()
             };
-            commitment
-                .encrypt(&[keys.encryption_key.public_key()], &mut rng)
-                .unwrap()
-                .len()
+            commitment.encrypt(&secret).unwrap().len()
         };
 
         assert_eq!(encrypted_len(1), encrypted_len(u128::MAX));
+    }
+
+    #[test]
+    fn partial_encryption_decryption() {
+        let keys = Account::from_seed(&[1; 32], Policy::NONE);
+        let commitment = test_commitment();
+
+        let encrypted = commitment
+            .partial()
+            .encrypt(&keys.encryption_key.public_key(), &mut rand_core::OsRng)
+            .unwrap();
+        let decrypted = PartialCommitment::decrypt(&encrypted, &keys.encryption_key).unwrap();
+
+        assert_eq!(decrypted, commitment.partial());
     }
 
     fn test_commitment() -> Commitment {

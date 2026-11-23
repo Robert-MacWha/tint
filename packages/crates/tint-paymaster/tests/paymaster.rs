@@ -71,7 +71,7 @@ async fn tint_paymaster_transfer_refund() -> anyhow::Result<()> {
                 .into(),
         }]);
 
-    let operation = OperationBuilder::new()
+    let operation = OperationBuilder::new(&account.encryption_key)
         .spend(notes[0].clone())
         .withdraw(owner.address(), asset, UNSHIELD_AMOUNT)
         .change_to(account.pub_account());
@@ -177,7 +177,7 @@ async fn tint_paymaster_deposit_refund() -> anyhow::Result<()> {
                 .into(),
         }]);
 
-    let operation = OperationBuilder::new()
+    let operation = OperationBuilder::new(&account.encryption_key)
         .spend(notes[0].clone())
         .withdraw(owner.address(), asset, UNSHIELD_AMOUNT)
         .change_to(account.pub_account());

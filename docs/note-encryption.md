@@ -19,6 +19,7 @@ A receiving address (`PubAccount`) is the nullifier public key (32 B), the X-Win
 
 - Outputs back to the sender (change) are sealed under the sender's self-secret.
 - Outputs to the receiver are sealed under the secret the header encapsulates to them.
+- Exact outputs (`OperationBuilder::output_note`), notes their receiver already knows in full, are sealed under a throwaway secret nobody keeps. They are as long as any other sealed note and don't count as a receiver. [Intents](./intents.md) use them for the notes a fill must create.
 - An operation may pay **one receiver besides the sender** (`OperationError::TooManyReceivers` otherwise). If it pays nobody else, the header encapsulates to the sender.
 
 So every operation with `n` outputs emits exactly `1,121 + 152n` bytes of ciphertext, with the header always on output 0.
@@ -73,7 +74,7 @@ A scanner does one view-tag check per operation and deposit, one self-secret tri
 
 ## Trade-offs
 
-- **One receiver per operation.** Paying several parties takes one operation each. This is the cost of hiding how many parties an operation pays.
+- **One receiver per operation.** Paying several parties takes one operation each, unless they already know their notes (exact outputs). This is the cost of hiding how many parties an operation pays.
 - **Ciphertext lengths.** They depend only on the output count, which is already public; deposits are all the same length. Whether an operation pays someone else or only its sender is hidden.
 - **View tags and quantum adversaries.** The tag is 8 bits derived from the X25519 secret. Classically it reveals nothing and costs X-Wing at most 8 bits of its classical security, like ERC-5564 view tags. An adversary who can break X25519 and knows an address can use tags to discard all but ~1/256 of operations as not paying that address: a weak linkability leak. They still can't decrypt anything, as ML-KEM protects the contents.
 - **Address size.** 1,280 B (2,560 hex characters) is too long to paste comfortably. It fits a single QR code in binary mode; for typed or spoken sharing, publish it somewhere (e.g. an ENS text record or a registry contract) and share a short name.

@@ -27,6 +27,7 @@ use crate::{
     circuit::join_split::{
         FRONTIER_OFFSET, JoinSplit, JoinSplitCircuit, N_INPUTS, N_OUTPUTS, N_WITHDRAWALS,
     },
+    crypto::secret::NoteSecret,
     fr::{fr_to_b256, fr_to_u256},
     note::{
         asset::AssetId,
@@ -44,7 +45,7 @@ pub struct OperationBuilder {
     /// Encrypts the outputs the sender sends itself, without a KEM.
     sender: EncryptionKey,
     inputs: Vec<OwnedNote>,
-    outputs: Vec<(PubAccount, AssetId, u128)>,
+    outputs: Vec<PendingOutput>,
     withdrawals: Vec<Withdrawal>,
     change: Option<PubAccount>,
     caller: Address,
@@ -120,6 +121,16 @@ pub enum OperationError {
     Compression(#[from] ark_hybrid_compression::circuit::CompressError),
 }
 
+/// An output [`OperationBuilder::build`] will create.
+#[derive(Clone)]
+#[expect(clippy::large_enum_variant, reason = "an operation has a few outputs")]
+enum PendingOutput {
+    /// A new note for a receiver, with fresh randomness.
+    New(PubAccount, AssetId, u128),
+    /// An exact note its receiver already knows.
+    Exact(Commitment),
+}
+
 impl OperationBuilder {
     /// Starts an operation sent by the holder of `sender`.
     #[must_use]
@@ -145,7 +156,18 @@ impl OperationBuilder {
     /// Creates a new note for `receiver`.
     #[must_use]
     pub fn output(mut self, receiver: PubAccount, asset: AssetId, amount: u128) -> Self {
-        self.outputs.push((receiver, asset, amount));
+        self.outputs
+            .push(PendingOutput::New(receiver, asset, amount));
+        self
+    }
+
+    /// Creates exactly `note`, which its receiver must already know.
+    ///
+    /// The note isn't encrypted to anyone, so it doesn't count as a receiver:
+    /// its output carries a ciphertext of the usual length no one can open.
+    #[must_use]
+    pub fn output_note(mut self, note: Commitment) -> Self {
+        self.outputs.push(PendingOutput::Exact(note));
         self
     }
 
@@ -202,13 +224,7 @@ impl OperationBuilder {
             return Err(OperationError::TooManyWithdrawals);
         }
 
-        let notes: Vec<_> = outputs
-            .into_iter()
-            .map(|(receiver, asset, amount)| {
-                let commitment = receiver.commitment(asset, amount, B256::new(rng.r#gen()));
-                (receiver.encryption_pub_key, commitment)
-            })
-            .collect();
+        let notes: Vec<_> = outputs.into_iter().map(|o| o.into_note(rng)).collect();
         let ciphertexts = encrypt_outputs(&self.sender, &notes, rng)?;
         let commitments = notes.into_iter().map(|(_, commitment)| commitment);
 
@@ -231,7 +247,7 @@ impl OperationBuilder {
 
     /// Checks that each asset balances, returning a change output for each
     /// asset with input value left over.
-    fn change_outputs(&self) -> Result<Vec<(PubAccount, AssetId, u128)>, OperationError> {
+    fn change_outputs(&self) -> Result<Vec<PendingOutput>, OperationError> {
         let mut change = Vec::new();
         for asset in self.assets() {
             let input: u128 = self
@@ -243,8 +259,8 @@ impl OperationBuilder {
             let output: u128 = self
                 .outputs
                 .iter()
-                .filter(|(_, a, _)| *a == asset)
-                .map(|(_, _, amount)| amount)
+                .filter(|o| o.asset() == asset)
+                .map(PendingOutput::amount)
                 .sum();
             let withdrawn: u128 = self
                 .withdrawals
@@ -264,7 +280,7 @@ impl OperationBuilder {
                 .change
                 .clone()
                 .ok_or(OperationError::Unbalanced(asset))?;
-            change.push((receiver, asset, remainder));
+            change.push(PendingOutput::New(receiver, asset, remainder));
         }
 
         Ok(change)
@@ -273,7 +289,7 @@ impl OperationBuilder {
     /// Every asset this operation touches, in first-seen order.
     fn assets(&self) -> Vec<AssetId> {
         let inputs = self.inputs.iter().map(|n| n.note.asset);
-        let outputs = self.outputs.iter().map(|(_, asset, _)| *asset);
+        let outputs = self.outputs.iter().map(PendingOutput::asset);
         let withdrawals = self.withdrawals.iter().map(|w| w.asset);
 
         let mut assets = Vec::new();
@@ -577,6 +593,36 @@ impl ProvenOperation {
     }
 }
 
+impl PendingOutput {
+    fn asset(&self) -> AssetId {
+        match self {
+            Self::New(_, asset, _) => *asset,
+            Self::Exact(note) => note.asset,
+        }
+    }
+
+    fn amount(&self) -> u128 {
+        match self {
+            Self::New(_, _, amount) => *amount,
+            Self::Exact(note) => note.amount,
+        }
+    }
+
+    /// The note to create, and the key to encrypt it to unless it's exact.
+    fn into_note<R: RngCore + CryptoRng>(
+        self,
+        rng: &mut R,
+    ) -> (Option<EncryptionPubKey>, Commitment) {
+        match self {
+            Self::New(receiver, asset, amount) => {
+                let note = receiver.commitment(asset, amount, B256::new(rng.r#gen()));
+                (Some(receiver.encryption_pub_key), note)
+            }
+            Self::Exact(note) => (None, note),
+        }
+    }
+}
+
 /// Checks that `proofs` prove each of `inputs` against a shared frontier.
 fn check_proofs<'a>(
     inputs: impl Iterator<Item = &'a SpendableNote>,
@@ -607,12 +653,13 @@ fn check_proofs<'a>(
 
 /// Encrypts each output note, carrying one shared KEM header on the first.
 ///
-/// Notes to the sender are sealed under its self-secret. The rest must share a
-/// single receiver, whom the header encapsulates to (the sender if there's none),
-/// so every operation carries exactly one header whoever it pays.
+/// Notes to the sender are sealed under its self-secret, and exact notes (with
+/// no key) under a throwaway secret. The rest must share a single receiver,
+/// whom the header encapsulates to (the sender if there's none), so every
+/// operation carries exactly one header whoever it pays.
 fn encrypt_outputs<R: RngCore + CryptoRng>(
     sender: &EncryptionKey,
-    notes: &[(EncryptionPubKey, Commitment)],
+    notes: &[(Option<EncryptionPubKey>, Commitment)],
     rng: &mut R,
 ) -> Result<Vec<Bytes>, OperationError> {
     if notes.is_empty() {
@@ -620,23 +667,25 @@ fn encrypt_outputs<R: RngCore + CryptoRng>(
     }
 
     let sender_pub = sender.public_key();
-    let mut others = notes.iter().map(|(r, _)| r).filter(|r| **r != sender_pub);
+    let mut others = notes
+        .iter()
+        .filter_map(|(r, _)| r.as_ref())
+        .filter(|r| **r != sender_pub);
     let receiver = others.next().unwrap_or(&sender_pub);
     if others.any(|r| r != receiver) {
         return Err(OperationError::TooManyReceivers);
     }
 
-    let (shared, header) = receiver
-        .encapsulate(rng)
-        .map_err(CommitmentError::from)?;
+    let (shared, header) = receiver.encapsulate(rng).map_err(CommitmentError::from)?;
+    let throwaway = NoteSecret::new(rng.r#gen());
     notes
         .iter()
         .enumerate()
         .map(|(i, (receiver, note))| {
-            let secret = if *receiver == sender_pub {
-                sender.self_secret()
-            } else {
-                &shared
+            let secret = match receiver {
+                None => &throwaway,
+                Some(r) if *r == sender_pub => sender.self_secret(),
+                Some(_) => &shared,
             };
             let mut ciphertext = if i == 0 { header.to_vec() } else { Vec::new() };
             ciphertext.extend(note.encrypt(secret)?);
@@ -750,6 +799,53 @@ mod tests {
             .unwrap();
 
         assert!(matches!(err, OperationError::TooManyReceivers));
+    }
+
+    /// Should create exact notes as given, keeping their randomness.
+    #[test]
+    fn test_output_note() {
+        let (sender, note) = funded(1);
+        let exact = sender
+            .pub_account()
+            .commitment(AssetId::default(), 100, B256::repeat_byte(9));
+
+        let op = OperationBuilder::new(&sender.encryption_key)
+            .spend(note)
+            .output_note(exact)
+            .build(&mut StdRng::seed_from_u64(1))
+            .unwrap();
+
+        assert_eq!(op.witness().outputs[0], exact);
+    }
+
+    /// Should not count exact notes as receivers, nor change ciphertext lengths.
+    #[test]
+    fn test_output_note_not_a_receiver() {
+        let (sender, note) = funded(1);
+        let exact = |seed| {
+            Account::from_seed(&[seed; 32], Policy::NONE)
+                .pub_account()
+                .commitment(AssetId::default(), 30, B256::repeat_byte(seed))
+        };
+        let receiver = Account::from_seed(&[4; 32], Policy::NONE);
+        let lengths = |op: Operation| op.witness().ciphertexts.clone().map(|c| c.len());
+
+        let exact_op = OperationBuilder::new(&sender.encryption_key)
+            .spend(note.clone())
+            .output_note(exact(2))
+            .output_note(exact(3))
+            .output(receiver.pub_account(), AssetId::default(), 40)
+            .build(&mut StdRng::seed_from_u64(1))
+            .unwrap();
+        let plain_op = OperationBuilder::new(&sender.encryption_key)
+            .spend(note)
+            .output(receiver.pub_account(), AssetId::default(), 30)
+            .output(receiver.pub_account(), AssetId::default(), 30)
+            .output(receiver.pub_account(), AssetId::default(), 40)
+            .build(&mut StdRng::seed_from_u64(1))
+            .unwrap();
+
+        assert_eq!(lengths(exact_op), lengths(plain_op));
     }
 
     fn policy() -> Policy {
